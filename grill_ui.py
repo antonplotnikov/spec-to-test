@@ -9,6 +9,10 @@ with, so a double click or an outdated page is rejected instead of applied.
 AI is optional. It is offered only when configured, and every request needs
 a fresh consent tick; the model is called from `spec_to_test.grill.ai`, and
 its output enters the session only through the workflow's AI transitions.
+
+A finalized result can be downloaded as Markdown or handed to the analysis
+workspace (`spec_to_test.grill.integration`); the page that owns the
+workspace passes `persist`, which is used to save it.
 """
 
 from collections.abc import Callable
@@ -21,6 +25,16 @@ from spec_to_test.formatting import escape_markdown
 from spec_to_test.grill import ai as grill_ai
 from spec_to_test.grill.drafts import DraftError, draft_from_text, editable_fields, is_list_field
 from spec_to_test.grill.inputs import parse_draft, requirements_draft
+from spec_to_test.grill.integration import (
+    IntegrationError,
+    add_blocker,
+    add_to_workspace,
+    markdown_file_name,
+    resolutions,
+    resolve_blocker,
+    resolve_findings,
+    result_markdown,
+)
 from spec_to_test.grill.models import (
     DRAFT_TYPES,
     AnswerStatus,
@@ -60,6 +74,8 @@ STATE = "grill_session"
 ERROR = "grill_error"  # (translation key, params), shown once on the next run
 UNPARSED = "grill_unparsed"
 NOTICE = "grill_notice"  # (translation key, params), shown once on the next run
+SUCCESS = "grill_success"  # (translation key, params), shown once on the next run
+WORKSPACE = "workspace"  # the analysis page's workspace (see app.py)
 AI_RUNS = "grill_ai_runs"  # part of the consent checkbox key, so consent resets after every request
 OTHER = "__other__"
 
@@ -91,6 +107,10 @@ def _error(key: str, **params: Any) -> None:
 
 def _notice(key: str, **params: Any) -> None:
     st.session_state[NOTICE] = (key, params)
+
+
+def _success(key: str, **params: Any) -> None:
+    st.session_state[SUCCESS] = (key, params)
 
 
 def _run(method: Callable[..., GrillSession], revision: int, *args: Any, **kwargs: Any) -> None:
@@ -189,11 +209,53 @@ def _on_request_confirmation(revision: int, accept_key: str) -> None:
     _run(WF.request_confirmation, revision, bool(st.session_state.get(accept_key, False)))
 
 
+Persist = Callable[[Workspace], None]
+
+
+def _finalized(revision: int) -> GrillSession | None:
+    """The stored session, if it is still the one the page showed."""
+    session = _current()
+    if session is None or session.revision != revision:
+        _error("grill.error.stale_session")
+        return None
+    return session
+
+
+def _on_add_to_workspace(revision: int, lang: str, persist: Persist) -> None:
+    if (session := _finalized(revision)) is None:
+        return
+    try:
+        workspace, item_id = add_to_workspace(session, st.session_state.get(WORKSPACE), lang)
+    except IntegrationError as exc:
+        _error(f"grill.error.{exc.code}")
+        return
+    persist(workspace)
+    _success(f"grill.ui.added_{session.artifact.value}", id=item_id)
+
+
+def _on_resolve(revision: int, persist: Persist, choice_keys: dict[str, str]) -> None:
+    if (session := _finalized(revision)) is None:
+        return
+    chosen = [qid for qid, key in choice_keys.items() if st.session_state.get(key)]
+    before = st.session_state.get(WORKSPACE)
+    try:
+        workspace = resolve_findings(session, before, chosen)
+    except IntegrationError as exc:
+        _error(f"grill.error.{exc.code}")
+        return
+    assert before is not None  # resolve_findings rejects a missing workspace
+    resolved = sum(old.status != new.status for old, new in zip(before.findings, workspace.findings, strict=True))
+    persist(workspace)
+    _success("grill.ui.resolved", count=resolved)
+
+
 # ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
 
-def render_grill(lang: str, workspace: Workspace | None, ai_config: AIConfig | None = None) -> None:
+def render_grill(
+    lang: str, workspace: Workspace | None, ai_config: AIConfig | None = None, persist: Persist | None = None
+) -> None:
     st.subheader(t("grill.ui.heading", lang))
     st.caption(t("grill.ui.intro", lang))
     if ai_config is None:
@@ -212,11 +274,14 @@ def render_grill(lang: str, workspace: Workspace | None, ai_config: AIConfig | N
     if notice := st.session_state.pop(NOTICE, None):
         key, params = notice
         st.info(t(key, lang, **params), icon=":material/smart_toy:")
+    if success := st.session_state.pop(SUCCESS, None):
+        key, params = success
+        st.success(t(key, lang, **params), icon=":material/check_circle:")
 
     if session is None:
         _start_screen(lang, workspace)
     else:
-        _session_screen(lang, session, ai_config)
+        _session_screen(lang, session, ai_config, workspace, persist)
 
 
 def _start_screen(lang: str, workspace: Workspace | None) -> None:
@@ -275,7 +340,13 @@ def _start_screen(lang: str, workspace: Workspace | None) -> None:
         )
 
 
-def _session_screen(lang: str, session: GrillSession, ai_config: AIConfig | None = None) -> None:
+def _session_screen(
+    lang: str,
+    session: GrillSession,
+    ai_config: AIConfig | None = None,
+    workspace: Workspace | None = None,
+    persist: Persist | None = None,
+) -> None:
     title = t(f"grill.kind.{session.kind.value}", lang)
     if session.kind == GrillKind.REVIEW:
         title += f" · {t(f'grill.artifact.{session.artifact.value}', lang)}"
@@ -302,6 +373,7 @@ def _session_screen(lang: str, session: GrillSession, ai_config: AIConfig | None
     elif step == GrillStep.FINALIZED:
         st.success(t("grill.ui.finalized", lang), icon=":material/verified:")
         _result_view(lang, session)
+        _use_panel(lang, session, workspace, persist)
     elif step == GrillStep.CANCELLED:
         st.info(t("grill.ui.cancelled", lang), icon=":material/cancel:")
 
@@ -589,6 +661,53 @@ def _result_view(lang: str, session: GrillSession) -> None:
             }
             for label, value, origin in draft_rows(draft, lang)
         ])
+
+
+def _use_panel(lang: str, session: GrillSession, workspace: Workspace | None, persist: Persist | None) -> None:
+    """Download the confirmed result, or hand it to the analysis workspace."""
+    with st.container(border=True, key="grill_use"):
+        st.markdown(f"##### {t('grill.ui.use_heading', lang)}")
+        st.download_button(
+            t("grill.ui.download_markdown", lang), result_markdown(session, lang),
+            file_name=markdown_file_name(session), mime="text/markdown", icon=":material/download:",
+            key="grill_download",
+        )
+        if persist is None:
+            return
+        if isinstance(session.draft, RequirementsDraft):
+            _resolve_panel(lang, session, workspace, persist)
+            return
+        blocker = add_blocker(session, workspace)
+        st.button(
+            t(f"grill.ui.add_{session.artifact.value}", lang), type="primary", key="grill_add",
+            icon=":material/add_task:", disabled=blocker is not None,
+            on_click=_on_add_to_workspace, args=(session.revision, lang, persist),
+        )
+        if blocker is not None:
+            st.caption(t(f"grill.error.{blocker}", lang))
+
+
+def _resolve_panel(lang: str, session: GrillSession, workspace: Workspace | None, persist: Persist) -> None:
+    """Opt-in, per clarification: nothing is resolved unless the user ticks it."""
+    st.markdown(f"**{t('grill.ui.resolve_heading', lang)}**")
+    if (blocker := resolve_blocker(session, workspace)) is not None:
+        st.caption(t(f"grill.error.{blocker}", lang))
+        return
+    options = resolutions(session, workspace)
+    if not options:
+        st.caption(t("grill.ui.no_resolutions", lang))
+        return
+    st.caption(t("grill.ui.resolve_explainer", lang))
+    keys = {}
+    for option in options:
+        keys[option.question_id] = _key(session, "resolve", option.question_id)
+        label = f"{', '.join(option.requirement_ids)} — {option.clarification}"
+        st.checkbox(_md(label), value=False, key=keys[option.question_id])
+    st.button(
+        t("grill.ui.resolve_button", lang), key="grill_resolve", icon=":material/task_alt:",
+        disabled=not any(st.session_state.get(k) for k in keys.values()),
+        on_click=_on_resolve, args=(session.revision, persist, keys),
+    )
 
 
 # --- Optional AI ------------------------------------------------------------------------

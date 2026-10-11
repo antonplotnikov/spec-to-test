@@ -8,6 +8,7 @@ from spec_to_test.grill.models import GrillStep, load_session
 from spec_to_test.grill.planner import DETERMINISTIC_WORKFLOW
 from spec_to_test.grill.workflow import GrillError
 from spec_to_test.i18n import LANGUAGES, t
+from spec_to_test.storage import load_latest
 from test_localization import raw_keys, visible_text
 
 APP_PATH = str(PROJECT_ROOT / "app.py")
@@ -257,6 +258,82 @@ def test_user_text_is_escaped_in_markdown():
     assert any(r"\[page\](http://evil.example)" in c or r"\[page\]\(http://evil.example\)" in c for c in captions)
 
 
+# --- Using the finalized result ------------------------------------------------------------
+
+TC_DRAFT = """Title: Reset link is sent
+Requirement ID: REQ-2
+Test type: positive
+Steps:
+1. Request a reset
+2. Open the mailbox
+Expected result: A reset link arrives in the mailbox"""
+
+
+def analyzed(example_text: str) -> AppTest:
+    at = new_app()
+    at.text_area[0].input(example_text).run()
+    at.button[0].click().run()
+    return grill(at)
+
+
+def confirm(at: AppTest) -> AppTest:
+    """Review (if needed), accept open warnings and confirm."""
+    if session_of(at).step != GrillStep.REVIEW:
+        click(at, "grill_review_button")
+    if accept := [c for c in at.checkbox if c.key and "_accept_" in c.key]:
+        accept[0].check().run()
+    click(at, "grill_request_confirmation")
+    click(at, "grill_confirm_button")
+    assert session_of(at).step == GrillStep.FINALIZED
+    return at
+
+
+def test_confirmed_test_case_is_added_to_the_analyzed_workspace(example_text):
+    at = analyzed(example_text)
+    before = len(at.session_state["workspace"].test_cases)
+    at = confirm(start(at, "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT))
+    assert len(at.get("download_button")) == 1
+    click(at, "grill_add")
+    workspace = at.session_state["workspace"]
+    case = workspace.test_cases[-1]
+    assert len(workspace.test_cases) == before + 1
+    assert (case.title, case.requirement_id, case.source.value, case.review_status.value) == (
+        "Reset link is sent", "REQ-2", "user", "draft")
+    assert any(case.id in s.value for s in at.success)
+    assert at.button(key="grill_add").disabled  # added once
+    assert t("grill.error.already_added") in [c.value for c in at.caption]
+    assert load_latest() == workspace  # saved like any other edit
+    at.sidebar.radio(key="app_mode").set_value("analysis").run()
+    assert not at.exception
+
+
+def test_result_without_a_document_can_only_be_downloaded():
+    at = confirm(start(grill(), "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT))
+    assert len(at.get("download_button")) == 1
+    assert at.button(key="grill_add").disabled
+    assert t("grill.error.no_workspace") in [c.value for c in at.caption]
+    assert "workspace" not in at.session_state
+
+
+def test_requirements_grill_resolves_only_ticked_findings(example_text):
+    at = analyzed(example_text)
+    at.radio(key="grill_kind").set_value("requirements").run()
+    at = click(at, "grill_start")
+    assert session_of(at).current_question_id == "rule.missing_expected_result.REQ-1"
+    answer_text(at, "A reset email is sent and a confirmation message is shown")
+    at = confirm(at)
+    boxes = [c for c in at.checkbox if c.key and "_resolve_" in c.key]
+    assert len(boxes) == 1 and boxes[0].value is False  # opt-in, nothing ticked
+    assert at.button(key="grill_resolve").disabled
+    boxes[0].check().run()
+    click(at, "grill_resolve")
+    statuses = {f.key: f.status.value for f in at.session_state["workspace"].findings}
+    assert statuses["REQ-1|missing_expected_result|"] == "resolved"
+    assert statuses["REQ-1|missing_error_handling|"] == "needs_clarification"
+    assert any(t("grill.ui.resolved", count=1) == s.value for s in at.success)
+    assert t("grill.ui.no_resolutions") in [c.value for c in at.caption]
+
+
 # --- Localization -------------------------------------------------------------------------------
 
 def walk(lang: str) -> list[AppTest]:
@@ -273,6 +350,8 @@ def walk(lang: str) -> list[AppTest]:
     next(c for c in at.checkbox if c.key and "_accept_" in c.key).check().run()
     click(at, "grill_request_confirmation")
     screens.append(at)
+    click(at, "grill_confirm_button")
+    screens.append(at)  # the finalized result with its download and hand-over options
     other = start(grill(), "test_case", mode="review_draft", text_key="grill_draft_text", text="Title: X")
     other.sidebar.selectbox[0].select(lang).run()
     click(other, "grill_to_draft")

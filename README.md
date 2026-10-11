@@ -186,6 +186,23 @@ How it works:
    data, invented requirement IDs, placeholders such as `TBD`, and more.
 4. **Confirmation.** Only an explicit confirmation finalizes the artifact.
    Any change after a review makes it outdated, and you must review again.
+5. **Use the result.** Every confirmed result can be downloaded as Markdown,
+   with origins, assumptions and open questions kept. When a document is
+   analyzed on the main page:
+   - a **test case** linked to one of its requirements can be added as a
+     *Draft* test case (source *User-provided*). It then appears in Test
+     cases, the RTM, the dashboard and every export, and counts toward
+     coverage once you approve it. Test data is added to the preconditions;
+     assumed values and open questions go to its assumptions and questions.
+   - a **bug report** linked to one of its requirements and with a severity
+     can be added to Bug reports (and the Jira bug CSV). Steps, environment,
+     version, evidence, reproducibility and priority go into the report's
+     context; unknown values are written as *Unknown*. Without a requirement
+     or a severity the report stays Markdown-only — neither is guessed.
+   - **clarified requirements:** findings answered by a clarification you
+     *confirmed* can be marked resolved, one tick per clarification, nothing
+     ticked by default. Assumptions never resolve a finding. This raises the
+     quality score and cannot be undone in the UI yet.
 
 To improve an existing draft, paste it with labels, for example:
 
@@ -251,6 +268,7 @@ src/spec_to_test/
     ├── planner.py           Deterministic question banks
     ├── validation.py        Deterministic review checks
     ├── inputs.py            Labeled-draft parser
+    ├── integration.py       Confirmed results → workspace, resolved findings, Markdown
     └── ai.py                Optional AI questions and review
 grill_ui.py                  Grill Mode page (rendering only)
 tests/                       Unit, integration, regression and Streamlit UI tests
@@ -317,13 +335,17 @@ The app is ready for **Streamlit Community Cloud**. See
   not supported. `**bold**` markers are removed from requirement text.
 - Generated text uses the interface language at generation time.
 - Saved work is matched by the exact document text.
-- Rule findings cannot be marked as resolved in the UI.
+- Rule findings can be marked as resolved only through a confirmed Grill
+  Mode clarification, and cannot be reopened in the UI.
 - Jira priorities and TestRail types/priorities use default values.
 - AI supports Anthropic only and was tested with a fake client, not the live API.
 - Tables do not support column sorting (they wrap text instead of truncating it).
-- Grill Mode keeps its session in the browser only: results are not saved to
-  disk, not added to the RTM, and cannot be exported yet. Findings are resolved
-  by editing the draft; resolving them one by one is planned.
+- Grill Mode keeps its session in the browser only; a page reload loses an
+  unfinished session. Confirmed results are saved only when added to the
+  workspace, which needs an analyzed document and a link to one of its
+  requirements. A test case's *objective* and a bug's product details have no
+  field in the workspace models: the objective is kept only in the Markdown
+  download, the bug details as text in the report's context.
 - Some labels inside Streamlit's file uploader ("Upload", size hint) come from
   Streamlit and stay in English.
 

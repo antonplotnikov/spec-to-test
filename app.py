@@ -216,7 +216,7 @@ with st.container(key="hero"):
 
 # Grill Mode has its own page; the analysis below stays exactly as before.
 if app_mode == "grill":
-    render_grill(lang, st.session_state.get("workspace"), ai_config)
+    render_grill(lang, st.session_state.get("workspace"), ai_config, persist)
     st.stop()
 
 col_text, col_file = st.columns([3, 2], gap="medium")

@@ -22,6 +22,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   - Labeled-draft parser for pasted test cases and bug reports.
   - Optional AI assistant: extra questions and an AI review, with per-request
     consent; AI questions are never essential and AI findings never block.
+  - Confirmed results can be downloaded as Markdown (origins, assumptions
+    and open questions kept), and handed to the analyzed workspace: a test
+    case linked to a requirement becomes a Draft test case (RTM, coverage,
+    Jira / TestRail / Markdown exports); a bug report with a requirement and
+    a severity becomes a bug report (Jira bug CSV). Nothing is added twice.
+  - Opt-in, per clarification: findings answered by a confirmed (not
+    assumed) clarification can be marked resolved.
   - Full EN / UK / RU translations.
 - `Source.USER` for values written or confirmed by a person.
 

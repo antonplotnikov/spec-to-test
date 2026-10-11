@@ -1019,4 +1019,127 @@ GRILL_TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Зауваження ШІ ({model}) не підтверджені — перевірте кожне. Вони ніколи не блокують завершення; попередження ШІ потребують такого ж явного прийняття, як інші.",
         "ru": "Замечания ИИ ({model}) не подтверждены — проверьте каждое. Они никогда не блокируют завершение; предупреждения ИИ требуют такого же явного принятия, как и остальные.",
     },
+    # --- Using the finalized result (workspace, exports, resolving findings) ---
+    "grill.export.note": {
+        "en": "Confirmed in Grill Mode. Values marked as assumptions, AI suggestions or unknown are not confirmed facts.",
+        "uk": "Підтверджено в режимі Grill. Значення, позначені як припущення, пропозиції ШІ або невідомі, не є підтвердженими фактами.",
+        "ru": "Подтверждено в режиме Grill. Значения, отмеченные как допущения, предложения ИИ или неизвестные, не являются подтверждёнными фактами.",
+    },
+    "grill.export.open_questions": {"en": "Open questions", "uk": "Відкриті питання", "ru": "Открытые вопросы"},
+    "grill.export.accepted_findings": {
+        "en": "Review findings accepted as unresolved",
+        "uk": "Зауваження, прийняті як невирішені",
+        "ru": "Замечания, принятые как нерешённые",
+    },
+    "grill.export.test_data_item": {
+        "en": "Test data: {value}",
+        "uk": "Тестові дані: {value}",
+        "ru": "Тестовые данные: {value}",
+    },
+    "grill.export.created_by_grill": {
+        "en": "Written in Grill Mode and confirmed by the user.",
+        "uk": "Складено в режимі Grill і підтверджено користувачем.",
+        "ru": "Составлено в режиме Grill и подтверждено пользователем.",
+    },
+    "grill.ui.use_heading": {"en": "Use the result", "uk": "Використати результат", "ru": "Использовать результат"},
+    "grill.ui.download_markdown": {
+        "en": "Download as Markdown",
+        "uk": "Завантажити як Markdown",
+        "ru": "Скачать как Markdown",
+    },
+    "grill.ui.add_test_case": {
+        "en": "Add to the workspace as a Draft test case",
+        "uk": "Додати до робочого простору як чернетку тест-кейсу",
+        "ru": "Добавить в рабочее пространство как черновик тест-кейса",
+    },
+    "grill.ui.add_bug_report": {
+        "en": "Add to the workspace bug reports",
+        "uk": "Додати до баг-репортів робочого простору",
+        "ru": "Добавить в баг-репорты рабочего пространства",
+    },
+    "grill.ui.added_test_case": {
+        "en": "{id} was added as a Draft test case. Switch to Analysis to see it in Test cases, the RTM and exports; it counts toward coverage once approved.",
+        "uk": "{id} додано як чернетку тест-кейсу. Перейдіть до режиму аналізу, щоб побачити його в тест-кейсах, RTM та експорті; він враховується в покритті після затвердження.",
+        "ru": "{id} добавлен как черновик тест-кейса. Перейдите в режим анализа, чтобы увидеть его в тест-кейсах, RTM и экспорте; он учитывается в покрытии после утверждения.",
+    },
+    "grill.ui.added_bug_report": {
+        "en": "{id} was added to the bug reports. Switch to Analysis to see it in Bug reports, the RTM and exports.",
+        "uk": "{id} додано до баг-репортів. Перейдіть до режиму аналізу, щоб побачити його в баг-репортах, RTM та експорті.",
+        "ru": "{id} добавлен в баг-репорты. Перейдите в режим анализа, чтобы увидеть его в баг-репортах, RTM и экспорте.",
+    },
+    "grill.ui.resolve_heading": {
+        "en": "Mark clarified findings as resolved",
+        "uk": "Позначити уточнені зауваження як вирішені",
+        "ru": "Отметить уточнённые замечания как решённые",
+    },
+    "grill.ui.resolve_explainer": {
+        "en": "Optional. Only clarifications you confirmed are listed; assumptions are not. A resolved finding no longer counts as an open issue and raises the quality score. This version has no button to reopen it.",
+        "uk": "Необов'язково. Показано лише підтверджені вами уточнення; припущення не показано. Вирішене зауваження більше не вважається відкритою проблемою й підвищує оцінку якості. У цій версії немає кнопки, щоб знову його відкрити.",
+        "ru": "Необязательно. Показаны только подтверждённые вами уточнения; допущения не показаны. Решённое замечание больше не считается открытой проблемой и повышает оценку качества. В этой версии нет кнопки, чтобы снова его открыть.",
+    },
+    "grill.ui.resolve_button": {
+        "en": "Mark selected as resolved",
+        "uk": "Позначити вибрані як вирішені",
+        "ru": "Отметить выбранные как решённые",
+    },
+    "grill.ui.resolved": {
+        "en": "{count} finding(s) marked as resolved.",
+        "uk": "Позначено як вирішені зауваження (кількість: {count}).",
+        "ru": "Отмечено как решённые замечания (количество: {count}).",
+    },
+    "grill.ui.no_resolutions": {
+        "en": "No open finding in the workspace matches a clarification you confirmed.",
+        "uk": "Жодне відкрите зауваження в робочому просторі не відповідає підтвердженому вами уточненню.",
+        "ru": "Ни одно открытое замечание в рабочем пространстве не соответствует подтверждённому вами уточнению.",
+    },
+    "grill.error.not_finalized": {
+        "en": "Confirm the result first.",
+        "uk": "Спочатку підтвердьте результат.",
+        "ru": "Сначала подтвердите результат.",
+    },
+    "grill.error.nothing_to_add": {
+        "en": "This result cannot be added to the workspace; download it as Markdown instead.",
+        "uk": "Цей результат не можна додати до робочого простору; натомість завантажте його як Markdown.",
+        "ru": "Этот результат нельзя добавить в рабочее пространство; вместо этого скачайте его как Markdown.",
+    },
+    "grill.error.no_workspace": {
+        "en": "No analyzed document. Analyze one in Analysis mode to add the result there; you can still download it as Markdown.",
+        "uk": "Немає проаналізованого документа. Проаналізуйте його в режимі аналізу, щоб додати туди результат; завантажити його як Markdown можна й зараз.",
+        "ru": "Нет проанализированного документа. Проанализируйте его в режиме анализа, чтобы добавить туда результат; скачать его как Markdown можно и сейчас.",
+    },
+    "grill.error.requirement_link_required": {
+        "en": "The workspace links every item to a requirement, and this result has no requirement ID. Download it as Markdown, or start again and choose a requirement.",
+        "uk": "Робочий простір пов'язує кожен елемент із вимогою, а цей результат не має ID вимоги. Завантажте його як Markdown або почніть знову й виберіть вимогу.",
+        "ru": "Рабочее пространство связывает каждый элемент с требованием, а у этого результата нет ID требования. Скачайте его как Markdown или начните заново и выберите требование.",
+    },
+    "grill.error.requirement_not_in_workspace": {
+        "en": "The linked requirement is not in the analyzed document, so the result cannot be added there.",
+        "uk": "Пов'язаної вимоги немає в проаналізованому документі, тому результат не можна туди додати.",
+        "ru": "Связанного требования нет в проанализированном документе, поэтому результат нельзя туда добавить.",
+    },
+    "grill.error.requirements_not_in_workspace": {
+        "en": "These requirements differ from the analyzed document, so its findings cannot be resolved from here.",
+        "uk": "Ці вимоги відрізняються від проаналізованого документа, тому його зауваження не можна вирішити звідси.",
+        "ru": "Эти требования отличаются от проанализированного документа, поэтому его замечания нельзя решить отсюда.",
+    },
+    "grill.error.incomplete_result": {
+        "en": "The result lacks fields the workspace needs (title, test type, steps, expected result).",
+        "uk": "У результаті бракує полів, потрібних робочому простору (назва, тип тесту, кроки, очікуваний результат).",
+        "ru": "В результате не хватает полей, нужных рабочему пространству (название, тип теста, шаги, ожидаемый результат).",
+    },
+    "grill.error.severity_required": {
+        "en": "Bug reports in the workspace need a severity, and this one has none. It will not be guessed: download it as Markdown, or start again and set it.",
+        "uk": "Баг-репортам у робочому просторі потрібна серйозність, а в цього її немає. Її не буде вгадано: завантажте його як Markdown або почніть знову й укажіть її.",
+        "ru": "Баг-репортам в рабочем пространстве нужна серьёзность, а у этого её нет. Она не будет угадана: скачайте его как Markdown или начните заново и укажите её.",
+    },
+    "grill.error.already_added": {
+        "en": "This result is already in the workspace.",
+        "uk": "Цей результат уже є в робочому просторі.",
+        "ru": "Этот результат уже есть в рабочем пространстве.",
+    },
+    "grill.error.nothing_selected": {
+        "en": "Select at least one clarification.",
+        "uk": "Виберіть принаймні одне уточнення.",
+        "ru": "Выберите хотя бы одно уточнение.",
+    },
 }
