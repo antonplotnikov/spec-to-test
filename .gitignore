@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tool caches and reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+test-results.xml
+
+# Virtual environments
+.venv/
+venv/
+
+# Local workspace data (your documents and edits)
+.spec_to_test_data/
+
+# Secrets — never commit these
+.env
+.streamlit/secrets.toml
+
+# Local tooling / OS / editors
+.claude/
+.DS_Store
+.idea/
+.vscode/
+*.log

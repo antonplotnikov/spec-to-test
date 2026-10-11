@@ -1,0 +1,30 @@
+[project]
+name = "spec-to-test"
+version = "1.0.0"
+description = "Analyze software requirements, detect ambiguities, and generate reviewable test cases."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv", ".spec_to_test_data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# Long translated strings and readable test data are allowed to exceed the line length.
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["spec_to_test", "conftest"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+files = ["src", "app.py"]

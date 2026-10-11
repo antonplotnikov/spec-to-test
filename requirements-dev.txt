@@ -1,0 +1,5 @@
+# Development / test dependencies
+-r requirements.txt
+pytest>=8.0,<10
+ruff>=0.17,<0.18
+mypy>=2.4,<3

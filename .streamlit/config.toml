@@ -1,0 +1,22 @@
+[server]
+# Keep in sync with MAX_FILE_SIZE_BYTES in src/spec_to_test/input_parser.py
+maxUploadSize = 2
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#4F46E5"
+backgroundColor = "#F7F8FC"
+secondaryBackgroundColor = "#EEF0F8"
+textColor = "#1E1B3A"
+borderColor = "#E2E5F0"
+showWidgetBorder = true
+baseRadius = "0.75rem"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F4FA"

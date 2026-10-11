@@ -1,0 +1,7 @@
+# Runtime dependencies (also used by Streamlit Community Cloud).
+# Lower bounds are the versions the test suite runs against; they also exclude
+# releases with known security advisories (pypdf < 6.19, streamlit < 1.54).
+streamlit>=1.65,<2
+pydantic>=2.7,<3
+pypdf>=6.19,<7
+pandas>=2.2,<4
