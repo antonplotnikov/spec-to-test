@@ -17,6 +17,7 @@ a clearly labelled **example** showing the template only.
 | BUG-007 | Bug report created from AI suggestion not visible until next click | Low | Fixed in 1.0.0 | test_app_features.py::test_ai_suggestion_to_bug_report_appears_immediately |
 | BUG-008 | Grill Mode answers and draft fields have no length limit | Low | Fixed in 1.1.0 | test_grill_security.py::test_too_long_answers_and_fields_are_rejected |
 | BUG-009 | Grill result can be added to another document with the same requirement ID | High | Fixed, unreleased (branch `fix/p0-2-grill-context-binding`, not merged) | test_grill_integration.py::test_same_requirement_id_in_another_document_is_not_linked, test_grill_ui.py::test_changing_the_document_mid_session_does_not_move_the_result |
+| BUG-010 | Documents are saved to one shared folder and shown to other visitors unless the host is exactly Streamlit Cloud | Critical | Fixed, unreleased (branch `fix/p0-1-storage-isolation`, not merged; stacked on the unmerged P0-2 commit) | test_storage.py::test_everything_except_explicit_local_means_session, ::test_session_mode_performs_no_disk_io_at_all, test_storage_isolation.py::test_two_sessions_do_not_share_work, ::test_old_files_on_disk_are_not_restored |
 
 ---
 
@@ -273,6 +274,78 @@ and resolving findings are unchanged.
    in `add_blocker()` and is normally unreachable.
 6. This fix does not change local or shared storage. Isolation of saved
    workspaces between users (P0-1) is a separate item and is **not** fixed here.
+
+---
+
+## BUG-010 — Documents are saved to one shared folder and shown to other visitors unless the host is exactly Streamlit Cloud
+
+| Field | Value |
+|---|---|
+| Severity | Critical (privacy: one visitor's requirements, test cases and bug reports are shown to another) |
+| Status | Fixed, unreleased: branch `fix/p0-1-storage-isolation`, not merged or released |
+| Component | `storage.py` (`storage_mode()`, `is_streamlit_cloud()`), `app.py` startup |
+| Found by | Security review of the BUG-001 fix (2026-10-11) |
+| Environment | v1.0.0 and v1.1.0 |
+
+**Description.** The BUG-001 fix chose `session` storage only when the code
+lived under `/mount/src` (Streamlit Cloud) or `SPEC_TO_TEST_STORAGE` was set.
+On every other shared deployment (Docker, a VM, another platform, a different
+mount path, a forgotten variable) the default was `local`: every workspace was
+written to one folder on the server and `latest.json` was restored for each new
+visitor.
+
+**Steps to reproduce (before the fix).**
+1. Run the app from any path other than `/mount/src` without setting
+   `SPEC_TO_TEST_STORAGE` (for example in a container).
+2. In browser A analyze a document and generate bug reports.
+3. Open the app in browser B (another person or a private window).
+
+**Actual.** Browser B shows "Restored your saved work…" with A's workspace; the
+same document hash also restores A's edits when B analyzes the same text.
+**Expected.** Browser B starts empty; nothing is read from or written to disk.
+
+**Fix.** `session` is the default in every environment. Only the exact value
+`local` (case and surrounding spaces ignored) enables disk storage; unknown and
+empty values mean `session`. The `/mount/src` detection was removed. The mode
+is read from the environment / Streamlit secrets only; `.env` is not parsed for
+it. In `session` mode `save_workspace`, `load_workspace` and `load_latest` do
+nothing, `app.py` keeps the workspace in the Streamlit session state (reruns,
+screen switches and re-analyzing the same document keep the edits), and files
+left on disk by earlier versions are ignored. Grill results added to the
+workspace go through the same `persist()` and stay in the session.
+
+**Regression tests.**
+- test_storage.py::test_everything_except_explicit_local_means_session (unset,
+  empty, spaces, unknown values), ::test_only_explicit_local_enables_disk_storage,
+  ::test_mount_src_path_no_longer_changes_the_mode,
+  ::test_dotenv_file_cannot_switch_the_mode,
+  ::test_session_mode_never_writes_or_reads,
+  ::test_session_mode_performs_no_disk_io_at_all (file APIs forbidden),
+  ::test_local_mode_still_round_trips_after_session_mode
+- test_storage_isolation.py::test_default_mode_keeps_nothing_on_disk,
+  ::test_old_files_on_disk_are_not_restored,
+  ::test_two_sessions_do_not_share_work (same and different document),
+  ::test_rerun_and_screen_switch_keep_the_session_state,
+  ::test_reanalyzing_the_same_document_keeps_session_edits,
+  ::test_grill_result_stays_in_its_session,
+  ::test_explicit_local_still_saves_and_restores,
+  ::test_local_reanalyze_keeps_newer_edits_from_another_tab,
+  ::test_reanalyze_message_says_where_the_work_came_from (session and local),
+  ::test_unknown_values_behave_like_session
+
+**Known limitations of the fix.**
+1. Work is lost when the browser session ends or the page is reloaded (by
+   design); use the exports to keep it.
+2. If an operator sets `SPEC_TO_TEST_STORAGE=local` on a shared server, the old
+   shared-folder behavior returns. This is documented as unsupported; `local`
+   mode has no per-user separation.
+3. The UI shows no warning when `local` is on; only the sidebar caption differs.
+   In `local` mode two tabs on the same document still overwrite each other's
+   saves on every edit (last write wins); Analyze reloads the newest saved file.
+4. Authentication, per-user external storage and encryption at rest are not
+   part of this fix.
+
+---
 
 ## EXAMPLE (template only — not a real defect)
 

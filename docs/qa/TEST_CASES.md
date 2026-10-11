@@ -26,8 +26,8 @@ Test data: `examples/password_reset.md` (9 requirements, REQ-1 … REQ-9).
 | TC-013 | Export files and requirement links | PR-12 | High | test_exports.py | Not executed |
 | TC-014 | AI tab without configuration | PR-13 | High | test_app_features.py::test_ai_tab_without_key_explains_setup | Not executed |
 | TC-015 | AI consent required per run | PR-13 | High | test_app_features.py::test_ai_consent_is_required_again_for_every_run | Not executed |
-| TC-016 | Work restored after reload (local mode) | PR-14 | High | test_app_features.py::test_work_is_restored_in_a_new_session | Pass — 2026-10-11, browser preview (see note 1) |
-| TC-017 | Session mode keeps nothing on disk | PR-14, PR-16 | Critical | test_app_features.py::test_session_storage_mode_keeps_nothing_on_disk | Not executed (manual check belongs to post-deployment) |
+| TC-016 | Work restored after reload (explicit `local` mode) | PR-14 | High | test_app_features.py::test_work_is_restored_in_a_new_session, test_storage_isolation.py::test_explicit_local_still_saves_and_restores | Pass — 2026-10-11, browser preview (see note 1) |
+| TC-017 | Session mode keeps nothing on disk | PR-14, PR-16 | Critical | test_app_features.py::test_session_storage_mode_keeps_nothing_on_disk, test_storage_isolation.py::test_default_mode_keeps_nothing_on_disk | Not executed (manual check belongs to post-deployment) |
 | TC-018 | All tabs in Ukrainian and Russian | PR-15 | High | test_localization.py | Not executed |
 | TC-019 | User text is shown literally | PR-16 | High | test_formatting.py, test_app_features.py::test_user_text_is_not_rendered_as_markdown | Pass — 2026-10-11, browser preview (see note 2) |
 | TC-020 | Full text visible on a large screen | PR-17 | Medium | — (visual) | Pass — 2026-10-11, browser preview 1920×1080 (see note 3) |
@@ -42,6 +42,7 @@ Test data: `examples/password_reset.md` (9 requirements, REQ-1 … REQ-9).
 | TC-029 | Clarified findings are resolved only when ticked | PR-21 | High | test_grill_ui.py::test_requirements_grill_resolves_only_ticked_findings | Not executed |
 | TC-030 | Grill Mode in Ukrainian and Russian | PR-15, PR-18 | Medium | test_grill_ui.py::test_every_grill_screen_is_translated, test_grill_ai_ui.py::test_ai_screens_are_translated | Not executed |
 | TC-031 | Grill result is not added to a different document with the same requirement ID | PR-21 | High | test_grill_ui.py::test_changing_the_document_mid_session_does_not_move_the_result, ::test_returning_to_the_original_document_makes_the_result_addable_again, test_grill_integration.py::test_same_requirement_id_in_another_document_is_not_linked | Not executed |
+| TC-032 | Two visitors never see each other's work; default storage is session | PR-14, PR-16 | Critical | test_storage_isolation.py (all), test_storage.py::test_session_mode_performs_no_disk_io_at_all, ::test_everything_except_explicit_local_means_session | Not executed |
 
 Notes on executed cases (executed by the AI coding assistant during release
 preparation, in a Chromium-based preview of the desktop app; not yet
@@ -166,13 +167,15 @@ app works.
 | Yes | Yes | Run allowed; consent unticked afterwards |
 | Yes (new document analyzed) | was Yes | Consent reset to No |
 
-### TC-016 Work restored after reload (local mode)
+### TC-016 Work restored after reload (explicit `local` mode)
+**Precondition:** start with `SPEC_TO_TEST_STORAGE=local streamlit run app.py`
+(a `.env` entry does not count).
 1. Analyze the example, generate bug reports. 2. Reload the browser page.
 
 **Expected:** "Restored your saved work …"; bug reports still present.
 
 ### TC-017 Session mode keeps nothing on disk
-**Precondition:** `SPEC_TO_TEST_STORAGE=session` (default on Streamlit Cloud).
+**Precondition:** `SPEC_TO_TEST_STORAGE` unset (`session` is the default everywhere).
 1. Analyze. 2. Open the app in a private window.
 
 **Expected:** sidebar says work is kept only for this browser session; the
@@ -293,3 +296,24 @@ and `REQ-2: The system must send a reset email within 5 minutes.`).
 session started, **Add to the workspace…** is disabled with an explanation, the
 Markdown download still works, and the second document's Test cases are
 unchanged. At step 3 the warning is gone and adding is possible again.
+
+### TC-032 Two visitors never see each other's work; default storage is session
+**Preconditions:** run the app **without** `SPEC_TO_TEST_STORAGE` from a folder
+that is not `/mount/src`; `.spec_to_test_data/` may contain files from earlier
+runs (optionally put a `SPEC_TO_TEST_STORAGE=local` line in `.env`).
+1. In browser A (visitor 1) analyze `examples/password_reset.md`, generate bug
+   reports and edit a test case title. Switch the sidebar Mode to Grill Mode
+   and back, and change the language.
+2. In a private window (visitor 2) open the app, then analyze the same
+   document. Repeat with a different document.
+3. Check `.spec_to_test_data/` (modification times) and the sidebar caption.
+4. Stop the app and restart it with `SPEC_TO_TEST_STORAGE=local`; analyze,
+   generate bug reports, reload the page.
+
+**Expected:** step 1 keeps visitor 1's edits across the mode and language
+switches; at step 2 visitor 2 starts empty, sees no "Restored your saved work"
+and no bug reports or edits of visitor 1 (same or different document); at
+step 3 the sidebar says work is kept only for this browser session and no file
+was created or modified, and the `.env` line has no effect; at step 4 (`local`)
+the work is restored after the reload. Automated: test_storage_isolation.py,
+test_storage.py.

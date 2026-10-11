@@ -1,14 +1,17 @@
-"""Persist the user's workspace (test cases, reviews, bug reports) locally.
-
-Each analyzed document is stored as JSON in the data directory, keyed by a
-hash of its text, so re-analyzing the same document restores earlier edits.
-Data never leaves the machine. Set SPEC_TO_TEST_DATA_DIR to change the folder.
+"""Optionally persist the user's workspace (test cases, reviews, bug reports) on disk.
 
 Storage modes (SPEC_TO_TEST_STORAGE):
-- "local":   save to disk and restore on the next visit (default on your computer).
-- "session": keep work only in the browser session, never write to disk.
-  This is the default on Streamlit Community Cloud, where the disk is shared
-  by every visitor and saved documents would be visible to other people.
+- "session": the default everywhere. Work lives only in the browser session
+  (Streamlit session state); nothing is read from or written to disk, so
+  visitors of a shared deployment can never see each other's documents.
+- "local":   opt-in, single-user machines only. Each analyzed document is
+  stored as JSON in the data directory, keyed by a hash of its text, so
+  re-analyzing the same document restores earlier edits. Enabled only by the
+  exact value "local" (case and surrounding spaces ignored); any other or
+  empty value means "session". Set SPEC_TO_TEST_DATA_DIR to change the folder.
+
+The mode is read from the process environment (or Streamlit secrets, which
+become environment variables) only. A .env file never switches it.
 """
 
 import hashlib
@@ -23,22 +26,12 @@ from spec_to_test.models import Workspace
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[2] / ".spec_to_test_data"
 LATEST_FILE = "latest.json"
-STORAGE_MODES = ("local", "session")
-# Streamlit Community Cloud checks apps out under this folder.
-CLOUD_SOURCE_ROOT = Path("/mount/src")
-
-
-def is_streamlit_cloud(app_file: Path | None = None) -> bool:
-    path = (app_file or Path(__file__)).resolve()
-    return CLOUD_SOURCE_ROOT in path.parents
 
 
 def storage_mode() -> str:
-    """Return "local" or "session" (see module docstring)."""
+    """Return "session" unless SPEC_TO_TEST_STORAGE is explicitly "local"."""
     mode = os.environ.get("SPEC_TO_TEST_STORAGE", "").strip().lower()
-    if mode in STORAGE_MODES:
-        return mode
-    return "session" if is_streamlit_cloud() else "local"
+    return "local" if mode == "local" else "session"
 
 
 def persistence_enabled() -> bool:

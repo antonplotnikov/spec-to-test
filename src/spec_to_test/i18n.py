@@ -291,6 +291,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Відновлено збережену роботу для цього документа (тест-кейси, рев'ю та баг-репорти).",
         "ru": "Восстановлена сохранённая работа для этого документа (тест-кейсы, ревью и баг-репорты).",
     },
+    "storage.kept_in_session": {
+        "en": "This document is already open in this session, so your edits (test cases, reviews and bug reports) are kept.",
+        "uk": "Цей документ уже відкрито в цій сесії, тому ваші зміни (тест-кейси, рев'ю та баг-репорти) збережено.",
+        "ru": "Этот документ уже открыт в этой сессии, поэтому ваши правки (тест-кейсы, ревью и баг-репорты) сохранены.",
+    },
     "storage.save_failed": {
         "en": "Could not save your changes to disk. They are kept only until you close the page.",
         "uk": "Не вдалося зберегти зміни на диск. Вони збережуться лише до закриття сторінки.",

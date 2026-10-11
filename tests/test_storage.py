@@ -1,12 +1,20 @@
 import json
+import os
+import tempfile
+from pathlib import Path
 
+import pytest
+
+from spec_to_test import storage
 from spec_to_test.models import Requirement, ReviewStatus, TestCase, TestType, Workspace
 from spec_to_test.storage import (
     data_dir,
     document_hash,
     load_latest,
     load_workspace,
+    persistence_enabled,
     save_workspace,
+    storage_mode,
 )
 
 
@@ -58,40 +66,101 @@ def test_hash_is_stable_and_content_based():
 
 # --- Storage modes (shared hosting must not keep or restore documents) ---------------
 
-def test_session_mode_never_writes_or_reads(tmp_path, monkeypatch):
-    from spec_to_test.storage import persistence_enabled
+def seed_old_files(tmp_path) -> None:
+    """Leave a saved workspace on disk, as an earlier local run or old version would."""
+    save_workspace(sample())  # conftest runs these tests in "local" mode
+    assert (tmp_path / "data" / "latest.json").exists()
 
-    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "session")
+
+@pytest.mark.parametrize("value", [None, "", "   ", "session", "SESSION", "everywhere", "locally", "true", "1", "local-ish"])
+def test_everything_except_explicit_local_means_session(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("SPEC_TO_TEST_STORAGE", raising=False)
+    else:
+        monkeypatch.setenv("SPEC_TO_TEST_STORAGE", value)
+    assert storage_mode() == "session"
     assert not persistence_enabled()
+
+
+@pytest.mark.parametrize("value", ["local", "LOCAL", "Local", "  local  ", "\tLocal\n"])
+def test_only_explicit_local_enables_disk_storage(monkeypatch, value):
+    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", value)
+    assert storage_mode() == "local"
+    assert persistence_enabled()
+
+
+def test_mount_src_path_no_longer_changes_the_mode(monkeypatch):
+    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "local")
+    monkeypatch.setattr(storage, "__file__", "/mount/src/spec-to-test/src/spec_to_test/storage.py")
+    assert storage_mode() == "local"  # an explicit setting always wins
+    assert not hasattr(storage, "is_streamlit_cloud")
+    assert not hasattr(storage, "CLOUD_SOURCE_ROOT")
+
+
+def test_dotenv_file_cannot_switch_the_mode(tmp_path, monkeypatch, no_network, example_text):
+    """The app reads its .env (AI settings), but SPEC_TO_TEST_STORAGE=local there is ignored."""
+    from test_app_features import button, new_app
+
+    from spec_to_test import ai_analysis
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "SPEC_TO_TEST_STORAGE=local\nAI_PROVIDER=anthropic\nANTHROPIC_API_KEY=test-key-123\n",
+        encoding="utf-8",
+    )
+    # The app calls load_config() with its default .env path; point that default (and the
+    # constant, for any other reader) at this file.
+    monkeypatch.setattr(ai_analysis, "ENV_FILE", env_file)
+    monkeypatch.setattr(ai_analysis.load_config, "__defaults__", (None, env_file))
+    monkeypatch.delenv("SPEC_TO_TEST_STORAGE", raising=False)
+    monkeypatch.delenv("AI_PROVIDER", raising=False)  # let the file's AI settings apply
+    monkeypatch.chdir(tmp_path)  # a .env in the working directory is not picked up either
+
+    at = new_app()
+    assert any("AI is configured" in info.value for info in at.sidebar.info)  # the file was read
+    assert any("only for this browser session" in c.value for c in at.sidebar.caption)
+    at.text_area[0].input(example_text).run()
+    at.button[0].click().run()
+    button(at, "bug_generate").click().run()
+    assert not at.exception
+    assert at.session_state["workspace"].defects
+    assert "SPEC_TO_TEST_STORAGE" not in os.environ
+    assert storage_mode() == "session"
+    assert not (tmp_path / "data").exists()  # nothing was saved
+
+
+def test_session_mode_never_writes_or_reads(tmp_path, monkeypatch):
+    seed_old_files(tmp_path)
+    monkeypatch.delenv("SPEC_TO_TEST_STORAGE", raising=False)
+    before = sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*"))
+    save_workspace(Workspace(document_hash="abc123", requirements=[]))
+    assert load_latest() is None  # old files are ignored
+    assert load_workspace(sample().document_hash) is None
+    assert sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*")) == before
+    assert not (tmp_path / "data" / "workspaces" / "abc123.json").exists()
+
+
+def test_session_mode_performs_no_disk_io_at_all(tmp_path, monkeypatch):
+    seed_old_files(tmp_path)
+    monkeypatch.delenv("SPEC_TO_TEST_STORAGE", raising=False)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("disk access in session mode")
+
+    for target in ("read_text", "write_text", "mkdir", "unlink", "open"):
+        monkeypatch.setattr(Path, target, forbidden)
+    monkeypatch.setattr(os, "replace", forbidden)
+    monkeypatch.setattr(os, "fdopen", forbidden)
+    monkeypatch.setattr(tempfile, "mkstemp", forbidden)
     save_workspace(sample())
-    assert not (tmp_path / "data").exists()
     assert load_latest() is None
     assert load_workspace(sample().document_hash) is None
 
 
-def test_local_mode_is_default_on_a_computer(monkeypatch):
-    from spec_to_test.storage import storage_mode
-
+def test_local_mode_still_round_trips_after_session_mode(tmp_path, monkeypatch):
     monkeypatch.delenv("SPEC_TO_TEST_STORAGE", raising=False)
-    assert storage_mode() == "local"
-
-
-def test_streamlit_cloud_defaults_to_session(monkeypatch):
-    from pathlib import Path
-
-    from spec_to_test import storage
-
-    monkeypatch.delenv("SPEC_TO_TEST_STORAGE", raising=False)
-    assert storage.is_streamlit_cloud(Path("/mount/src/spec-to-test/src/spec_to_test/storage.py"))
-    assert not storage.is_streamlit_cloud(Path("/home/user/spec-to-test/src/spec_to_test/storage.py"))
-    monkeypatch.setattr(storage, "is_streamlit_cloud", lambda app_file=None: True)
-    assert storage.storage_mode() == "session"
-    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "local")  # explicit setting wins
-    assert storage.storage_mode() == "local"
-
-
-def test_unknown_mode_falls_back_to_default(monkeypatch):
-    from spec_to_test.storage import storage_mode
-
-    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "everywhere")
-    assert storage_mode() == "local"
+    save_workspace(sample())
+    assert not (tmp_path / "data").exists()
+    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "local")
+    save_workspace(sample())
+    assert load_latest() == sample()

@@ -28,6 +28,13 @@ profile. You should receive a reply within 7 days.
   limited to 100,000 characters. AI requests need a fresh consent each time
   and send only the current draft, its linked requirement, and the questions
   already asked; AI output is validated and never treated as confirmed.
-- Locally, edits are saved in `.spec_to_test_data/` (git-ignored). On
-  Streamlit Community Cloud nothing is written to disk by default.
+- Storage defaults to `session` in every environment: documents, edits and
+  Grill results live only in the visitor's Streamlit session, and nothing is
+  read from or written to disk. Disk storage exists only when
+  `SPEC_TO_TEST_STORAGE=local` is set explicitly (exact value, case and
+  surrounding spaces ignored; any other value means `session`) in the process
+  environment or Streamlit secrets. A `.env` file cannot change it. In `local`
+  mode edits go to `.spec_to_test_data/` (git-ignored) and are shared by
+  everyone who uses that server, so use it only on a single-user machine.
+  The old detection of Streamlit Cloud by the `/mount/src` path was removed.
 - Dependencies are checked with `pip-audit` in CI.

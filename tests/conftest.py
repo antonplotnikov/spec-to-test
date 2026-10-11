@@ -38,8 +38,13 @@ def make_pdf(lines: list[str]) -> bytes:
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    """Keep saved workspaces in a temp folder and AI switched off by default."""
+    """Keep saved workspaces in a temp folder and AI switched off by default.
+
+    Storage is "local" here so the persistence tests keep working; the product
+    default is "session" and is covered by tests that delete this variable.
+    """
     monkeypatch.setenv("SPEC_TO_TEST_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "local")
     monkeypatch.setenv("AI_PROVIDER", "none")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
