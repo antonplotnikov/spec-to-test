@@ -6,6 +6,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- Storage isolation (P0-1, BUG-010): `session` is now the default storage mode
+  in every environment. Previously only a path check (`/mount/src`) made
+  Streamlit Cloud use it, so any other shared deployment (Docker, VM, another
+  host, a different mount path) silently saved documents to one shared folder
+  and showed the last visitor's workspace to new visitors. In `session` mode
+  nothing is read from or written to disk; edits survive reruns, screen
+  switches and re-analyzing the same document within the session, and a new
+  session starts clean (old files on disk are ignored).
+- Only the exact value `SPEC_TO_TEST_STORAGE=local` (case and surrounding
+  spaces ignored) enables disk storage. Unknown and empty values mean
+  `session`. The setting is read from the environment / Streamlit secrets
+  only; a `.env` file does not switch the mode. Cloud detection by path was
+  removed.
+
+### Changed
+- **Behavior change for local users:** work is no longer saved to
+  `.spec_to_test_data/` unless you set `SPEC_TO_TEST_STORAGE=local`
+  (for example `SPEC_TO_TEST_STORAGE=local streamlit run app.py`).
+- Re-analyzing the same document in one session keeps that session's edits
+  (as saved files did before in `local` mode). In `local` mode it reloads the
+  saved file, so newer edits from another tab are not overwritten.
+
 ### Fixed
 - Grill Mode: a confirmed test case or bug report could be added to a
   different document that had a requirement with the same ID (for example
@@ -31,7 +54,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   requirement of the session to exist in the workspace with the same text, and
   does not compare the whole document.
 - This change does not address shared local storage between users
-  (tracked separately as P0-1; not fixed here).
+  (fixed separately, see Security above).
 
 ## [1.1.0] - 2026-10-11
 

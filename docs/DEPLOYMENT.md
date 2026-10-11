@@ -46,8 +46,10 @@ gh release create v1.1.0 --title "Spec-to-Test v1.1.0" --notes-file docs/release
      ```toml
      SPEC_TO_TEST_STORAGE = "session"
      ```
-     The app already defaults to `session` on Streamlit Cloud; setting it
-     explicitly documents the intent.
+     `session` is the default everywhere (there is no Cloud detection any
+     more); setting it explicitly documents the intent. Never set `local`
+     on a public or shared deployment: every visitor would read and write the
+     same folder on the server.
 5. Click **Deploy**. Streamlit installs `requirements.txt` only (no dev or AI
    packages) and reads `.streamlit/config.toml` (2 MB upload limit, theme).
 
@@ -85,5 +87,15 @@ pip install -r requirements-dev.txt
 streamlit run app.py
 ```
 
-Local runs save work to `.spec_to_test_data/`. Delete that folder to forget
-all saved work, or set `SPEC_TO_TEST_STORAGE=session` to disable saving.
+By default nothing is saved: work lives only in the browser session. To save
+work to `.spec_to_test_data/` on your own computer, opt in explicitly:
+
+```bash
+SPEC_TO_TEST_STORAGE=local streamlit run app.py
+```
+
+Only the exact value `local` (any case, spaces ignored) enables it; the
+setting is read from the environment or Streamlit secrets, **not** from `.env`.
+Delete `.spec_to_test_data/` to forget all saved work; files left there by
+earlier versions are ignored in `session` mode. Any self-hosted shared
+deployment (Docker, VM, other platforms) is covered too: do not set `local`.

@@ -57,7 +57,7 @@ screenshot should show.
 | **Exports** | Jira CSV (test cases, bugs), TestRail CSV, RTM CSV, and a Markdown QA report. |
 | **Grill Mode** | An interactive QA interviewer: clarify requirements, build or improve a test case or bug report, or run a QA review of an existing artifact. Every value shows where it came from (source, confirmed by you, assumption, unknown); nothing is finalized without your explicit confirmation. |
 | **AI analysis (optional)** | Anthropic Claude looks for ambiguities, contradictions, and missing scenarios. Consent is required for every run; results are labeled and kept apart from rule-based facts. |
-| **Persistence** | Edits are saved locally and restored next time (or kept per browser session on shared hosting). |
+| **Persistence** | By default work lives only in your browser session and nothing is written to disk. Opt-in `SPEC_TO_TEST_STORAGE=local` (single-user machines) saves edits to disk and restores them next time. |
 
 ### Coverage status
 
@@ -235,8 +235,8 @@ answers and edits change the draft.
 | `AI_PROVIDER` | `.env` / env / Streamlit secrets | `none` | `anthropic` enables the AI tab |
 | `ANTHROPIC_API_KEY` | `.env` / env / Streamlit secrets | — | API key for AI analysis |
 | `AI_MODEL` | `.env` / env / Streamlit secrets | `claude-opus-5-5` | Model ID |
-| `SPEC_TO_TEST_STORAGE` | env / Streamlit secrets | `local` (`session` on Streamlit Cloud) | `local` saves to disk; `session` keeps work only in the browser session |
-| `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work |
+| `SPEC_TO_TEST_STORAGE` | env / Streamlit secrets (**not** `.env`) | `session` | Only the exact value `local` (any case, spaces ignored) saves work to disk; anything else, including empty, means `session` (browser session only, nothing on disk) |
+| `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work (`local` mode only) |
 
 Environment variables override `.env`. Upload limits are in
 `.streamlit/config.toml` and `src/spec_to_test/input_parser.py` (a test keeps
@@ -259,7 +259,7 @@ src/spec_to_test/
 ├── rtm.py                   Traceability matrix, coverage, dashboard summary, filters
 ├── exports.py               Jira / TestRail / RTM CSV, Markdown report
 ├── formatting.py            Markdown escaping for user text
-├── storage.py               Local JSON persistence and storage modes
+├── storage.py               Storage modes: session (default) and opt-in local JSON
 ├── ai_analysis.py           Optional LLM review (consent required)
 ├── i18n.py                  All UI text in EN / UK / RU
 └── grill/                   Grill Mode domain logic (no Streamlit, no network)
@@ -291,7 +291,9 @@ mypy                   # type check
 ```
 
 Tests never touch your saved data or the network: `tests/conftest.py` points
-storage at a temporary folder and switches AI off; AI tests use a fake client.
+storage at a temporary folder (in `local` mode, so persistence can be tested;
+the `session` default has its own tests) and switches AI off; AI tests use a
+fake client.
 CI runs lint, type checks, tests on Python 3.11 and 3.12, and `pip-audit` on
 every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
@@ -320,9 +322,13 @@ The app is ready for **Streamlit Community Cloud**. See
   current draft, its linked requirement, and the questions already asked are
   sent.
 - Grill Mode keeps its session in your browser session only; nothing is
-  written to disk until you add a confirmed result to the workspace.
-- On shared hosting (Streamlit Cloud) documents are not written to disk by
-  default, so visitors cannot see each other's work.
+  written to disk, and a confirmed result you add to the workspace stays in
+  your browser session too (unless you opted into `local` storage).
+- In every environment the default storage mode is `session`: documents are not
+  read from or written to disk, so visitors of a shared deployment cannot see
+  each other's work. `local` must be enabled explicitly with
+  `SPEC_TO_TEST_STORAGE=local` and is meant for a single-user computer only.
+  A `.env` file never changes the storage mode.
 - Secrets live in `.env` or Streamlit secrets, both git-ignored. See
   [SECURITY.md](SECURITY.md).
 
@@ -344,12 +350,17 @@ The app is ready for **Streamlit Community Cloud**. See
 - Jira priorities and TestRail types/priorities use default values.
 - AI supports Anthropic only and was tested with a fake client, not the live API.
 - Tables do not support column sorting (they wrap text instead of truncating it).
+- Work is not saved between visits by default (`session` storage): closing or
+  reloading the page loses it. Download the exports, or opt into `local`
+  storage on your own computer.
 - Grill Mode keeps its session in the browser only; a page reload loses an
-  unfinished session. Confirmed results are saved only when added to the
-  workspace, which needs an analyzed document and a link to one of its
-  requirements. A test case's *objective* and a bug's product details have no
-  field in the workspace models: the objective is kept only in the Markdown
-  download, the bug details as text in the report's context.
+  unfinished session. A confirmed result can be added to the workspace, which
+  needs an analyzed document and a link to one of its requirements. In the
+  default `session` mode it is then kept only in the current browser session;
+  it is saved to disk only with explicit `SPEC_TO_TEST_STORAGE=local`. A test
+  case's *objective* and a bug's product details have no field in the
+  workspace models: the objective is kept only in the Markdown download, the
+  bug details as text in the report's context.
 - Some labels inside Streamlit's file uploader ("Upload", size hint) come from
   Streamlit and stay in English.
 

@@ -95,7 +95,7 @@ oversized answers, double clicks from an outdated page).
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Users' documents exposed on shared hosting | High | `session` storage mode by default on Streamlit Cloud; regression tests |
+| Users' documents exposed on shared hosting | High | `session` storage mode by default in every environment (BUG-010); regression tests |
 | Documents sent to an AI provider without consent | High | Consent enforced in code and UI, per run; tests with fake client |
 | User text rendered as Markdown (link/image injection) | Medium | Escaping helper + regression tests |
 | False positives/negatives in rules | Medium | Reference spec tests; findings labelled as hints |

@@ -24,9 +24,9 @@ is claimed.
 | PR-11 | Dashboard with metrics, distributions, filters | TC-012 | test_rtm_dashboard.py, test_app_features.py | — | Pass | Not executed |
 | PR-12 | Jira / TestRail / RTM CSV and Markdown exports with correct links | TC-013, TC-022 | test_exports.py | — | Pass | Not executed |
 | PR-13 | Optional AI analysis: works without a key, consent per run, AI kept separate from facts | TC-014, TC-015 | test_ai_analysis.py, test_app_features.py | BUG-003 | Pass | Not executed |
-| PR-14 | Persist edits locally; no shared storage on public hosting | TC-016, TC-017 | test_storage.py, test_app_features.py | BUG-001 | Pass | TC-016 Pass, TC-017 Not executed |
+| PR-14 | Session storage by default in every environment (no disk I/O, isolated visitors); opt-in `local` persistence | TC-016, TC-017, TC-032 | test_storage.py, test_storage_isolation.py, test_app_features.py | BUG-001, BUG-010 | Pass | TC-016 Pass (before P0-1, re-run needed), TC-017 and TC-032 Not executed |
 | PR-15 | Full UI in English (default), Ukrainian, Russian | TC-002, TC-018, TC-030 | test_i18n.py, test_localization.py, test_grill_ui.py | — | Pass | Not executed |
-| PR-16 | Security: untrusted input, no secret exposure, escaping, CSV injection | TC-004, TC-017, TC-019 | test_security.py, test_formatting.py, test_exports.py, test_release.py | BUG-002, BUG-004 | Pass | TC-019 Pass |
+| PR-16 | Security: untrusted input, no secret exposure, escaping, CSV injection, visitor isolation | TC-004, TC-017, TC-019, TC-032 | test_security.py, test_formatting.py, test_exports.py, test_release.py | BUG-002, BUG-004 | Pass | TC-019 Pass |
 | PR-17 | Readable on large and small screens | TC-020, TC-021 | — (visual) | BUG-005 | n/a | Pass |
 | PR-18 | Grill Mode: requirements, test case, bug report and QA review workflows; interview and draft review; back, skip, edit, cancel | TC-023, TC-024, TC-025 | test_grill_workflow.py, test_grill_planner.py, test_grill_inputs.py, test_grill_ui.py | — | Pass | Not executed |
 | PR-19 | Grill Mode trust: provenance on every value, unknown stays unknown, blocking / warning / suggestion review, explicit confirmation | TC-023, TC-025, TC-026 | test_grill_models.py, test_grill_validation.py, test_grill_review.py, test_grill_workflow.py | — | Pass | Not executed |

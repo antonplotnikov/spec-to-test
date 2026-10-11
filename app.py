@@ -206,7 +206,7 @@ if not st.session_state.get("restore_checked"):
     st.session_state["restore_checked"] = True
     if (saved := load_latest()) is not None:
         st.session_state["workspace"] = saved
-        st.session_state["restored"] = True
+        st.session_state["restored"] = "disk"
 
 # --- Input -----------------------------------------------------------------
 with st.container(key="hero"):
@@ -244,10 +244,17 @@ if st.button(t("input.analyze_button", lang), type="primary", icon=":material/se
             source = read_uploaded_file(uploaded.name, uploaded.getvalue()) if uploaded else text
             requirements = extract_requirements(source)
             doc_hash = document_hash(source.strip())
-            saved = load_workspace(doc_hash)
+            # Same document again: "session" mode never reads the disk, so it keeps this
+            # session's edits; "local" mode reloads the saved file, which may hold newer
+            # edits from another tab (keeping the session copy would overwrite them).
+            current_ws = st.session_state.get("workspace")
+            in_session = (
+                not persistence_enabled() and current_ws is not None and current_ws.document_hash == doc_hash
+            )
+            saved = current_ws if in_session else load_workspace(doc_hash)
             if saved is not None:
                 workspace = saved
-                st.session_state["restored"] = True
+                st.session_state["restored"] = "session" if in_session else "disk"
             else:
                 result = analyze_requirements(requirements)
                 workspace = Workspace(
@@ -268,8 +275,8 @@ if loaded is None:
     st.stop()
 ws: Workspace = loaded
 
-if st.session_state.get("restored"):
-    st.info(t("storage.restored", lang), icon="💾")
+if restored := st.session_state.get("restored"):
+    st.info(t("storage.kept_in_session" if restored == "session" else "storage.restored", lang), icon="💾")
 show_flash()
 
 result = ws.analysis
