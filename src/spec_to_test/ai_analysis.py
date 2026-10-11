@@ -15,7 +15,7 @@ import json
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, SecretStr
 
@@ -26,6 +26,8 @@ SUPPORTED_PROVIDERS = ("anthropic",)
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 _ENV_KEYS = ("AI_PROVIDER", "AI_MODEL", "ANTHROPIC_API_KEY")
 LANGUAGE_NAMES = {"en": "English", "uk": "Ukrainian", "ru": "Russian"}
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class AIConfig(BaseModel):
@@ -166,14 +168,40 @@ def run_ai_analysis(
         raise AIError("consent_required")
     if not requirements:
         return []
+    parsed = request_structured(
+        config,
+        SYSTEM_PROMPT.format(language=language_name(lang)),
+        build_user_message(requirements),
+        AIResponse,
+        client_factory,
+    )
+    return to_suggestions(parsed, requirements)
+
+
+def language_name(lang: str) -> str:
+    return LANGUAGE_NAMES.get(lang, "English")
+
+
+def request_structured(
+    config: AIConfig,
+    system: str,
+    user_message: str,
+    output_format: type[T],
+    client_factory: Callable[[AIConfig], Any] = _default_client_factory,
+    max_tokens: int = 16000,
+) -> T:
+    """One structured request to the model. Every failure becomes an AIError.
+
+    Callers check consent first; this function only sends what it is given.
+    """
     client = client_factory(config)
     try:
         message = client.messages.parse(
             model=config.model,
-            max_tokens=16000,
-            system=SYSTEM_PROMPT.format(language=LANGUAGE_NAMES.get(lang, "English")),
-            messages=[{"role": "user", "content": build_user_message(requirements)}],
-            output_format=AIResponse,
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": user_message}],
+            output_format=output_format,
         )
     except AIError:
         raise
@@ -185,9 +213,9 @@ def run_ai_analysis(
     if getattr(message, "stop_reason", None) == "max_tokens":
         raise AIError("truncated")
     parsed = getattr(message, "parsed_output", None)
-    if not isinstance(parsed, AIResponse):
+    if not isinstance(parsed, output_format):
         raise AIError("invalid_response")
-    return to_suggestions(parsed, requirements)
+    return parsed
 
 
 def _error_code(exc: Exception) -> str:

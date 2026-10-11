@@ -1,8 +1,9 @@
 # Bug Reports — Spec-to-Test
 
 These are **real defects** found in Spec-to-Test while preparing v1.0.0
-(code audit, automated tests, and checks in a browser preview). Each one is
-fixed in 1.0.0 and has a regression test. The last section is a clearly
+and v1.1.0 (code audit, security review, automated tests, and checks in a
+browser preview). Each one is fixed in the version shown and has a regression
+test. The last section is a clearly
 labelled **example** showing the template only.
 
 | ID | Title | Severity | Status | Regression test |
@@ -14,6 +15,7 @@ labelled **example** showing the template only.
 | BUG-005 | Long text cut off in result tables on large screens | Medium | Fixed in 1.0.0 | Manual: TEST_CASES.md TC-020 |
 | BUG-006 | Confirmation messages disappear after saving | Low | Fixed in 1.0.0 | test_app_features.py::test_save_confirmation_survives_rerun |
 | BUG-007 | Bug report created from AI suggestion not visible until next click | Low | Fixed in 1.0.0 | test_app_features.py::test_ai_suggestion_to_bug_report_appears_immediately |
+| BUG-008 | Grill Mode answers and draft fields have no length limit | Low | Fixed in 1.1.0 | test_grill_security.py::test_too_long_answers_and_fields_are_rejected |
 
 ---
 
@@ -152,6 +154,34 @@ immediately before a page rerun and could be lost.
 **Fix.** The page reruns after the report is created.
 
 ---
+
+## BUG-008 — Grill Mode answers and draft fields have no length limit
+
+| Field | Value |
+|---|---|
+| Severity | Low |
+| Status | Fixed in 1.1.0 (found before release, in unreleased code) |
+| Component | Grill Mode (`grill/workflow.py`, `grill/drafts.py`, `grill_ui.py`) |
+| Found by | Security review during release preparation (2026-10-11) |
+
+**Description.** Pasted documents and drafts are limited to 100,000
+characters, but answers to Grill questions and direct edits of draft fields
+were not. A single session could grow without bound, and a confirmed test case
+or bug report added to the workspace would write that text to the save file.
+
+**Steps to reproduce (before the fix).**
+1. Start **Test case → Interview** in Grill Mode.
+2. Paste 200,000 characters as an answer and click **Save answer**.
+
+**Expected.** The answer is rejected with a clear message.
+**Actual.** The answer was accepted and stored in the draft.
+
+**Fix.** Answers and draft fields are checked against the same limit as an
+analyzed document (`MAX_TEXT_CHARS`) in the domain code, with a translated
+error; text inputs also set `max_chars`.
+
+**Regression tests.** test_grill_security.py::test_too_long_answers_and_fields_are_rejected,
+::test_assumed_answers_are_bounded_too
 
 ## EXAMPLE (template only — not a real defect)
 

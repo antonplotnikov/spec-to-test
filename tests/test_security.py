@@ -1,9 +1,6 @@
 """Security checks: no secrets in the repo, no network use, safe defaults."""
 
 import re
-import socket
-
-import pytest
 
 from conftest import PROJECT_ROOT
 from spec_to_test.input_parser import extract_requirements
@@ -22,15 +19,6 @@ SECRET_PATTERNS = [
     re.compile(r"ghp_[A-Za-z0-9]{30,}"),  # GitHub token
     re.compile(r"(?i)(api_key|secret|token)\s*=\s*['\"]?[A-Za-z0-9_\-]{16,}"),
 ]
-
-
-@pytest.fixture
-def no_network(monkeypatch):
-    def blocked(*args, **kwargs):
-        raise AssertionError("network access attempted")
-
-    monkeypatch.setattr(socket.socket, "connect", blocked)
-    monkeypatch.setattr(socket, "create_connection", blocked)
 
 
 def test_no_secrets_committed():

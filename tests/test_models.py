@@ -13,6 +13,7 @@ from spec_to_test.models import (
     Source,
     TestCase,
     TestType,
+    Workspace,
 )
 
 
@@ -71,3 +72,47 @@ def test_status_of_requirement_depends_on_open_findings():
 
     result.findings[0].status = ClarificationStatus.RESOLVED
     assert result.status_of("REQ-1") == RequirementStatus.CLEAR
+
+
+# --- Source.USER (added for Grill Mode) ----------------------------------------
+
+# A workspace saved by version 1.0.0, before Source.USER existed.
+SAVED_BY_1_0_0 = """{
+  "document_hash": "abc123",
+  "requirements": [{"id": "REQ-1", "text": "The user must log in.", "language": "en",
+                    "source_line": 1, "has_explicit_id": true}],
+  "findings": [{"requirement_id": "REQ-1", "type": "missing_error_handling", "severity": "medium",
+                "source": "rule", "matched_terms": ["log in"], "related_requirement_ids": [],
+                "status": "needs_clarification"}],
+  "test_cases": [{"id": "TC-001", "requirement_id": "REQ-1", "title": "Login", "test_type": "positive",
+                  "preconditions": [], "steps": ["Log in"], "expected_result": "Logged in",
+                  "assumptions": [], "clarification_questions": [], "source": "rule",
+                  "review_status": "draft", "reviewer_comment": ""}],
+  "defects": [{"id": "BUG-001", "requirement_id": "REQ-1", "title": "Gap", "severity": "medium",
+               "description": "", "expected_behavior": "", "reproduction_context": "",
+               "source": "ai", "origin_key": "ai|AI-001"}],
+  "ai_suggestions": [],
+  "ai_model": ""
+}"""
+
+
+def test_existing_source_values_are_unchanged():
+    assert Source.RULE.value == "rule" and Source.AI.value == "ai"
+    assert Source.USER.value == "user"
+
+
+def test_workspace_saved_before_user_source_still_loads():
+    ws = Workspace.model_validate_json(SAVED_BY_1_0_0)
+    assert ws.test_cases[0].source == Source.RULE
+    assert ws.defects[0].source == Source.AI
+
+
+def test_user_authored_test_case_round_trips():
+    ws = Workspace.model_validate_json(SAVED_BY_1_0_0)
+    ws.test_cases.append(
+        TestCase(id="TC-002", requirement_id="REQ-1", title="Grill case", test_type=TestType.NEGATIVE,
+                 steps=["Enter a wrong password"], expected_result="An error is shown", source=Source.USER)
+    )
+    restored = Workspace.model_validate_json(ws.model_dump_json())
+    assert restored == ws
+    assert restored.test_cases[1].source == Source.USER

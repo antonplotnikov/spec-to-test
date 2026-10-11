@@ -1,4 +1,4 @@
-# Requirements Traceability Matrix — Spec-to-Test v1.0.0
+# Requirements Traceability Matrix — Spec-to-Test v1.1.0
 
 Links the product requirements of Spec-to-Test to manual test cases
 ([TEST_CASES.md](TEST_CASES.md)), automated tests (`tests/`), and defects
@@ -25,12 +25,16 @@ is claimed.
 | PR-12 | Jira / TestRail / RTM CSV and Markdown exports with correct links | TC-013, TC-022 | test_exports.py | — | Pass | Not executed |
 | PR-13 | Optional AI analysis: works without a key, consent per run, AI kept separate from facts | TC-014, TC-015 | test_ai_analysis.py, test_app_features.py | BUG-003 | Pass | Not executed |
 | PR-14 | Persist edits locally; no shared storage on public hosting | TC-016, TC-017 | test_storage.py, test_app_features.py | BUG-001 | Pass | TC-016 Pass, TC-017 Not executed |
-| PR-15 | Full UI in English (default), Ukrainian, Russian | TC-002, TC-018 | test_i18n.py, test_localization.py | — | Pass | Not executed |
+| PR-15 | Full UI in English (default), Ukrainian, Russian | TC-002, TC-018, TC-030 | test_i18n.py, test_localization.py, test_grill_ui.py | — | Pass | Not executed |
 | PR-16 | Security: untrusted input, no secret exposure, escaping, CSV injection | TC-004, TC-017, TC-019 | test_security.py, test_formatting.py, test_exports.py, test_release.py | BUG-002, BUG-004 | Pass | TC-019 Pass |
 | PR-17 | Readable on large and small screens | TC-020, TC-021 | — (visual) | BUG-005 | n/a | Pass |
+| PR-18 | Grill Mode: requirements, test case, bug report and QA review workflows; interview and draft review; back, skip, edit, cancel | TC-023, TC-024, TC-025 | test_grill_workflow.py, test_grill_planner.py, test_grill_inputs.py, test_grill_ui.py | — | Pass | Not executed |
+| PR-19 | Grill Mode trust: provenance on every value, unknown stays unknown, blocking / warning / suggestion review, explicit confirmation | TC-023, TC-025, TC-026 | test_grill_models.py, test_grill_validation.py, test_grill_review.py, test_grill_workflow.py | — | Pass | Not executed |
+| PR-20 | Grill Mode optional AI: works without a key, consent per request, minimal data, AI never blocking or essential | TC-027 | test_grill_ai.py, test_grill_ai_ui.py | — | Pass | Not executed |
+| PR-21 | Confirmed Grill results in workspace, RTM, coverage and exports; Markdown download; opt-in resolved findings; bounded input | TC-028, TC-029 | test_grill_integration.py, test_grill_security.py, test_grill_ui.py | BUG-008 | Pass | Not executed |
 
 ## Coverage summary
 
-- Product requirements: 17
-- With at least one automated test: 16 (PR-17 is visual only)
+- Product requirements: 21
+- With at least one automated test: 20 (PR-17 is visual only)
 - With at least one executed manual test case: 3 (PR-14, PR-16, PR-17)

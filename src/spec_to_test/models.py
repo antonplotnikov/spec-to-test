@@ -43,6 +43,8 @@ class Source(StrEnum):
 
     RULE = "rule"
     AI = "ai"
+    # Written or confirmed by a person (e.g. in Grill Mode), not generated.
+    USER = "user"
 
 
 class ClarificationStatus(StrEnum):

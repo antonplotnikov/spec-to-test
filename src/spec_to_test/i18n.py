@@ -4,6 +4,7 @@ Use `t(key, lang, **params)` to get a translated string. Placeholders like
 {max_mb} are filled from params. Missing translations fall back to English.
 """
 
+from spec_to_test.grill.translations import GRILL_TRANSLATIONS
 from spec_to_test.models import Finding
 
 DEFAULT_LANGUAGE = "en"
@@ -216,6 +217,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "severity.high": {"en": "High", "uk": "Висока", "ru": "Высокая"},
     "source.rule": {"en": "Rule-based", "uk": "На основі правил", "ru": "На основе правил"},
     "source.ai": {"en": "AI suggestion", "uk": "Пропозиція ШІ", "ru": "Предложение ИИ"},
+    "source.user": {"en": "User-provided", "uk": "Від користувача", "ru": "От пользователя"},
     "language.en": {"en": "English", "uk": "Англійська", "ru": "Английский"},
     "language.uk": {"en": "Ukrainian", "uk": "Українська", "ru": "Украинский"},
     "language.ru": {"en": "Russian", "uk": "Російська", "ru": "Русский"},
@@ -854,6 +856,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "report.metric": {"en": "Metric", "uk": "Показник", "ru": "Показатель"},
     "report.value": {"en": "Value", "uk": "Значення", "ru": "Значение"},
 }
+
+# Grill Mode text lives in its own module; keys must not collide.
+assert not TRANSLATIONS.keys() & GRILL_TRANSLATIONS.keys()
+TRANSLATIONS.update(GRILL_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

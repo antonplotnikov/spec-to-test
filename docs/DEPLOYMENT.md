@@ -2,44 +2,43 @@
 
 ## 1. Publish the code on GitHub
 
-Run these from the `spec-to-test` folder. Replace `<your-github-username>`.
+Run these from the `spec-to-test` folder (use your own GitHub username if you fork the project).
 
 ```bash
 git init -b main
 git add .
 git status                       # check: no .env, .venv, .spec_to_test_data, secrets.toml
-git commit -m "Release v1.0.0"
+git commit -m "Release v1.1.0"
 ```
 
 Create an **empty public repository** named `spec-to-test` on GitHub (no
 README, no license — they already exist), then:
 
 ```bash
-git remote add origin https://github.com/<your-github-username>/spec-to-test.git
+git remote add origin https://github.com/antonplotnikov/spec-to-test.git
 git push -u origin main
 ```
 
 Wait for the **CI** workflow to pass (Actions tab), then tag the release:
 
 ```bash
-git tag -a v1.0.0 -m "Spec-to-Test v1.0.0"
-git push origin v1.0.0
+git tag -a v1.1.0 -m "Spec-to-Test v1.1.0"
+git push origin v1.1.0
 ```
 
 Create the GitHub release (web UI: Releases → Draft a new release → tag
-`v1.0.0`, paste the 1.0.0 section of `CHANGELOG.md`), or with the GitHub CLI:
+`v1.1.0`, paste the 1.1.0 section of `CHANGELOG.md`), or with the GitHub CLI:
 
 ```bash
-gh release create v1.0.0 --title "Spec-to-Test v1.0.0" --notes-file docs/release-notes-v1.0.0.md
+gh release create v1.1.0 --title "Spec-to-Test v1.1.0" --notes-file docs/release-notes-v1.1.0.md
 ```
 
-Finally, replace `<your-github-username>` in `README.md` and `CHANGELOG.md`.
 
 ## 2. Deploy on Streamlit Community Cloud
 
 1. Sign in at https://share.streamlit.io with GitHub.
 2. **Create app → Deploy a public app from GitHub**.
-3. Repository: `<your-github-username>/spec-to-test`, branch `main`,
+3. Repository: `antonplotnikov/spec-to-test`, branch `main`,
    main file path `app.py`.
 4. **Advanced settings**:
    - Python version: **3.11** (tested) or 3.12 (tested in CI only).

@@ -4,6 +4,50 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [1.1.0] - 2026-10-11
+
+### Added
+- **Grill Mode** (sidebar → Mode): an interactive QA interviewer with four
+  workflows — clarify requirements, build or improve a test case, build or
+  improve a bug report, and QA review of an existing artifact.
+  - Explicit workflow steps with validated transitions; stale or double clicks
+    are rejected. Nothing is finalized without explicit confirmation.
+  - Deterministic question banks; answers can be confirmed, kept as
+    assumptions, marked unknown, or skipped (non-essential questions only).
+  - Provenance for every draft value (source, confirmed, assumption,
+    AI suggestion, unknown); source requirements are never rewritten.
+  - Deterministic review with blocking / warning / suggestion levels, reusing
+    the rule engine (vague wording, limits vs. the linked requirement,
+    test-design consistency, traceability, placeholders, duplicates).
+  - Labeled-draft parser for pasted test cases and bug reports.
+  - Optional AI assistant: extra questions and an AI review, with per-request
+    consent; AI questions are never essential and AI findings never block.
+  - Confirmed results can be downloaded as Markdown (origins, assumptions
+    and open questions kept), and handed to the analyzed workspace: a test
+    case linked to a requirement becomes a Draft test case (RTM, coverage,
+    Jira / TestRail / Markdown exports); a bug report with a requirement and
+    a severity becomes a bug report (Jira bug CSV). Nothing is added twice.
+  - Opt-in, per clarification: findings answered by a confirmed (not
+    assumed) clarification can be marked resolved.
+  - Full EN / UK / RU translations.
+- `Source.USER` for values written or confirmed by a person.
+
+### Changed
+- `ai_analysis.request_structured()` is the shared, consent-agnostic model
+  call used by the AI analysis tab and Grill Mode (behavior unchanged).
+- Rule findings can now be marked resolved (through a confirmed Grill Mode
+  clarification only).
+
+### Security
+- Grill Mode answers and draft fields are limited to the same 100,000
+  characters as an analyzed document, so one session cannot grow without
+  bound or fill the save file.
+
+[Unreleased]: https://github.com/antonplotnikov/spec-to-test/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/antonplotnikov/spec-to-test/releases/tag/v1.1.0
+
 ## [1.0.0] - 2026-10-11
 
 First public release.
@@ -56,6 +100,6 @@ First public release.
 - Requirement parsing (text, TXT, MD, PDF), rule-based analysis, EN / UK / RU
   interface.
 
-[1.0.0]: https://github.com/<your-github-username>/spec-to-test/releases/tag/v1.0.0
-[0.2.0]: https://github.com/<your-github-username>/spec-to-test/releases/tag/v0.2.0
-[0.1.0]: https://github.com/<your-github-username>/spec-to-test/releases/tag/v0.1.0
+[1.0.0]: https://github.com/antonplotnikov/spec-to-test/releases/tag/v1.0.0
+[0.2.0]: https://github.com/antonplotnikov/spec-to-test/releases/tag/v0.2.0
+[0.1.0]: https://github.com/antonplotnikov/spec-to-test/releases/tag/v0.1.0

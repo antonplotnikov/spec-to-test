@@ -1,5 +1,6 @@
 """Shared test helpers."""
 
+import socket
 from pathlib import Path
 
 import pytest
@@ -46,3 +47,13 @@ def isolated_environment(tmp_path, monkeypatch):
 @pytest.fixture
 def example_text() -> str:
     return (PROJECT_ROOT / "examples" / "password_reset.md").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def no_network(monkeypatch):
+    """Fail the test on any attempt to open a network connection."""
+    def blocked(*args, **kwargs):
+        raise AssertionError("network access attempted")
+
+    monkeypatch.setattr(socket.socket, "connect", blocked)
+    monkeypatch.setattr(socket, "create_connection", blocked)
