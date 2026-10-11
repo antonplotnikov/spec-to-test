@@ -304,7 +304,7 @@ and test summary report — is in [docs/qa/](docs/qa/).
 
 The app is ready for **Streamlit Community Cloud**. See
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for step-by-step instructions and
-[docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) for the v1.0.0 checklist.
+[docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) for the v1.1.0 checklist.
 
 ---
 
@@ -316,7 +316,11 @@ The app is ready for **Streamlit Community Cloud**. See
   (no injected links or images).
 - CSV exports neutralise spreadsheet formulas (CSV injection).
 - No data leaves your machine unless AI is configured **and** you consent for
-  that run.
+  that run. In Grill Mode, consent is asked for every AI request and only the
+  current draft, its linked requirement, and the questions already asked are
+  sent.
+- Grill Mode keeps its session in your browser session only; nothing is
+  written to disk until you add a confirmed result to the workspace.
 - On shared hosting (Streamlit Cloud) documents are not written to disk by
   default, so visitors cannot see each other's work.
 - Secrets live in `.env` or Streamlit secrets, both git-ignored. See
@@ -353,6 +357,6 @@ The app is ready for **Streamlit Community Cloud**. See
 
 ## Project status and license
 
-Version **1.0.0**, with Grill Mode in development (see the *Unreleased*
-section of [CHANGELOG.md](CHANGELOG.md)).
+Version **1.1.0** — adds Grill Mode (see [CHANGELOG.md](CHANGELOG.md) and
+[docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md)).
 Released under the [MIT License](LICENSE).

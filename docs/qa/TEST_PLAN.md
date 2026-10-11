@@ -1,16 +1,16 @@
-# Test Plan — Spec-to-Test v1.0.0
+# Test Plan — Spec-to-Test v1.1.0
 
 | Field | Value |
 |---|---|
 | Product | Spec-to-Test (Streamlit web app) |
-| Version under test | 1.0.0 |
-| Document version | 1.0 — 2026-10-11 |
+| Version under test | 1.1.0 (1.0.0 scope plus Grill Mode) |
+| Document version | 1.1 — 2026-10-11 (Grill Mode added: F16–F19) |
 | Author | Project maintainer |
 | Related documents | [TEST_CASES.md](TEST_CASES.md), [RTM.md](RTM.md), [BUG_REPORTS.md](BUG_REPORTS.md), [TEST_SUMMARY_REPORT.md](TEST_SUMMARY_REPORT.md) |
 
 ## 1. Purpose
 
-Describe how Spec-to-Test v1.0.0 is tested before its first public release:
+Describe how Spec-to-Test v1.1.0 is tested before release (v1.0.0 scope plus Grill Mode):
 what is in scope, which levels and types of testing are used, the environments,
 entry/exit criteria, and risks.
 
@@ -35,6 +35,10 @@ entry/exit criteria, and risks.
 | F13 | Localization EN / UK / RU | PR-15 |
 | F14 | Security: untrusted input, escaping, secrets | PR-16 |
 | F15 | Responsive layout | PR-17 |
+| F16 | Grill Mode workflows: requirements, test case, bug report, QA review; interview and draft review | PR-18 |
+| F17 | Grill Mode trust: provenance, no invented facts, review levels, explicit confirmation | PR-19 |
+| F18 | Grill Mode optional AI: per-request consent, AI never blocking or essential | PR-20 |
+| F19 | Grill Mode results in the workspace, RTM, coverage, exports; opt-in resolved findings | PR-21 |
 
 ### Out of scope
 
@@ -52,6 +56,7 @@ entry/exit criteria, and risks.
 | Unit | Pure functions: parser, rules, quality, test design, exports, storage, formatting | pytest |
 | Integration | Parser → rules → workspace → RTM → exports; AI module with a fake client | pytest |
 | UI (component) | Full app script driven headlessly: clicks, forms, tabs, languages | Streamlit `AppTest` |
+| State machine (Grill) | Valid and invalid transitions, stale revisions, back / skip / edit / cancel, confirmation | pytest |
 | Regression | One test per fixed bug (see BUG_REPORTS.md) | pytest |
 | Localization | Every tab rendered in EN/UK/RU; no raw keys, no English leftovers | pytest + AppTest |
 | Security | No secrets in repo, no network in tests, hostile input, CSV injection, Markdown injection | pytest, pip-audit |
@@ -61,8 +66,10 @@ entry/exit criteria, and risks.
 
 Test design techniques used: equivalence partitioning and boundary values
 (file size, PDF pages, text length, numeric limits), decision tables
-(consent × configuration for AI), state transitions (Draft → Reviewed →
-Approved; coverage status), error guessing (malformed files, hostile text).
+(consent × configuration for AI; requirement link × severity for Grill bug
+hand-over), state transitions (Draft → Reviewed → Approved; coverage status;
+Grill workflow steps), error guessing (malformed files, hostile text,
+oversized answers, double clicks from an outdated page).
 
 ## 4. Environments
 
@@ -74,7 +81,7 @@ Approved; coverage status), error guessing (malformed files, hostile text).
 
 ## 5. Entry and exit criteria
 
-**Entry:** code complete for 1.0.0; dependencies install from
+**Entry:** code complete for 1.1.0; dependencies install from
 `requirements-dev.txt`; example data available (`examples/password_reset.md`).
 
 **Exit:**
@@ -94,6 +101,9 @@ Approved; coverage status), error guessing (malformed files, hostile text).
 | False positives/negatives in rules | Medium | Reference spec tests; findings labelled as hints |
 | Untranslated or inconsistent UI text | Medium | Translation completeness tests + UI language sweep |
 | Dependency vulnerabilities | Medium | Lower bounds + pip-audit in CI |
+| Grill presents an assumption or AI suggestion as a confirmed fact | High | Provenance on every value; assumptions never resolve findings; AI output never blocking or essential; tests |
+| Grill result added to the workspace twice or linked to an invented requirement | Medium | Hand-over only for real requirement IDs; duplicate checks; tests |
+| Unbounded Grill input fills memory or the save file | Low | 100,000-character limit per answer and field; tests |
 | Python 3.12 differences | Low | CI matrix (not verified locally) |
 
 ## 7. Deliverables

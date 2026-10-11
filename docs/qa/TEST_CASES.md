@@ -1,4 +1,4 @@
-# Test Cases — Spec-to-Test v1.0.0
+# Test Cases — Spec-to-Test v1.1.0
 
 Manual test cases for the application itself. Most of them are also covered
 by automated tests (column **Automated by**); manual execution focuses on
@@ -33,6 +33,14 @@ Test data: `examples/password_reset.md` (9 requirements, REQ-1 … REQ-9).
 | TC-020 | Full text visible on a large screen | PR-17 | Medium | — (visual) | Pass — 2026-10-11, browser preview 1920×1080 (see note 3) |
 | TC-021 | Layout on a phone-sized screen | PR-17 | Medium | — (visual) | Pass — 2026-10-11, browser preview 375×812 (see note 4) |
 | TC-022 | Import CSV into Jira and TestRail | PR-12 | Medium | — (external tools) | Not executed |
+| TC-023 | Requirements Grill: clarify and confirm | PR-18, PR-19 | High | test_grill_ui.py::test_requirements_grill_end_to_end_requires_explicit_confirmation | Not executed |
+| TC-024 | Test Case Grill interview with back and edit | PR-18 | High | test_grill_ui.py::test_test_case_interview_validates_answers_and_supports_back, ::test_test_case_interview_reaches_draft_and_edits_mark_user_values | Not executed |
+| TC-025 | Bug Report Grill from a pasted draft | PR-18, PR-19 | High | test_grill_ui.py::test_bug_draft_review_shows_unparsed_lines_and_asks_only_for_gaps | Not executed |
+| TC-026 | QA Review blocks confirmation on blocking issues | PR-19 | High | test_grill_ui.py::test_qa_review_blocks_confirmation_until_blocking_issues_are_fixed | Not executed |
+| TC-027 | Grill AI assistant needs consent per request | PR-20 | High | test_grill_ai_ui.py::test_ai_buttons_need_consent_and_consent_resets_after_each_request, ::test_without_ai_configuration_nothing_ai_is_offered | Not executed |
+| TC-028 | Confirmed Grill test case appears in Test cases, RTM and exports | PR-21 | High | test_grill_ui.py::test_confirmed_test_case_is_added_to_the_analyzed_workspace, test_grill_integration.py::test_added_test_case_reaches_rtm_coverage_and_every_export | Not executed |
+| TC-029 | Clarified findings are resolved only when ticked | PR-21 | High | test_grill_ui.py::test_requirements_grill_resolves_only_ticked_findings | Not executed |
+| TC-030 | Grill Mode in Ukrainian and Russian | PR-15, PR-18 | Medium | test_grill_ui.py::test_every_grill_screen_is_translated, test_grill_ai_ui.py::test_ai_screens_are_translated | Not executed |
 
 Notes on executed cases (executed by the AI coding assistant during release
 preparation, in a Chromium-based preview of the desktop app; not yet
@@ -198,3 +206,73 @@ inside their own area.
 
 **Expected:** fields map as documented in docs/EXPORTS.md; Cyrillic text and
 multi-line steps are preserved.
+
+### TC-023 Requirements Grill: clarify and confirm
+**Preconditions:** `examples/password_reset.md` analyzed; sidebar **Mode → Grill Mode**.
+1. Choose **Clarify requirements**; keep "Use the 9 requirements from the analyzed document" ticked; click **Start**.
+2. Answer the first question; click **Keep as assumption** for the next one; click **Go to the draft**.
+3. Click **Run review**, tick the acceptance of the warnings, click **Continue to confirmation**, then **Confirm and finalize**.
+
+**Expected:** each question shows why it matters and the linked requirement
+text; the draft shows the 9 requirements unchanged plus clarifications labeled
+*Confirmed by you* / *Assumption (not confirmed)*; nothing is finalized before
+**Confirm and finalize**.
+
+### TC-024 Test Case Grill interview with back and edit
+1. Choose **Test case → Start from scratch (interview)**, click **Start**.
+2. Click **Save answer** with an empty answer; then answer two questions.
+3. Click **Back**, change the answer; open **Your answers** and **Change** another one.
+
+**Expected:** empty answer → translated error; the previous answer is shown for
+editing; answered questions are not asked again; changed draft fields are
+labeled *Confirmed by you*.
+
+### TC-025 Bug Report Grill from a pasted draft
+1. Choose **Bug report → Improve my draft**, paste a labeled draft with one
+   unlabeled line (e.g. "Note to self: check logs"), click **Start**.
+
+**Expected:** labeled fields are filled and labeled *From the source*; the
+unlabeled line is shown literally as not recognized; only missing fields are
+asked about; no severity, steps or environment are filled in by the app.
+
+### TC-026 QA Review blocks confirmation on blocking issues
+1. Choose **QA review → Bug report**, paste a draft without an expected result, click **Start**.
+
+**Expected:** blocking findings are listed separately from warnings and
+suggestions; **Continue to confirmation** is disabled until they are fixed.
+
+### TC-027 Grill AI assistant needs consent per request
+**Preconditions:** run once without AI configured, once with a test key.
+1. Without AI: open Grill Mode.
+2. With AI: open the *AI assistant (optional)* panel, tick consent, request
+   questions; open the panel again.
+
+**Expected:** without AI no AI controls are offered and the deterministic mode
+is labeled; with AI the buttons are disabled until consent is ticked and the
+tick is cleared after every request; AI questions are labeled and skippable.
+
+### TC-028 Confirmed Grill test case appears in Test cases, RTM and exports
+**Preconditions:** `examples/password_reset.md` analyzed.
+1. In Grill Mode run **QA review → Test case** on a complete draft linked to
+   REQ-2; confirm it (**Confirm and finalize**); click **Add to the workspace as a Draft test case**.
+2. Switch **Mode** to **Requirements analysis**; open Test cases, RTM and Export.
+
+**Expected:** a new `TC-…` with source *User-provided* and status *Draft* is
+listed for REQ-2 and in all exports; REQ-2 coverage is *Partial* until the case
+is approved; the add button is disabled afterwards ("already in the workspace").
+
+### TC-029 Clarified findings are resolved only when ticked
+**Preconditions:** `examples/password_reset.md` analyzed.
+1. Run **Clarify requirements**, answer the first question (REQ-1), confirm.
+2. In **Use the result**, check that nothing is ticked; tick the clarification;
+   click **Mark selected as resolved**; switch to **Requirements analysis**.
+
+**Expected:** only clarifications you confirmed are listed (assumptions are
+not); after resolving, the REQ-1 finding answered by it is no longer an open
+issue and the quality score of REQ-1 increases; other findings stay open.
+
+### TC-030 Grill Mode in Ukrainian and Russian
+1. Repeat TC-023 and TC-024 in Українська and Русский.
+
+**Expected:** no English text or raw translation keys on any Grill screen;
+user-entered text is shown as typed.

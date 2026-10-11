@@ -14,6 +14,7 @@ from spec_to_test.grill.models import (
     Statement,
     TestCaseDraft,
 )
+from spec_to_test.input_parser import MAX_TEXT_CHARS
 
 AnyDraft = TestCaseDraft | BugReportDraft | RequirementsDraft
 
@@ -52,6 +53,12 @@ def split_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+def check_length(text: str) -> None:
+    """One answer or field may be as long as a whole analyzed document, not longer."""
+    if len(text) > MAX_TEXT_CHARS:
+        raise DraftError("too_long")
+
+
 def _with(draft: AnyDraft, updates: dict[str, Any]) -> AnyDraft:
     try:
         return type(draft).model_validate({**draft.model_dump(), **updates})
@@ -69,6 +76,7 @@ def set_field(draft: AnyDraft, field: str, raw: str, provenance: Provenance) -> 
     """Set one field from text (list fields take one item per line)."""
     if field not in editable_fields(draft):
         raise DraftError("invalid_field")
+    check_length(raw)
     value: Any = split_lines(raw) if is_list_field(draft, field) else raw.strip()
     if value in ("", []):
         raise DraftError("invalid_answer")
@@ -124,6 +132,7 @@ def draft_from_text(draft: AnyDraft, raw: dict[str, str | None]) -> AnyDraft:
     for field, text in raw.items():
         if field not in editable_fields(draft):
             raise DraftError("invalid_field")
+        check_length(text or "")
         if is_list_field(draft, field):
             updates[field] = split_lines(text or "")
         elif type(draft).model_fields[field].default is None:

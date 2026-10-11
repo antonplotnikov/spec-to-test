@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-11
+
 ### Added
 - **Grill Mode** (sidebar → Mode): an interactive QA interviewer with four
   workflows — clarify requirements, build or improve a test case, build or
@@ -35,8 +37,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ### Changed
 - `ai_analysis.request_structured()` is the shared, consent-agnostic model
   call used by the AI analysis tab and Grill Mode (behavior unchanged).
+- Rule findings can now be marked resolved (through a confirmed Grill Mode
+  clarification only).
 
-[Unreleased]: https://github.com/antonplotnikov/spec-to-test/compare/main...feature/grill-mode
+### Security
+- Grill Mode answers and draft fields are limited to the same 100,000
+  characters as an analyzed document, so one session cannot grow without
+  bound or fill the save file.
+
+[Unreleased]: https://github.com/antonplotnikov/spec-to-test/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/antonplotnikov/spec-to-test/releases/tag/v1.1.0
 
 ## [1.0.0] - 2026-10-11
 

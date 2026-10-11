@@ -66,7 +66,7 @@ from spec_to_test.grill.text import (
 from spec_to_test.grill.validation import is_placeholder
 from spec_to_test.grill.workflow import Action, GrillError, allowed_actions
 from spec_to_test.i18n import t
-from spec_to_test.input_parser import InputError
+from spec_to_test.input_parser import MAX_TEXT_CHARS, InputError
 from spec_to_test.models import Requirement, Severity, Source, TestType, Workspace
 
 WF = DETERMINISTIC_WORKFLOW
@@ -431,7 +431,7 @@ def _question_panel(lang: str, session: GrillSession, actions: set[Action]) -> N
             show_text = question.allow_free_text and picked == OTHER
         if show_text:
             st.text_area(
-                t("grill.ui.answer_label", lang), key=text_key, help=list_hint,
+                t("grill.ui.answer_label", lang), key=text_key, help=list_hint, max_chars=MAX_TEXT_CHARS,
                 value=previous_value if previous_value not in {c.value for c in question.choices} else "",
             )
 
@@ -538,11 +538,12 @@ def _draft_editor(lang: str, session: GrillSession, draft: TestCaseDraft | BugRe
                 raw[field] = st.selectbox(label, options, index=options.index(current), key=key,
                                           format_func=names.__getitem__)
             elif is_list_field(draft, field):
-                raw[field] = st.text_area(label, value="\n".join(value), key=key, help=t("grill.ui.one_per_line", lang))
+                raw[field] = st.text_area(label, value="\n".join(value), key=key, help=t("grill.ui.one_per_line", lang),
+                                          max_chars=MAX_TEXT_CHARS)
             elif field in SHORT_TEXT_FIELDS:
-                raw[field] = st.text_input(label, value=value, key=key)
+                raw[field] = st.text_input(label, value=value, key=key, max_chars=MAX_TEXT_CHARS)
             else:
-                raw[field] = st.text_area(label, value=value, key=key, height=100)
+                raw[field] = st.text_area(label, value=value, key=key, height=100, max_chars=MAX_TEXT_CHARS)
             if origin := provenance_label(draft, field, lang):
                 st.caption(t("grill.ui.origin", lang, origin=origin))
         submitted = st.form_submit_button(t("grill.ui.save_draft", lang), type="primary", icon=":material/save:")

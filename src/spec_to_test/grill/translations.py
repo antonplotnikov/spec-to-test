@@ -1142,4 +1142,9 @@ GRILL_TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Виберіть принаймні одне уточнення.",
         "ru": "Выберите хотя бы одно уточнение.",
     },
+    "grill.error.too_long": {
+        "en": "This text is too long. Shorten it (an answer or field may be as long as a whole document, not longer).",
+        "uk": "Цей текст задовгий. Скоротіть його (відповідь чи поле можуть бути не довшими за цілий документ).",
+        "ru": "Этот текст слишком длинный. Сократите его (ответ или поле могут быть не длиннее целого документа).",
+    },
 }

@@ -93,3 +93,26 @@ GitHub wiki page, a pull request, or an email:
 User text is Markdown-escaped, so requirement wording appears exactly as
 written and cannot inject links, images, or table breaks. Test cases linked to
 unknown requirements are skipped, as in the CSV exports.
+
+## Items added from Grill Mode
+
+Test cases and bug reports confirmed in Grill Mode and added to the workspace
+are exported like any other item, in the same columns:
+
+- **Test cases** start as *Draft*, so "only approved" exports leave them out
+  until they are approved. Their source (*User-provided*) is shown in the app;
+  test case exports have no source field. Grill test data appears as
+  `Test data: …` lines in the preconditions. Values kept as assumptions
+  appear in the Jira description, the TestRail preconditions and the Markdown
+  report; open questions in the Jira description and the Markdown report. The
+  test case *objective* has no column; it is only in the Grill Markdown
+  download.
+- **Bug reports** have source `user`. *Description* holds the actual result,
+  *Expected behavior* the expected result, and *Context* the environment,
+  version, reproducibility, priority, preconditions, numbered steps, evidence,
+  assumptions and open questions. Unknown values are written as `Unknown`.
+  Jira *Priority* comes from the bug's severity, as for other reports; the
+  Grill priority is kept in the context text.
+- The **Grill Markdown download** (`grill-<artifact>-<id>.md`) is separate
+  from the QA report: one confirmed result with the origin of every value.
+

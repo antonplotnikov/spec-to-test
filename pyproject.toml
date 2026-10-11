@@ -1,6 +1,6 @@
 [project]
 name = "spec-to-test"
-version = "1.0.0"
+version = "1.1.0"
 description = "Analyze software requirements, detect ambiguities, and generate reviewable test cases."
 readme = "README.md"
 license = "MIT"

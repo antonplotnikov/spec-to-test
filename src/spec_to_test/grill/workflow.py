@@ -28,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
-from spec_to_test.grill.drafts import AnyDraft, DraftError, apply_answer, editable_fields, merge_edit
+from spec_to_test.grill.drafts import AnyDraft, DraftError, apply_answer, check_length, editable_fields, merge_edit
 from spec_to_test.grill.models import (
     Answer,
     AnswerStatus,
@@ -164,6 +164,10 @@ class GrillWorkflow:
             value = value.strip()
             if not value:
                 raise GrillError("empty_answer")
+            try:
+                check_length(value)
+            except DraftError as exc:
+                raise GrillError(exc.code) from None
             if not question.allow_free_text and value not in {c.value for c in question.choices}:
                 raise GrillError("invalid_choice")
         else:
