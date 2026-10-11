@@ -12,7 +12,7 @@ CI configured).
 - [x] ✅ `mypy` passes (28 source files)
 - [x] ✅ `pip-audit` on `requirements-ai.txt` and `requirements-dev.txt`: no known vulnerabilities
 - [x] ✅ App starts headless without AI configuration (`/_stcore/health` → ok)
-- [ ] CI is green on GitHub (Python 3.11 and 3.12) for the 1.1.0 commits
+- [x] ✅ CI is green on GitHub (Python 3.11 and 3.12) for commit a962e6e
 - [x] ✅ Version is 1.1.0 in `pyproject.toml`, `src/spec_to_test/__init__.py`, and `CHANGELOG.md`
 
 ## Documentation

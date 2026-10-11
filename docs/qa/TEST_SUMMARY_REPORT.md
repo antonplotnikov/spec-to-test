@@ -79,7 +79,7 @@ Command: `pytest -q -p no:cacheprovider` in three environments.
 | Secrets in git history | `git log -p --all` searched for key patterns | None found |
 | AI SDK compatibility | `anthropic` 1.13.0: `messages.parse` signature and offline `transform_schema` of all three response models (no network call) | All arguments accepted; schemas built |
 | App start without AI | `streamlit run app.py --server.headless true` with `AI_PROVIDER=none`, then `/_stcore/health` | `ok`, no errors in the log |
-| CI workflow | jobs `lint`, `test` (3.11, 3.12), `security` | Green on GitHub (Python 3.11 and 3.12) for commit `aa8b9cf` (Grill Mode without the workspace hand-over); **not yet run for the 1.1.0 commits** |
+| CI workflow | jobs `lint`, `test` (3.11, 3.12), `security` | Green on GitHub (Python 3.11 and 3.12, lint, audit) for commit `a962e6e`, the full 1.1.0 code |
 
 ## 4. Manual results
 
@@ -107,7 +107,6 @@ Command: `pytest -q -p no:cacheprovider` in three environments.
 |---|---|
 | Grill Mode in a real browser | Only Streamlit `AppTest` (headless) and a server smoke start were used; the Markdown download was checked as content, not as a browser download |
 | Live AI API call (analysis and Grill) | No API key used; AI is tested with a fake client and offline SDK checks |
-| Python 3.12 (for the 1.1.0 commits) | Not installed locally; passed in CI for the earlier Grill commit, runs again after push |
 | Streamlit Community Cloud | Not deployed |
 | Real Jira / TestRail import of Grill-added items | No test instances; CSV columns are the same as for other items |
 | Firefox, Safari, Windows, mobile devices | Not available |
@@ -119,5 +118,5 @@ Command: `pytest -q -p no:cacheprovider` in three environments.
 All automated checks pass in three environments and no known defects are
 open. The exit criteria in the test plan are **met for automated testing**.
 Before publishing, the maintainer should run the Grill Mode manual cases
-(TC-023 … TC-030) in a browser, confirm CI on GitHub, and complete
+(TC-023 … TC-030) in a browser, and complete
 [../RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md).
