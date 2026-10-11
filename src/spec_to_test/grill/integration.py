@@ -56,6 +56,23 @@ def origin_key(session: GrillSession) -> str:
 # Workspace hand-over
 # ---------------------------------------------------------------------------
 
+def context_blocker(session: GrillSession, workspace: Workspace | None) -> str | None:
+    """Why the session's document is not the workspace's document, or None if it is.
+
+    A requirement ID alone does not identify a requirement: two documents can
+    both have REQ-2. The session keeps a snapshot of the requirements it was
+    started on, and the whole snapshot (IDs and texts) must equal the workspace's.
+    """
+    if workspace is None or not workspace.requirements:
+        return None  # nothing to compare with; callers report "no_workspace"
+    if not session.context_requirements:
+        return "context_unknown"
+    snapshot = [(r.id, r.text) for r in session.context_requirements]
+    if snapshot != [(r.id, r.text) for r in workspace.requirements]:
+        return "context_changed"
+    return None
+
+
 def add_blocker(session: GrillSession, workspace: Workspace | None) -> str | None:
     """Why this result cannot be added to the workspace, or None if it can."""
     if session.step != GrillStep.FINALIZED:
@@ -65,6 +82,8 @@ def add_blocker(session: GrillSession, workspace: Workspace | None) -> str | Non
         return "nothing_to_add"
     if workspace is None or not workspace.requirements:
         return "no_workspace"
+    if (code := context_blocker(session, workspace)) is not None:
+        return code
     if not draft.requirement_id:
         return "requirement_link_required"
     if workspace.requirement(draft.requirement_id) is None:

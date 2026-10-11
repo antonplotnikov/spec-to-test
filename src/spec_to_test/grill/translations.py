@@ -1122,6 +1122,26 @@ GRILL_TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Ці вимоги відрізняються від проаналізованого документа, тому його зауваження не можна вирішити звідси.",
         "ru": "Эти требования отличаются от проанализированного документа, поэтому его замечания нельзя решить отсюда.",
     },
+    "grill.error.context_changed": {
+        "en": "The analyzed document is no longer the one this session was started on, so the result cannot be linked to its requirements. Download it as Markdown, or start a new session on the current document.",
+        "uk": "Проаналізований документ більше не той, на якому розпочато цю сесію, тому результат не можна пов'язати з його вимогами. Завантажте його як Markdown або розпочніть нову сесію на поточному документі.",
+        "ru": "Проанализированный документ больше не тот, на котором начата эта сессия, поэтому результат нельзя связать с его требованиями. Скачайте его как Markdown или начните новую сессию на текущем документе.",
+    },
+    "grill.error.context_unknown": {
+        "en": "This session was started without an analyzed document, so its result cannot be linked to the current document's requirements. Download it as Markdown, or start a new session after analyzing the document.",
+        "uk": "Цю сесію розпочато без проаналізованого документа, тому її результат не можна пов'язати з вимогами поточного документа. Завантажте його як Markdown або розпочніть нову сесію після аналізу документа.",
+        "ru": "Эта сессия начата без проанализированного документа, поэтому её результат нельзя связать с требованиями текущего документа. Скачайте его как Markdown или начните новую сессию после анализа документа.",
+    },
+    "grill.ui.context_changed": {
+        "en": "The analyzed document changed after this session started. You can finish the session and download the result as Markdown, but it can no longer be added to the current document.",
+        "uk": "Проаналізований документ змінився після початку цієї сесії. Ви можете завершити сесію та завантажити результат як Markdown, але додати його до поточного документа вже не можна.",
+        "ru": "Проанализированный документ изменился после начала этой сессии. Вы можете завершить сессию и скачать результат как Markdown, но добавить его в текущий документ уже нельзя.",
+    },
+    "grill.ui.context_unknown": {
+        "en": "This session was started without an analyzed document, so its result cannot be added to the current document. You can finish the session and download the result as Markdown.",
+        "uk": "Цю сесію розпочато без проаналізованого документа, тому її результат не можна додати до поточного документа. Ви можете завершити сесію та завантажити результат як Markdown.",
+        "ru": "Эта сессия начата без проанализированного документа, поэтому её результат нельзя добавить в текущий документ. Вы можете завершить сессию и скачать результат как Markdown.",
+    },
     "grill.error.incomplete_result": {
         "en": "The result lacks fields the workspace needs (title, test type, steps, expected result).",
         "uk": "У результаті бракує полів, потрібних робочому простору (назва, тип тесту, кроки, очікуваний результат).",

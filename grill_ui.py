@@ -29,6 +29,7 @@ from spec_to_test.grill.integration import (
     IntegrationError,
     add_blocker,
     add_to_workspace,
+    context_blocker,
     markdown_file_name,
     resolutions,
     resolve_blocker,
@@ -358,6 +359,12 @@ def _session_screen(
     if (unparsed := st.session_state.get(UNPARSED)) and not session.is_terminal:
         st.warning(t("grill.ui.unparsed", lang), icon=":material/help:")
         st.code("\n".join(unparsed), language=None)  # shown literally, never interpreted
+
+    # Results are linked to requirements by ID, so a document the session was not started on must
+    # be said out loud. A cancelled session has no result left to add or download.
+    if session.artifact != ArtifactType.REQUIREMENTS and session.step != GrillStep.CANCELLED:
+        if blocker := context_blocker(session, workspace):
+            st.warning(t(f"grill.ui.{blocker}", lang), icon=":material/warning:")
 
     actions = allowed_actions(session)
     step = session.step

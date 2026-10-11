@@ -307,6 +307,128 @@ def test_confirmed_test_case_is_added_to_the_analyzed_workspace(example_text):
     assert not at.exception
 
 
+OTHER_DOC = """REQ-1: The user must be able to log out.
+REQ-2: The system must send a reset email within 5 minutes."""
+
+
+def analyze_other_document(at: AppTest, document: str = OTHER_DOC) -> AppTest:
+    """Leave Grill, analyze another document in Analysis mode and come back."""
+    at.sidebar.radio(key="app_mode").set_value("analysis").run()
+    at.text_area[0].input(document).run()
+    at.button[0].click().run()
+    assert not at.exception
+    return grill(at)
+
+
+def test_changing_the_document_mid_session_does_not_move_the_result(example_text):
+    at = analyzed(example_text)
+    at = start(at, "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT)
+    assert not [w for w in at.warning if w.value == t("grill.ui.context_changed")]
+    at = analyze_other_document(at)  # same REQ-2, different document, session still open
+    other = at.session_state["workspace"]
+    assert other.requirement("REQ-2").text.startswith("The system must send a reset email")
+    assert session_of(at) is not None
+    assert t("grill.ui.context_changed") in [w.value for w in at.warning]  # said at once, not only at the end
+    at = confirm(at)
+    assert t("grill.ui.context_changed") in [w.value for w in at.warning]
+    assert at.button(key="grill_add").disabled
+    assert t("grill.error.context_changed") in [c.value for c in at.caption]
+    assert len(at.get("download_button")) == 1  # the confirmed result is still available
+    assert at.session_state["workspace"] == other  # nothing was moved into the new document
+    assert not any(tc.source.value == "user" for tc in other.test_cases)
+    click(at, "grill_new")
+    assert t("grill.ui.context_changed") not in [w.value for w in at.warning]
+
+
+def test_cancelled_session_gets_no_context_warning(example_text):
+    at = analyzed(example_text)
+    at = start(at, "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT)
+    click(at, "grill_cancel")
+    assert session_of(at).step == GrillStep.CANCELLED
+    at = analyze_other_document(at)
+    assert session_of(at).step == GrillStep.CANCELLED
+    assert not [w for w in at.warning if w.value.startswith("The analyzed document changed")]
+    assert not [w for w in at.warning if "Markdown" in w.value]  # nothing left to download
+
+
+def test_session_started_without_a_document_warns_as_soon_as_one_is_analyzed(example_text):
+    at = start(grill(), "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT)
+    assert t("grill.ui.context_unknown") not in [w.value for w in at.warning]  # no document yet
+    at = analyze_other_document(at, example_text)  # the document arrives after the session began
+    assert session_of(at).step == GrillStep.REVIEW  # still mid-session, not finalized
+    assert t("grill.ui.context_unknown") in [w.value for w in at.warning]
+    at = confirm(at)
+    assert t("grill.ui.context_unknown") in [w.value for w in at.warning]
+    assert at.button(key="grill_add").disabled
+    assert t("grill.error.context_unknown") in [c.value for c in at.caption]
+    assert len(at.get("download_button")) == 1  # Markdown stays available
+
+
+def test_interview_answers_survive_a_document_change_and_the_result_stays_out(example_text):
+    at = analyzed(example_text)
+    at = start(at, "test_case", mode="interview")
+    choose(at, "REQ-2")
+    answer_text(at, "Reset link is sent")
+    answered = {qid: a.value for qid, a in session_of(at).answers.items()}
+    assert answered["tc.title"] == "Reset link is sent"
+    at = analyze_other_document(at)  # same REQ-2, other document, mid-interview
+    session = session_of(at)
+    assert session.step == GrillStep.ASK_QUESTION
+    assert {qid: a.value for qid, a in session.answers.items()} == answered  # nothing was lost
+    assert t("grill.ui.context_changed") in [w.value for w in at.warning]
+    for question_id, value in (
+        ("tc.objective", "Check the reset mail"), ("tc.test_type", "positive"),
+        ("tc.steps", "Request a reset\nOpen the mailbox"), ("tc.expected_result", "A link arrives"),
+    ):
+        question = session_of(at).current_question
+        while question is not None and question.id != question_id:  # optional questions are skipped
+            click(at, "grill_skip")
+            question = session_of(at).current_question
+        assert question is not None
+        if question.choices and not question.allow_free_text:
+            choose(at, value)
+        else:
+            answer_text(at, value)
+    assert session_of(at).step == GrillStep.SHOW_DRAFT  # the last answer opens the draft
+    at = confirm(at)
+    other = at.session_state["workspace"]
+    assert session_of(at).draft.title == "Reset link is sent"
+    assert at.button(key="grill_add").disabled
+    assert t("grill.error.context_changed") in [c.value for c in at.caption]
+    assert len(at.get("download_button")) == 1
+    assert not any(tc.source.value == "user" for tc in other.test_cases)
+
+
+def test_returning_to_the_original_document_makes_the_result_addable_again(example_text):
+    at = analyzed(example_text)
+    at = start(at, "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT)
+    at = analyze_other_document(at)
+    assert t("grill.ui.context_changed") in [w.value for w in at.warning]
+    at = analyze_other_document(at, example_text)  # back to the document the session was started on
+    assert t("grill.ui.context_changed") not in [w.value for w in at.warning]
+    at = confirm(at)
+    click(at, "grill_add")
+    assert at.session_state["workspace"].test_cases[-1].requirement_id == "REQ-2"
+
+
+def test_requirements_grill_on_pasted_text_still_resolves_findings(example_text):
+    at = analyzed(example_text)
+    at.radio(key="grill_kind").set_value("requirements").run()
+    at.checkbox(key="grill_use_analyzed").uncheck().run()
+    at.text_area(key="grill_requirements_text").input(example_text).run()  # typed in, so no context snapshot
+    at = click(at, "grill_start")
+    assert session_of(at).context_requirements == []
+    answer_text(at, "A reset email is sent and a confirmation message is shown")
+    at = confirm(at)
+    assert t("grill.ui.context_changed") not in [w.value for w in at.warning]
+    boxes = [c for c in at.checkbox if c.key and "_resolve_" in c.key]
+    assert len(boxes) == 1
+    boxes[0].check().run()
+    click(at, "grill_resolve")
+    statuses = {f.key: f.status.value for f in at.session_state["workspace"].findings}
+    assert statuses["REQ-1|missing_expected_result|"] == "resolved"
+
+
 def test_result_without_a_document_can_only_be_downloaded():
     at = confirm(start(grill(), "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT))
     assert len(at.get("download_button")) == 1
