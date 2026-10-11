@@ -31,7 +31,7 @@ is claimed.
 | PR-18 | Grill Mode: requirements, test case, bug report and QA review workflows; interview and draft review; back, skip, edit, cancel | TC-023, TC-024, TC-025 | test_grill_workflow.py, test_grill_planner.py, test_grill_inputs.py, test_grill_ui.py | — | Pass | Not executed |
 | PR-19 | Grill Mode trust: provenance on every value, unknown stays unknown, blocking / warning / suggestion review, explicit confirmation | TC-023, TC-025, TC-026 | test_grill_models.py, test_grill_validation.py, test_grill_review.py, test_grill_workflow.py | — | Pass | Not executed |
 | PR-20 | Grill Mode optional AI: works without a key, consent per request, minimal data, AI never blocking or essential | TC-027 | test_grill_ai.py, test_grill_ai_ui.py | — | Pass | Not executed |
-| PR-21 | Confirmed Grill results in workspace, RTM, coverage and exports; Markdown download; opt-in resolved findings; bounded input | TC-028, TC-029 | test_grill_integration.py, test_grill_security.py, test_grill_ui.py | BUG-008 | Pass | Not executed |
+| PR-21 | Confirmed Grill results in workspace, RTM, coverage and exports; Markdown download; opt-in resolved findings; bounded input | TC-028, TC-029, TC-031 | test_grill_integration.py, test_grill_security.py, test_grill_ui.py | BUG-008, BUG-009 | Pass | Not executed |
 
 ## Coverage summary
 

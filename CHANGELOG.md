@@ -6,6 +6,33 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Grill Mode: a confirmed test case or bug report could be added to a
+  different document that had a requirement with the same ID (for example
+  `REQ-2` in two documents), because only the ID was compared. A Grill
+  session already stored the requirements it was started on; the new check
+  compares that snapshot with the analyzed document, and **Add to the
+  workspace** works only when the requirements (IDs and texts) are identical.
+  Otherwise nothing is added and the button is disabled with a translated
+  reason. In test case and bug report sessions (not Requirements Grill) that
+  are not cancelled, a warning is shown while the session is open (tested on the
+  question, review and final steps) as soon as the analyzed document differs
+  from the session's, or when a document is analyzed after a
+  session that was started without one. Answers are kept, and the confirmed
+  result can still be downloaded as Markdown. See BUG-009 in
+  `docs/qa/BUG_REPORTS.md`.
+
+### Known limitations
+- The Grill document check compares requirement IDs and texts. Two different
+  documents whose requirements are all identical are not told apart, and a
+  slightly edited re-analysis of the same document is treated as another
+  document (use the Markdown download or start a new session).
+- Resolving findings (Requirements Grill) is unchanged: it still requires each
+  requirement of the session to exist in the workspace with the same text, and
+  does not compare the whole document.
+- This change does not address shared local storage between users
+  (tracked separately as P0-1; not fixed here).
+
 ## [1.1.0] - 2026-10-11
 
 ### Added

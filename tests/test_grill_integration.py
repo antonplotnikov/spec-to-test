@@ -8,6 +8,7 @@ from spec_to_test.grill.integration import (
     IntegrationError,
     add_blocker,
     add_to_workspace,
+    context_blocker,
     markdown_file_name,
     open_questions,
     resolutions,
@@ -163,7 +164,7 @@ def test_open_questions_travel_with_the_test_case():
     [
         (tc_draft(), None, "no_workspace"),
         (tc_draft(requirement_id="", feature="Sign-up"), "ws", "requirement_link_required"),
-        (tc_draft(requirement_id="REQ-9"), "other", "requirement_not_in_workspace"),
+        (tc_draft(requirement_id="REQ-9"), "other", "context_changed"),
     ],
 )
 def test_test_case_that_cannot_be_linked_is_not_added(draft, context, code):
@@ -226,6 +227,89 @@ def test_bug_without_severity_or_requirement_stays_out_of_the_workspace(changes,
     session = reviewed(bug_draft(**changes), ws)
     assert add_blocker(session, ws) == code
     assert "Save crashes the editor" in result_markdown(session)  # still available as Markdown
+
+
+# --- Same requirement ID in another document ---------------------------------------------
+
+OTHER_DOC = """REQ-1: The user must be able to log out.
+REQ-2: The system must send a reset email within 5 minutes."""
+
+
+def reset_tc(**changes) -> TestCaseDraft:
+    return tc_draft(
+        title="Reset email arrives", requirement_id="REQ-2", test_data=[],
+        steps=["Request a reset"], expected_result="An email arrives", **changes,
+    )
+
+
+def test_same_requirement_id_in_another_document_is_not_linked():
+    doc_a, doc_b = workspace(), workspace(OTHER_DOC)
+    assert doc_a.requirement("REQ-2") and doc_b.requirement("REQ-2")  # the ID alone matches
+    for draft in (reset_tc(), bug_draft(requirement_id="REQ-2")):
+        session = reviewed(draft, doc_a)
+        assert add_blocker(session, doc_a) is None  # fine on its own document
+        assert context_blocker(session, doc_b) == "context_changed"
+        assert add_blocker(session, doc_b) == "context_changed"
+        before = doc_b.model_dump()
+        with pytest.raises(IntegrationError) as error:
+            add_to_workspace(session, doc_b)
+        assert error.value.code == "context_changed"
+        assert doc_b.model_dump() == before  # the refused call left the workspace untouched
+        assert not any(tc.source == Source.USER for tc in doc_b.test_cases) and not doc_b.defects
+        added, _ = add_to_workspace(session, doc_a)  # the same result does go to its own document
+        assert added.model_dump() != doc_a.model_dump()
+        assert result_markdown(session)  # still downloadable
+
+
+def test_whole_context_is_compared_not_just_the_linked_requirement():
+    doc_a = workspace()
+    edited = workspace(REQS.replace("load fast", "load in 2 seconds"))  # REQ-2 identical, REQ-3 differs
+    session = reviewed(reset_tc(), doc_a)
+    assert doc_a.requirement("REQ-2") == edited.requirement("REQ-2")
+    assert add_blocker(session, edited) == "context_changed"
+
+
+def test_reanalyzing_the_same_document_keeps_the_session_valid():
+    session = reviewed(reset_tc(), workspace())
+    again = workspace()  # an independent analysis of the same text
+    assert context_blocker(session, again) is None
+    updated, item_id = add_to_workspace(session, again)
+    case = next(tc for tc in updated.test_cases if tc.id == item_id)
+    assert (case.source, case.review_status, case.requirement_id) == (Source.USER, ReviewStatus.DRAFT, "REQ-2")
+
+
+def test_session_without_a_document_snapshot_is_not_linked_to_a_later_document():
+    ws = workspace()
+    session = reviewed(reset_tc())  # started before any document was analyzed
+    assert add_blocker(session, ws) == "context_unknown"
+    assert add_blocker(session, None) == "no_workspace"
+
+
+def test_added_and_approved_test_case_still_covers_its_requirement():
+    ws = workspace()
+    updated, item_id = add_to_workspace(reviewed(reset_tc(), ws), ws)
+    approved = updated.model_copy(deep=True)
+    next(tc for tc in approved.test_cases if tc.id == item_id).review_status = ReviewStatus.APPROVED
+    assert coverage_of(approved, "REQ-2") != coverage_of(updated, "REQ-2")
+
+
+def test_requirements_grill_on_pasted_text_has_no_snapshot_and_still_resolves():
+    ws = workspace()
+    pasted = [r for r in ws.requirements if r.id in ("REQ-1", "REQ-2")]  # text pasted by hand, same wording
+    session = WF.submit_input(WF.start(GrillKind.REQUIREMENTS), RequirementsDraft(requirements=pasted))
+    assert session.context_requirements == []
+    session = finalize(WF.answer(session, "REQ-2 wins: at least 10 characters.", AnswerStatus.ANSWERED))
+    assert resolve_blocker(session, ws) is None
+    assert [r.question_id for r in resolutions(session, ws)] == [CONTRADICTION]
+    assert any(f.status == ClarificationStatus.RESOLVED for f in resolve_findings(session, ws, [CONTRADICTION]).findings)
+    assert add_blocker(session, ws) == "nothing_to_add"  # unchanged: requirements results are not items
+
+
+def test_resolve_still_compares_requirement_text_not_the_whole_context():
+    ws = workspace()
+    session = clarified(ws)
+    same_requirements_other_tail = workspace(REQS + "\nREQ-4: Sessions must expire after 30 minutes.")
+    assert resolve_blocker(session, same_requirements_other_tail) is None  # compatibility kept on purpose
 
 
 # --- Resolving requirement findings ------------------------------------------------------

@@ -41,6 +41,7 @@ Test data: `examples/password_reset.md` (9 requirements, REQ-1 … REQ-9).
 | TC-028 | Confirmed Grill test case appears in Test cases, RTM and exports | PR-21 | High | test_grill_ui.py::test_confirmed_test_case_is_added_to_the_analyzed_workspace, test_grill_integration.py::test_added_test_case_reaches_rtm_coverage_and_every_export | Not executed |
 | TC-029 | Clarified findings are resolved only when ticked | PR-21 | High | test_grill_ui.py::test_requirements_grill_resolves_only_ticked_findings | Not executed |
 | TC-030 | Grill Mode in Ukrainian and Russian | PR-15, PR-18 | Medium | test_grill_ui.py::test_every_grill_screen_is_translated, test_grill_ai_ui.py::test_ai_screens_are_translated | Not executed |
+| TC-031 | Grill result is not added to a different document with the same requirement ID | PR-21 | High | test_grill_ui.py::test_changing_the_document_mid_session_does_not_move_the_result, ::test_returning_to_the_original_document_makes_the_result_addable_again, test_grill_integration.py::test_same_requirement_id_in_another_document_is_not_linked | Not executed |
 
 Notes on executed cases (executed by the AI coding assistant during release
 preparation, in a Chromium-based preview of the desktop app; not yet
@@ -276,3 +277,19 @@ issue and the quality score of REQ-1 increases; other findings stay open.
 
 **Expected:** no English text or raw translation keys on any Grill screen;
 user-entered text is shown as typed.
+
+### TC-031 Grill result is not added to a different document with the same requirement ID
+**Preconditions:** `examples/password_reset.md` and a second document whose
+`REQ-2` has a different text (for example `REQ-1: The user must be able to log out.`
+and `REQ-2: The system must send a reset email within 5 minutes.`).
+1. Analyze `examples/password_reset.md`. In Grill Mode run **QA review → Test case**
+   on a complete draft linked to REQ-2 and confirm it (do not add it).
+2. Switch **Mode** to **Requirements analysis**, replace the text with the second
+   document and analyze it. Switch back to Grill Mode.
+3. Check the page, then analyze `examples/password_reset.md` again and look at
+   Grill Mode once more.
+
+**Expected:** at step 2 a warning says the analyzed document changed after the
+session started, **Add to the workspace…** is disabled with an explanation, the
+Markdown download still works, and the second document's Test cases are
+unchanged. At step 3 the warning is gone and adding is possible again.
