@@ -14,7 +14,7 @@ preparing the release (2026-10-11); the rest need the maintainer.
 ## Repository content
 - [x] ✅ README, LICENSE (MIT), CHANGELOG, SECURITY.md, `.env.example`, `.gitignore`
 - [ ] Copyright holder in `LICENSE` is correct
-- [ ] `<your-github-username>` replaced in README.md, CHANGELOG.md, docs/DEPLOYMENT.md
+- [x] `antonplotnikov` replaced in README.md, CHANGELOG.md, docs/DEPLOYMENT.md
 - [ ] Screenshots added to `docs/screenshots/` and placeholders replaced in README
 - [ ] `git status` before the first commit shows **no** `.env`, `.venv/`,
       `.spec_to_test_data/`, `.streamlit/secrets.toml`, or cache folders

@@ -6,9 +6,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# Make the `src/` package importable without installing it.
+# Make the `src/` package (and grill_ui.py next to this file) importable without installing it.
 sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent))
 
+from grill_ui import render_grill  # noqa: E402
 from spec_to_test import __version__  # noqa: E402
 from spec_to_test.ai_analysis import AIError, load_config, run_ai_analysis  # noqa: E402
 from spec_to_test.bug_reports import (  # noqa: E402
@@ -90,7 +92,8 @@ st.html(
         border-radius: 999px; background: rgba(255, 255, 255, 0.16);
         color: #fff; font-size: 0.8rem; font-weight: 500;
     }
-    .st-key-input_text, .st-key-input_file,
+    .st-key-input_text, .st-key-input_file, .st-key-grill_panel, .st-key-grill_question,
+    .st-key-grill_review, .st-key-grill_confirm,
     [data-testid="stMetric"], [data-testid="stTabs"] {
         background: #fff;
         box-shadow: 0 1px 2px rgba(30, 27, 58, 0.04), 0 4px 16px -8px rgba(30, 27, 58, 0.08);
@@ -184,6 +187,13 @@ lang: str = st.sidebar.selectbox(
     format_func=lambda code: LANGUAGES[code],
     key="language",
 ) or "en"
+# A radio (not a selectbox) keeps the language picker the first sidebar selectbox.
+app_mode = st.sidebar.radio(
+    t("grill.ui.app_mode", lang),
+    options=["analysis", "grill"],
+    format_func=lambda mode: t(f"grill.ui.mode_{mode}", lang),
+    key="app_mode",
+)
 ai_config = load_config()
 st.sidebar.info(t("sidebar.privacy_ai" if ai_config else "sidebar.privacy", lang))
 st.sidebar.caption(t("sidebar.storage" if persistence_enabled() else "sidebar.storage_session", lang))
@@ -203,6 +213,11 @@ with st.container(key="hero"):
     st.title(t("app.title", lang))
     st.caption(t("app.subtitle", lang))
     st.html(f'<span class="hero-badges">{t("app.badges", lang)}</span>')
+
+# Grill Mode has its own page; the analysis below stays exactly as before.
+if app_mode == "grill":
+    render_grill(lang, st.session_state.get("workspace"), ai_config)
+    st.stop()
 
 col_text, col_file = st.columns([3, 2], gap="medium")
 with col_text.container(border=True, key="input_text", height="stretch"):

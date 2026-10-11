@@ -1,6 +1,6 @@
 # Spec-to-Test
 
-[![CI](https://github.com/<your-github-username>/spec-to-test/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-github-username>/spec-to-test/actions/workflows/ci.yml)
+[![CI](https://github.com/antonplotnikov/spec-to-test/actions/workflows/ci.yml/badge.svg)](https://github.com/antonplotnikov/spec-to-test/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -14,7 +14,10 @@ requirements (or upload a TXT, MD, or PDF file) and it will:
 - let you review and edit test cases (Draft → Reviewed → Approved),
 - produce bug reports for requirement defects,
 - track coverage in a Requirements Traceability Matrix and a QA dashboard,
-- export to Jira, TestRail, CSV, and Markdown.
+- export to Jira, TestRail, CSV, and Markdown,
+- **Grill Mode:** interview you, one question at a time, until a requirement
+  set, test case, or bug report is complete and unambiguous — or review an
+  artifact you already have.
 
 The interface is available in **English** (default), **Ukrainian**, and
 **Russian**. It works fully offline; AI review is optional and runs only with
@@ -52,6 +55,7 @@ screenshot should show.
 | **RTM** | Requirement → quality → open issues → test cases → approved tests → bug reports → coverage. |
 | **QA dashboard** | Requirements, open issues, test cases, coverage %, average quality, severity / coverage / review charts, and filters. |
 | **Exports** | Jira CSV (test cases, bugs), TestRail CSV, RTM CSV, and a Markdown QA report. |
+| **Grill Mode** | An interactive QA interviewer: clarify requirements, build or improve a test case or bug report, or run a QA review of an existing artifact. Every value shows where it came from (source, confirmed by you, assumption, unknown); nothing is finalized without your explicit confirmation. |
 | **AI analysis (optional)** | Anthropic Claude looks for ambiguities, contradictions, and missing scenarios. Consent is required for every run; results are labeled and kept apart from rule-based facts. |
 | **Persistence** | Edits are saved locally and restored next time (or kept per browser session on shared hosting). |
 
@@ -81,23 +85,46 @@ Grades: **Good** ≥ 80, **Fair** 50–79, **Poor** < 50.
 
 ---
 
-## Quick start
+## Installation
 
-Requires **Python 3.11+**.
+Requires **Python 3.11 or newer** and `git`.
+
+### macOS / Linux
 
 ```bash
-git clone https://github.com/<your-github-username>/spec-to-test.git
+git clone https://github.com/antonplotnikov/spec-to-test.git
 cd spec-to-test
-python3.11 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt        # app only
+streamlit run app.py
+```
+
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/antonplotnikov/spec-to-test.git
+cd spec-to-test
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
 Open http://localhost:8501 and try it with
 [`examples/password_reset.md`](examples/password_reset.md).
 
-### Optional: AI analysis
+| File | Installs | Use it when |
+|---|---|---|
+| `requirements.txt` | Streamlit, Pydantic, pypdf, pandas | you only want to run the app |
+| `requirements-dev.txt` | the above + pytest, ruff, mypy | you want to run tests or contribute |
+| `requirements-ai.txt` | the above + the `anthropic` SDK | you want the optional AI features |
+
+No configuration is needed: without a `.env` file the app runs fully offline.
+
+### Optional: AI features
 
 ```bash
 pip install -r requirements-ai.txt   # official anthropic SDK
@@ -112,6 +139,7 @@ cp .env.example .env                 # then set AI_PROVIDER and ANTHROPIC_API_KE
 - Each suggestion must reference requirement IDs from your document; its quote
   is checked against the text (✅ found / ⚠️ not found).
 - Default model: `claude-opus-5-5` (override with `AI_MODEL`).
+- The same setup enables the optional AI assistant in Grill Mode (see below).
 
 ---
 
@@ -127,6 +155,59 @@ cp .env.example .env                 # then set AI_PROVIDER and ANTHROPIC_API_KE
    coverage, quality, or text.
 7. **Export** — download Jira / TestRail / RTM CSV or the Markdown report.
    Field mappings: [docs/EXPORTS.md](docs/EXPORTS.md).
+
+---
+
+## Grill Mode
+
+Switch **Mode → Grill Mode** in the sidebar. Pick a workflow:
+
+| Workflow | Start from | Result |
+|---|---|---|
+| **Clarify requirements** | pasted requirements, or the document analyzed on the main page | the original requirements (unchanged) plus clarifications linked to their IDs |
+| **Test case** | scratch (interview) or your draft | a test case that another tester can run without asking anyone |
+| **Bug report** | scratch (interview) or your draft | a bug report a developer can reproduce |
+| **QA review** | an existing requirements set, test case, or bug report | review findings, no interview |
+
+How it works:
+
+1. **Questions, one at a time.** Each question says why it matters. Answer it,
+   keep your answer as an *assumption*, say *I don't know*, or skip it
+   (essential questions cannot be skipped). You can go back and change any
+   answer; follow-up questions appear only when they apply (for example,
+   boundary values for a boundary test).
+2. **Draft.** Edit any field directly. Every value is labeled with its origin:
+   *from the source*, *confirmed by you*, *assumption*, *AI suggestion*, or
+   *unknown*. Unknown values stay empty — the app never guesses them.
+3. **Review.** Findings are **blocking** (must be fixed), **warnings** (fix
+   them or explicitly accept them as unresolved), or **suggestions**. Checks
+   reuse the rule engine: vague wording, limits that contradict or are not in
+   the linked requirement, negative tests that expect success, missing test
+   data, invented requirement IDs, placeholders such as `TBD`, and more.
+4. **Confirmation.** Only an explicit confirmation finalizes the artifact.
+   Any change after a review makes it outdated, and you must review again.
+
+To improve an existing draft, paste it with labels, for example:
+
+```text
+Title: Expired reset link is rejected
+Requirement: REQ-3
+Test type: negative
+Steps:
+1. Request a reset link
+2. Wait 16 minutes and open it
+Expected result: The page says "This link has expired"
+```
+
+Lines the parser does not recognize are shown to you, never dropped silently.
+
+**Optional AI assistant.** When AI is configured, an *AI assistant* panel can
+suggest extra interview questions or add an AI review. Each request needs a
+fresh consent tick; only the draft, its linked requirement, and the questions
+already asked are sent. AI questions are always optional, and AI findings can
+warn but never block. Output that cannot be traced (unknown fields, invented
+requirement IDs, quotes not found in your text) is discarded. Only your own
+answers and edits change the draft.
 
 ---
 
@@ -149,7 +230,7 @@ them in sync).
 ## Architecture
 
 ```
-app.py                       Streamlit UI (tabs, editor forms, downloads)
+app.py                       Streamlit UI (tabs, editor forms, downloads, mode switch)
 src/spec_to_test/
 ├── models.py                Pydantic models: Requirement, Finding, TestCase, DefectReport, Workspace …
 ├── input_parser.py          File validation (type, size, encoding, PDF pages) + requirement extraction
@@ -163,7 +244,15 @@ src/spec_to_test/
 ├── formatting.py            Markdown escaping for user text
 ├── storage.py               Local JSON persistence and storage modes
 ├── ai_analysis.py           Optional LLM review (consent required)
-└── i18n.py                  All UI text in EN / UK / RU
+├── i18n.py                  All UI text in EN / UK / RU
+└── grill/                   Grill Mode domain logic (no Streamlit, no network)
+    ├── models.py            Session, drafts, questions, answers, findings, provenance
+    ├── workflow.py          Explicit steps and validated transitions
+    ├── planner.py           Deterministic question banks
+    ├── validation.py        Deterministic review checks
+    ├── inputs.py            Labeled-draft parser
+    └── ai.py                Optional AI questions and review
+grill_ui.py                  Grill Mode page (rendering only)
 tests/                       Unit, integration, regression and Streamlit UI tests
 docs/                        Exports, deployment, release checklist, QA documentation
 ```
@@ -232,6 +321,9 @@ The app is ready for **Streamlit Community Cloud**. See
 - Jira priorities and TestRail types/priorities use default values.
 - AI supports Anthropic only and was tested with a fake client, not the live API.
 - Tables do not support column sorting (they wrap text instead of truncating it).
+- Grill Mode keeps its session in the browser only: results are not saved to
+  disk, not added to the RTM, and cannot be exported yet. Findings are resolved
+  by editing the draft; resolving them one by one is planned.
 - Some labels inside Streamlit's file uploader ("Upload", size hint) come from
   Streamlit and stay in English.
 
@@ -239,5 +331,6 @@ The app is ready for **Streamlit Community Cloud**. See
 
 ## Project status and license
 
-Version **1.0.0** — see [CHANGELOG.md](CHANGELOG.md).
+Version **1.0.0**, with Grill Mode in development (see the *Unreleased*
+section of [CHANGELOG.md](CHANGELOG.md)).
 Released under the [MIT License](LICENSE).
