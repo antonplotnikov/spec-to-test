@@ -84,7 +84,7 @@ jobs:
 
   automation-e2e:
     name: Automation end-to-end (real browser)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # 24.04 AppArmor blocks the Chromium sandbox
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
