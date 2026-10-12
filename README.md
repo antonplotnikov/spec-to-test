@@ -17,7 +17,10 @@ requirements (or upload a TXT, MD, or PDF file) and it will:
 - export to Jira, TestRail, CSV, and Markdown,
 - **Grill Mode:** interview you, one question at a time, until a requirement
   set, test case, or bug report is complete and unambiguous — or review an
-  artifact you already have.
+  artifact you already have,
+- **Automation (optional):** turn an Approved test case into a Playwright
+  TypeScript test — Claude explores your staging site in a real browser, the
+  test is generated, run in a sandboxed Chromium, and approved by you.
 
 The interface is available in **English** (default), **Ukrainian**, and
 **Russian**. It works fully offline; AI review is optional and runs only with
@@ -124,6 +127,46 @@ Open http://localhost:8501 and try it with
 
 No configuration is needed: without a `.env` file the app runs fully offline.
 
+### macOS app (own window, no browser)
+
+```bash
+git clone https://github.com/antonplotnikov/spec-to-test.git
+cd spec-to-test
+macos/build_app.sh            # creates ~/Applications/Spec-to-Test.app
+```
+
+Then open **Spec-to-Test** from Finder, Launchpad, or Spotlight. It opens in
+its own window (WebKit, via [pywebview](https://pywebview.flowrl.com/)) with
+its own Dock icon. Closing the window or **⌘Q** stops the local server.
+
+- `build_app.sh` creates `.venv` if needed and installs
+  `requirements-desktop.txt` (the app plus pywebview). If `.env` sets
+  `AI_PROVIDER=anthropic`, the AI SDK is installed on launch too.
+- **Settings** (AI key, Automation hosts and credentials) go in
+  `~/Library/Application Support/Spec-to-Test/settings.env` — a private file
+  (only your user can read it) created with commented examples on first
+  launch. Uncomment the lines you need and restart the app. Only `AI_*`,
+  `ANTHROPIC_API_KEY` and `AUTOMATION_*` keys are read from it.
+- **Automation tab:** if Node.js 20+ is installed (nvm or Homebrew is fine),
+  the build also installs `requirements-automation.txt` and the Playwright
+  toolchain in `automation/runner`, and remembers where `node` is (apps opened
+  from Finder do not get your shell's `PATH`). Then set `AI_PROVIDER`,
+  `ANTHROPIC_API_KEY` and `AUTOMATION_ALLOWED_HOSTS` in `settings.env`; for a
+  staging site on your own machine or LAN also
+  `AUTOMATION_ALLOW_PRIVATE_NETWORK=true`.
+- The server listens on `127.0.0.1` only, on port 8501 (or the next free one),
+  and exits when the window process ends, even after a crash.
+- Work is **saved on disk** (`SPEC_TO_TEST_STORAGE=local`) in
+  `~/Library/Application Support/Spec-to-Test/data`, because the app is meant
+  for your own Mac. The log is `~/Library/Logs/Spec-to-Test/server.log`.
+- Exports open a Save dialog (default folder: Downloads); links open in your
+  browser.
+- The app runs this checkout, so code changes apply on the next launch.
+  Rebuild it after moving the folder or recreating `.venv` with another
+  Python. Without building the app: `macos/start.sh`.
+- The app is signed ad hoc, not notarized: it is meant to be built on the Mac
+  that runs it.
+
 ### Optional: AI features
 
 ```bash
@@ -228,6 +271,82 @@ answers and edits change the draft.
 
 ---
 
+## Automation (optional)
+
+The **Automation** tab turns an *Approved* test case into a validated
+Playwright test:
+
+1. **Plan** — the test case must be Approved; the staging URL must be on the
+   server's allowlist and resolve to a safe address.
+2. **Explore** — Claude drives a headless Chromium through the
+   [Playwright MCP server](https://github.com/microsoft/playwright-mcp),
+   performs the steps, and learns real roles, labels and test ids.
+3. **Generate** — Claude submits a *structured* script (not code).
+   Spec-to-Test checks it and renders TypeScript from fixed templates: only
+   `getByRole` / `getByLabel` / `getByTestId` / `getByPlaceholder` /
+   `getByText` locators, `TC-…`/`REQ-…` tags, and assertions that quote the
+   approved expected result or requirement word for word.
+4. **Validate** — the test runs with `@playwright/test` in a sandboxed
+   Chromium; the JSON report, screenshots and trace are kept. On failure
+   Claude gets **one** repair attempt, which may fix locators and steps but
+   never what the test asserts (enforced in code). A mismatch with the
+   expected result stays a failure: it may be a product defect.
+5. **Approve** — only a test that passed a real run can be approved. Approved
+   tests are stored in the workspace and exported as a ready Playwright
+   project (`.zip`).
+
+Jobs run in the background (the page stays usable, shows live progress, and
+can cancel). States: queued → planning → exploring → generating → validating
+→ passed / failed / blocked / cancelled.
+
+### Setup
+
+```bash
+pip install -r requirements-automation.txt          # anthropic + mcp
+cd automation/runner && npm ci && npx playwright install chromium && cd -   # Node 20+
+export AI_PROVIDER=anthropic ANTHROPIC_API_KEY=...
+export AUTOMATION_ALLOWED_HOSTS=staging.example.com
+export AUTOMATION_SECRET_STAGING_PASSWORD=...        # optional, typed by name only
+streamlit run app.py
+```
+
+Or with Docker (app, Node toolchain and Chromium in one hardened container):
+
+```bash
+cp .env.example .env    # set AI_* and AUTOMATION_* (compose reads it)
+docker compose up --build    # http://localhost:8501
+```
+
+### Security model
+
+- **Explicit opt-in:** AI must be configured, and every run needs a fresh
+  consent tick that names the provider and model.
+- **Allowlist + SSRF protection:** only `http(s)` URLs on
+  `AUTOMATION_ALLOWED_HOSTS` (ports 80/443 unless a port is listed). Every
+  address a host resolves to must be public; private/loopback addresses need
+  `AUTOMATION_ALLOW_PRIVATE_NETWORK=true`; link-local and cloud-metadata
+  addresses are always refused. URLs with credentials are refused.
+- **Egress lockdown in the browser:** vetted hosts are pinned to the checked
+  address (no DNS rebinding), all other host names fail to resolve, and all
+  other traffic — including bare IPs, other ports, redirects and requests
+  from page scripts — goes to a non-existent proxy. Verified by real-browser
+  tests.
+- **Reduced tools:** Claude cannot evaluate JavaScript, upload files, read
+  network logs or open other sites; page content is treated as untrusted.
+- **No destructive actions** (delete, pay, transfer, …, in EN/UK/RU) unless
+  the user ticks *Allow actions that change or delete data*.
+- **Secrets** are referenced by name; values are typed by the browser, kept
+  out of the model's context and the generated code, and masked in logs,
+  reports and traces. The API key never reaches the child processes.
+- **Isolation and limits:** child processes get a minimal environment, a
+  private `HOME`/`TMPDIR`, CPU/file-size limits, their own process group
+  (killed on timeout or Cancel), a 40-action exploration budget, per-run and
+  per-job timeouts, and a cap on concurrent jobs.
+- **Ownership:** jobs are visible only to the browser session that started
+  them (or to everyone on a single-user machine in `local` storage mode).
+
+---
+
 ## Configuration
 
 | Setting | Where | Default | Purpose |
@@ -237,6 +356,13 @@ answers and edits change the draft.
 | `AI_MODEL` | `.env` / env / Streamlit secrets | `claude-opus-5-5` | Model ID |
 | `SPEC_TO_TEST_STORAGE` | env / Streamlit secrets (**not** `.env`) | `session` | Only the exact value `local` (any case, spaces ignored) saves work to disk; anything else, including empty, means `session` (browser session only, nothing on disk) |
 | `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work (`local` mode only) |
+| `AUTOMATION_ALLOWED_HOSTS` | env / Streamlit secrets (**not** `.env`) | — | Staging hosts for the Automation tab (`host`, `*.domain`, `host:port`); empty = off |
+| `AUTOMATION_ALLOW_PRIVATE_NETWORK` | env / secrets | `false` | Allow hosts on private/loopback addresses (internal staging) |
+| `AUTOMATION_SECRET_<NAME>` | env / secrets | — | Credential a test may type, referenced as `<NAME>` |
+| `AUTOMATION_MAX_TOOL_CALLS` / `AUTOMATION_RUN_TIMEOUT` / `AUTOMATION_JOB_TIMEOUT` / `AUTOMATION_MAX_JOBS` | env | `40` / `240` s / `1200` s / `2` | Budgets and limits |
+| `AUTOMATION_IGNORE_HTTPS_ERRORS` | env | `false` | For staging with self-signed certificates |
+| `AUTOMATION_CHROMIUM_SANDBOX` | env | `true` | `false` only inside a container that is itself the sandbox (set in the Dockerfile) |
+| `AUTOMATION_DATA_DIR` / `AUTOMATION_RUNNER_DIR` | env | see below / `automation/runner` | Job folders (default: next to saved work in `local` mode, else a private temp folder) and the Node toolchain |
 
 Environment variables override `.env`. Upload limits are in
 `.streamlit/config.toml` and `src/spec_to_test/input_parser.py` (a test keeps
@@ -270,7 +396,20 @@ src/spec_to_test/
     ├── inputs.py            Labeled-draft parser
     ├── integration.py       Confirmed results → workspace, resolved findings, Markdown
     └── ai.py                Optional AI questions and review
+├── automation/              Automation tab domain logic (no Streamlit)
+│   ├── config.py            Settings from the environment, prerequisites
+│   ├── security.py          Allowlist, SSRF checks, egress pinning, redaction, destructive actions
+│   ├── browser.py           Playwright MCP client + gate for every tool call
+│   ├── claude.py            One request of the agent loop (reuses ai_analysis config/errors)
+│   ├── orchestrator.py      Job state machine: plan → explore → generate → validate (+1 repair)
+│   ├── generator.py         Script validation + deterministic TypeScript / sandbox config
+│   ├── runner.py, sandbox.py  Sandboxed `playwright test` run, resource limits
+│   ├── results.py           Playwright JSON report → results and artifacts
+│   ├── service.py, store.py Background jobs, ownership, persistence, approval
+│   └── export.py            Evidence bundle, approved-tests Playwright project
 grill_ui.py                  Grill Mode page (rendering only)
+automation_ui.py             Automation tab (rendering only)
+automation/runner/           Pinned Node toolchain: @playwright/test, @playwright/mcp
 tests/                       Unit, integration, regression and Streamlit UI tests
 docs/                        Exports, deployment, release checklist, QA documentation
 ```
@@ -294,6 +433,10 @@ Tests never touch your saved data or the network: `tests/conftest.py` points
 storage at a temporary folder (in `local` mode, so persistence can be tested;
 the `session` default has its own tests) and switches AI off; AI tests use a
 fake client.
+`pytest -m e2e` runs the Automation pipeline against a local page with the
+real Playwright MCP server, Chromium and test runner (only the model is
+scripted); these tests skip themselves when `automation/runner` is not
+installed.
 CI runs lint, type checks, tests on Python 3.11 and 3.12, and `pip-audit` on
 every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
@@ -329,6 +472,9 @@ The app is ready for **Streamlit Community Cloud**. See
   each other's work. `local` must be enabled explicitly with
   `SPEC_TO_TEST_STORAGE=local` and is meant for a single-user computer only.
   A `.env` file never changes the storage mode.
+- Automation sends the test case, its requirement and staging page content
+  to the AI provider only after a per-run consent; see
+  [Automation → Security model](#security-model).
 - Secrets live in `.env` or Streamlit secrets, both git-ignored. See
   [SECURITY.md](SECURITY.md).
 
@@ -363,6 +509,18 @@ The app is ready for **Streamlit Community Cloud**. See
   bug details as text in the report's context.
 - Some labels inside Streamlit's file uploader ("Upload", size hint) come from
   Streamlit and stay in English.
+- Automation: the agent loop was tested with a scripted model against the real
+  MCP server, Chromium and runner, not with the live Claude API. One test case
+  becomes one test in Chromium only; no multi-step login flows beyond typing
+  configured secrets, no file uploads, no other browsers. Assertions are
+  limited to visible/hidden, text, value, URL, title, enabled/disabled and
+  checked. Destructive-action detection is keyword-based. Secrets are masked
+  in text (logs, reports, traces) but not inside screenshot images, so a
+  page that displays a credential in plain text shows it in screenshots. WebSocket traffic
+  is not covered by the egress proxy rules. Job folders are kept on disk
+  (pruned after a day in `session` mode). The Docker image was not built in
+  the environment where this feature was developed. Windows is not supported
+  for Automation (POSIX resource limits and process groups).
 
 ---
 

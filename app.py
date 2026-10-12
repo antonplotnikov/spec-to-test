@@ -6,10 +6,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# Make the `src/` package (and grill_ui.py next to this file) importable without installing it.
+# Make the `src/` package (and the *_ui.py pages next to this file) importable without installing it.
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
+from automation_ui import render_automation  # noqa: E402
 from grill_ui import render_grill  # noqa: E402
 from spec_to_test import __version__  # noqa: E402
 from spec_to_test.ai_analysis import AIError, load_config, run_ai_analysis  # noqa: E402
@@ -301,6 +302,7 @@ col3.metric(
     tab_design,
     tab_defects,
     tab_ai,
+    tab_automation,
     tab_export,
 ) = st.tabs(
     [
@@ -312,6 +314,7 @@ col3.metric(
         t("tab.design", lang),
         t("tab.defects", lang),
         t("tab.ai", lang),
+        t("tab.automation", lang),
         t("tab.export", lang),
     ]
 )
@@ -781,6 +784,10 @@ with tab_ai:
                 persist(ws)
                 flash(t("bugs.generated", lang, count=1))
                 st.rerun()
+
+# --- Automation (Approved test case -> validated Playwright test) -----------
+with tab_automation:
+    render_automation(lang, ws, ai_config, persist)
 
 # --- Exports ---------------------------------------------------------------
 with tab_export:

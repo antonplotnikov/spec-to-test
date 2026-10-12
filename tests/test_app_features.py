@@ -10,7 +10,7 @@ from spec_to_test.storage import load_latest
 APP_PATH = str(PROJECT_ROOT / "app.py")
 TAB_LABELS = [
     "Requirements", "Findings", "Dashboard", "Traceability (RTM)", "Test cases",
-    "Test design", "Bug reports", "AI analysis", "Export",
+    "Test design", "Bug reports", "AI analysis", "Automation", "Export",
 ]
 
 

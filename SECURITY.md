@@ -37,4 +37,16 @@ profile. You should receive a reply within 7 days.
   mode edits go to `.spec_to_test_data/` (git-ignored) and are shared by
   everyone who uses that server, so use it only on a single-user machine.
   The old detection of Streamlit Cloud by the `/mount/src` path was removed.
-- Dependencies are checked with `pip-audit` in CI.
+- Automation (optional): runs only with AI configured, a host allowlist
+  (`AUTOMATION_ALLOWED_HOSTS`) and a per-run consent. Target hosts must resolve
+  to public addresses (private ones only with
+  `AUTOMATION_ALLOW_PRIVATE_NETWORK=true`; link-local/metadata never). The
+  browser can reach only the vetted host:port pairs (pinned DNS, everything
+  else sent to a non-existent proxy), cannot run arbitrary JavaScript or touch
+  files, and refuses destructive actions unless the user allows them.
+  Credentials are configured as `AUTOMATION_SECRET_<NAME>`, referenced by name
+  and masked in every stored or displayed output, including traces. Browser
+  and test processes run with a minimal environment (no API key), resource
+  limits and timeouts; in Docker the container is the sandbox (non-root, no
+  capabilities, read-only root file system).
+- Dependencies are checked with `pip-audit` and `npm audit` in CI.

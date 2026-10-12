@@ -1,0 +1,17 @@
+.git
+.venv
+venv
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.spec_to_test_data
+automation/runner/node_modules
+.env
+.streamlit/secrets.toml
+.claude
+.DS_Store
+macos
+docs/screenshots
+test-results
+playwright-report

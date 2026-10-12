@@ -4,6 +4,7 @@ Use `t(key, lang, **params)` to get a translated string. Placeholders like
 {max_mb} are filled from params. Missing translations fall back to English.
 """
 
+from spec_to_test.automation.translations import AUTOMATION_TRANSLATIONS
 from spec_to_test.grill.translations import GRILL_TRANSLATIONS
 from spec_to_test.models import Finding
 
@@ -865,6 +866,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 # Grill Mode text lives in its own module; keys must not collide.
 assert not TRANSLATIONS.keys() & GRILL_TRANSLATIONS.keys()
 TRANSLATIONS.update(GRILL_TRANSLATIONS)
+# Automation tab text, same rule.
+assert not TRANSLATIONS.keys() & AUTOMATION_TRANSLATIONS.keys()
+TRANSLATIONS.update(AUTOMATION_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

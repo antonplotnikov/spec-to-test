@@ -30,3 +30,9 @@ venv/
 .idea/
 .vscode/
 *.log
+
+# Automation toolchain (installed with npm ci) and local Playwright output
+automation/runner/node_modules/
+.playwright-mcp/
+test-results/
+playwright-report/

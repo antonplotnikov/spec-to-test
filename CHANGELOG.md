@@ -6,6 +6,43 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Automation tab: an Approved test case becomes a validated Playwright
+  TypeScript test. Claude (opt-in per run) explores the staging UI through the
+  Playwright MCP server and submits a structured script; Spec-to-Test renders
+  it with role/label/test-id locators and `TC`/`REQ` tags, runs it in a
+  sandboxed Chromium, and shows the JSON report, screenshots and trace. One
+  repair attempt is allowed and may not change assertions; every assertion
+  must quote the approved expected result or requirement. Jobs run in the
+  background (queued → planning → exploring → generating → validating →
+  passed / failed / blocked / cancelled) with live progress and Cancel.
+  Approved tests are stored in the workspace (`Workspace.automated_tests`,
+  optional field; older saves load unchanged) and export as a Playwright
+  project. Security: staging allowlist, SSRF checks (private networks opt-in,
+  metadata addresses never), DNS pinning and a dead-proxy egress lock in the
+  browser, reduced MCP tool set, destructive-action guard, secrets by name
+  with masking in logs/reports/traces, minimal child environment, resource
+  limits and timeouts. New `requirements-automation.txt`,
+  `automation/runner` (pinned `@playwright/test` 1.63.0, `@playwright/mcp`
+  0.0.80), `Dockerfile` and `docker-compose.yml`, and a CI job with
+  real-browser end-to-end tests.
+  The MCP handshake has a 60 s start-up timeout (a silent server blocks the
+  job instead of hanging it), the activity log shows when the browser is up,
+  and private sandbox folders left by a force-quit server are removed on the
+  next start.
+- macOS app: `macos/build_app.sh` builds `Spec-to-Test.app`, which runs the
+  app in its own native window (pywebview) with its own Dock icon. The server
+  runs on `127.0.0.1` only and stops when the window closes (or the app
+  crashes). Work is saved on disk in
+  `~/Library/Application Support/Spec-to-Test/data`. New
+  `requirements-desktop.txt` (app + pywebview), audited in CI.
+- macOS app settings file `~/Library/Application Support/Spec-to-Test/settings.env`
+  (mode 600, created with commented examples; only `AI_*`, `ANTHROPIC_API_KEY`
+  and `AUTOMATION_*` are read; the process environment wins). With Node.js
+  installed, the build sets up the Automation tab (Python extras, Playwright
+  toolchain) and records the `node` path (`AUTOMATION_NODE`), because apps
+  opened from Finder get a minimal `PATH`.
+
 ### Security
 - Storage isolation (P0-1, BUG-010): `session` is now the default storage mode
   in every environment. Previously only a path check (`/mount/src`) made

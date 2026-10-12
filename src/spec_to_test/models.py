@@ -166,6 +166,24 @@ class AISuggestion(BaseModel):
     source: Source = Source.AI
 
 
+class AutomatedTest(BaseModel):
+    """A Playwright test generated from an Approved test case, validated by a real run
+    and approved by a person (Automation tab)."""
+
+    id: str = Field(min_length=1)
+    test_case_id: str = Field(min_length=1)
+    requirement_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    file_name: str = Field(min_length=1)
+    code: str = Field(min_length=1)
+    target_url: str = ""
+    model: str = ""
+    # When the run that passed finished, and when it was approved.
+    validated_at: str = ""
+    approved_at: str = ""
+    duration_ms: int = 0
+
+
 class Workspace(BaseModel):
     """Everything the user works on for one document. Persisted locally."""
 
@@ -176,6 +194,8 @@ class Workspace(BaseModel):
     defects: list[DefectReport] = Field(default_factory=list)
     ai_suggestions: list[AISuggestion] = Field(default_factory=list)
     ai_model: str = ""
+    # Automation tab; older saved workspaces load with an empty list.
+    automated_tests: list[AutomatedTest] = Field(default_factory=list)
 
     @property
     def analysis(self) -> AnalysisResult:
