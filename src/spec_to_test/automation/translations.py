@@ -16,9 +16,9 @@ AUTOMATION_TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Автоматизация на этом сервере ещё не настроена. Не хватает:",
     },
     "automation.missing.ai": {
-        "en": "AI configuration (AI_PROVIDER=anthropic and ANTHROPIC_API_KEY)",
-        "uk": "налаштування ШІ (AI_PROVIDER=anthropic і ANTHROPIC_API_KEY)",
-        "ru": "настройки ИИ (AI_PROVIDER=anthropic и ANTHROPIC_API_KEY)",
+        "en": "Claude: AI turned on (AI_PROVIDER) with a Claude key (ANTHROPIC_API_KEY). The browser agent uses Claude whichever provider is selected.",
+        "uk": "Claude: увімкнений ШІ (AI_PROVIDER) з ключем Claude (ANTHROPIC_API_KEY). Браузерний агент використовує Claude незалежно від вибраного провайдера.",
+        "ru": "Claude: включённый ИИ (AI_PROVIDER) с ключом Claude (ANTHROPIC_API_KEY). Браузерный агент использует Claude независимо от выбранного провайдера.",
     },
     "automation.missing.allowlist": {
         "en": "a list of staging hosts the browser may open (AUTOMATION_ALLOWED_HOSTS)",

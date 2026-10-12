@@ -1,81 +1,41 @@
-"""Optional LLM review of requirements (Anthropic Claude).
+"""Optional LLM review of requirements (Claude, OpenAI or a local Ollama model).
 
 The app works fully without this module being configured. AI runs only when:
-1. AI_PROVIDER=anthropic and ANTHROPIC_API_KEY are set (environment or .env),
-2. the `anthropic` package is installed (requirements-ai.txt), and
+1. AI_PROVIDER names a provider and its credentials are set (environment,
+   Streamlit secrets or .env; see `spec_to_test.llm.config`),
+2. that provider's SDK is installed (requirements-ai.txt; Ollama needs none), and
 3. the user explicitly consents to sending the requirements for this run.
 
 Results are AISuggestion objects, kept separate from rule-based findings.
 Each suggestion must reference requirement IDs from the document; its quote
 is checked against the requirement text and marked verified or unverified.
 The API key is never logged, shown, or included in error messages.
+
+Provider settings and the request itself live in `spec_to_test.llm`; the names
+below are re-exported so existing imports keep working.
 """
 
 import json
-import os
 from collections.abc import Callable
-from pathlib import Path
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 
+from spec_to_test.llm.config import DEFAULT_MODELS, ENV_FILE, PROVIDERS, AIConfig, load_config
+from spec_to_test.llm.providers import AIError, request_structured
+from spec_to_test.llm.providers import default_client_factory as _default_client_factory
+from spec_to_test.llm.providers import error_code as _error_code
 from spec_to_test.models import AISuggestion, AISuggestionType, Requirement
 
-DEFAULT_MODEL = "claude-opus-5-5"
-SUPPORTED_PROVIDERS = ("anthropic",)
-ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
-_ENV_KEYS = ("AI_PROVIDER", "AI_MODEL", "ANTHROPIC_API_KEY")
+DEFAULT_MODEL = DEFAULT_MODELS["anthropic"]
+SUPPORTED_PROVIDERS = PROVIDERS
 LANGUAGE_NAMES = {"en": "English", "uk": "Ukrainian", "ru": "Russian"}
 
-T = TypeVar("T", bound=BaseModel)
-
-
-class AIConfig(BaseModel):
-    provider: str
-    model: str
-    # SecretStr keeps the key out of repr(), logs and tracebacks.
-    api_key: SecretStr
-
-
-class AIError(Exception):
-    """Failure with a `code` that maps to an `ai.error.<code>` translation."""
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-
-
-def _read_env_file(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return values
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        if key.strip() in _ENV_KEYS:
-            values[key.strip()] = value.strip().strip("'\"")
-    return values
-
-
-def load_config(
-    environ: dict[str, str] | None = None, env_file: Path | None = ENV_FILE
-) -> AIConfig | None:
-    """Return the AI configuration, or None when AI is not configured."""
-    settings = _read_env_file(env_file) if env_file else {}
-    settings.update({k: v for k, v in (environ if environ is not None else os.environ).items() if k in _ENV_KEYS and v})
-    provider = settings.get("AI_PROVIDER", "none").strip().lower()
-    secret = settings.get("ANTHROPIC_API_KEY", "").strip()
-    if provider not in SUPPORTED_PROVIDERS or not secret:
-        return None
-    return AIConfig(
-        provider=provider,
-        model=settings.get("AI_MODEL", "").strip() or DEFAULT_MODEL,
-        api_key=SecretStr(secret),
-    )
+__all__ = [
+    "DEFAULT_MODEL", "ENV_FILE", "SUPPORTED_PROVIDERS", "AIConfig", "AIError", "AIResponse",
+    "_default_client_factory", "_error_code", "build_user_message", "language_name",
+    "load_config", "request_structured", "run_ai_analysis", "to_suggestions",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -118,14 +78,6 @@ def build_user_message(requirements: list[Requirement]) -> str:
         + json.dumps(payload, ensure_ascii=False, indent=1)
         + "\n</requirements>"
     )
-
-
-def _default_client_factory(config: AIConfig) -> Any:
-    try:
-        import anthropic
-    except ImportError as exc:
-        raise AIError("sdk_missing") from exc
-    return anthropic.Anthropic(api_key=config.api_key.get_secret_value(), max_retries=2, timeout=300.0)
 
 
 def _normalized(text: str) -> str:
@@ -180,50 +132,3 @@ def run_ai_analysis(
 
 def language_name(lang: str) -> str:
     return LANGUAGE_NAMES.get(lang, "English")
-
-
-def request_structured(
-    config: AIConfig,
-    system: str,
-    user_message: str,
-    output_format: type[T],
-    client_factory: Callable[[AIConfig], Any] = _default_client_factory,
-    max_tokens: int = 16000,
-) -> T:
-    """One structured request to the model. Every failure becomes an AIError.
-
-    Callers check consent first; this function only sends what it is given.
-    """
-    client = client_factory(config)
-    try:
-        message = client.messages.parse(
-            model=config.model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": user_message}],
-            output_format=output_format,
-        )
-    except AIError:
-        raise
-    except Exception as exc:  # noqa: BLE001 - SDK errors; details may echo request data
-        raise AIError(_error_code(exc)) from None
-
-    if getattr(message, "stop_reason", None) == "refusal":
-        raise AIError("refused")
-    if getattr(message, "stop_reason", None) == "max_tokens":
-        raise AIError("truncated")
-    parsed = getattr(message, "parsed_output", None)
-    if not isinstance(parsed, output_format):
-        raise AIError("invalid_response")
-    return parsed
-
-
-def _error_code(exc: Exception) -> str:
-    name = type(exc).__name__
-    if name in ("AuthenticationError", "PermissionDeniedError"):
-        return "auth"
-    if name == "RateLimitError":
-        return "rate_limit"
-    if name in ("APIConnectionError", "APITimeoutError"):
-        return "connection"
-    return "api"

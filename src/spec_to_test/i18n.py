@@ -6,6 +6,7 @@ Use `t(key, lang, **params)` to get a translated string. Placeholders like
 
 from spec_to_test.automation.translations import AUTOMATION_TRANSLATIONS
 from spec_to_test.grill.translations import GRILL_TRANSLATIONS
+from spec_to_test.llm.translations import LLM_TRANSLATIONS
 from spec_to_test.models import Finding
 
 DEFAULT_LANGUAGE = "en"
@@ -278,9 +279,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     # QA features: dashboard, RTM, quality, test cases, design, bugs, AI
     # =====================================================================
     "sidebar.privacy_ai": {
-        "en": "AI is configured but stays off until you run it in the AI analysis tab and agree to send the requirements. Everything else runs locally.",
-        "uk": "ШІ налаштовано, але він не працює, доки ви не запустите його на вкладці «Аналіз ШІ» і не погодитеся надіслати вимоги. Усе інше працює локально.",
-        "ru": "ИИ настроен, но не работает, пока вы не запустите его на вкладке «Анализ ИИ» и не согласитесь отправить требования. Всё остальное работает локально.",
+        "en": "AI is configured but sends nothing until you start an AI action and agree to send the data it needs. Everything else runs locally. Turn AI off in “AI settings”.",
+        "uk": "ШІ налаштовано, але він нічого не надсилає, доки ви не запустите дію ШІ і не погодитеся надіслати потрібні їй дані. Усе інше працює локально. Вимкнути ШІ можна в «Налаштуваннях ШІ».",
+        "ru": "ИИ настроен, но ничего не отправляет, пока вы не запустите действие ИИ и не согласитесь отправить нужные ему данные. Всё остальное работает локально. Выключить ИИ можно в «Настройках ИИ».",
     },
     "sidebar.storage": {
         "en": "Your edits are saved automatically on this computer.",
@@ -725,9 +726,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Необязательно. Модель ИИ может искать неоднозначности, противоречия и пропущенные сценарии, которые правила могут пропустить. Результат ИИ — лишь предложение, он хранится отдельно от находок на основе правил и не влияет на оценки или покрытие.",
     },
     "ai.not_configured": {
-        "en": "AI is not configured, and the app works fully without it. To enable it, set AI_PROVIDER=anthropic and ANTHROPIC_API_KEY in a local .env file and install requirements-ai.txt (see README).",
-        "uk": "ШІ не налаштовано, і застосунок повністю працює без нього. Щоб увімкнути, вкажіть AI_PROVIDER=anthropic і ANTHROPIC_API_KEY у локальному файлі .env та встановіть requirements-ai.txt (див. README).",
-        "ru": "ИИ не настроен, и приложение полностью работает без него. Чтобы включить, укажите AI_PROVIDER=anthropic и ANTHROPIC_API_KEY в локальном файле .env и установите requirements-ai.txt (см. README).",
+        "en": "AI is not configured (or is turned off in AI settings), and the app works fully without it. To enable it, set AI_PROVIDER (anthropic, openai or ollama) and the provider's key (ANTHROPIC_API_KEY or OPENAI_API_KEY; Ollama needs none) in a local .env file, install requirements-ai.txt (see README), and keep “Use AI features” on in AI settings.",
+        "uk": "ШІ не налаштовано (або вимкнено в налаштуваннях ШІ), і застосунок повністю працює без нього. Щоб увімкнути, вкажіть AI_PROVIDER (anthropic, openai або ollama) і ключ провайдера (ANTHROPIC_API_KEY або OPENAI_API_KEY; Ollama ключа не потребує) у локальному файлі .env, встановіть requirements-ai.txt (див. README) і залиште «Використовувати функції ШІ» увімкненим у налаштуваннях ШІ.",
+        "ru": "ИИ не настроен (или выключен в настройках ИИ), и приложение полностью работает без него. Чтобы включить, укажите AI_PROVIDER (anthropic, openai или ollama) и ключ провайдера (ANTHROPIC_API_KEY или OPENAI_API_KEY; Ollama ключ не нужен) в локальном файле .env, установите requirements-ai.txt (см. README) и оставьте «Использовать функции ИИ» включённым в настройках ИИ.",
     },
     "ai.configured": {
         "en": "Provider: **{provider}** · Model: **{model}**",
@@ -769,9 +770,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Пакет ИИ не установлен. Выполните: pip install -r requirements-ai.txt",
     },
     "ai.error.auth": {
-        "en": "The AI provider rejected the API key. Check ANTHROPIC_API_KEY in your .env file.",
-        "uk": "Провайдер ШІ відхилив API-ключ. Перевірте ANTHROPIC_API_KEY у файлі .env.",
-        "ru": "Провайдер ИИ отклонил API-ключ. Проверьте ANTHROPIC_API_KEY в файле .env.",
+        "en": "The AI provider rejected the API key. Check ANTHROPIC_API_KEY or OPENAI_API_KEY in your settings.",
+        "uk": "Провайдер ШІ відхилив API-ключ. Перевірте ANTHROPIC_API_KEY або OPENAI_API_KEY у налаштуваннях.",
+        "ru": "Провайдер ИИ отклонил API-ключ. Проверьте ANTHROPIC_API_KEY или OPENAI_API_KEY в настройках.",
     },
     "ai.error.rate_limit": {
         "en": "The AI provider's rate limit was reached. Please try again later.",
@@ -779,9 +780,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Достигнут лимит запросов провайдера ИИ. Попробуйте позже.",
     },
     "ai.error.connection": {
-        "en": "Could not reach the AI provider. Check your internet connection.",
-        "uk": "Не вдалося з'єднатися з провайдером ШІ. Перевірте підключення до інтернету.",
-        "ru": "Не удалось связаться с провайдером ИИ. Проверьте подключение к интернету.",
+        "en": "Could not reach the AI provider. Check your internet connection (for Ollama: that the server is running).",
+        "uk": "Не вдалося з'єднатися з провайдером ШІ. Перевірте підключення до інтернету (для Ollama — що сервер запущено).",
+        "ru": "Не удалось связаться с провайдером ИИ. Проверьте подключение к интернету (для Ollama — что сервер запущен).",
     },
     "ai.error.api": {
         "en": "The AI request failed. Rule-based results are not affected.",
@@ -869,6 +870,9 @@ TRANSLATIONS.update(GRILL_TRANSLATIONS)
 # Automation tab text, same rule.
 assert not TRANSLATIONS.keys() & AUTOMATION_TRANSLATIONS.keys()
 TRANSLATIONS.update(AUTOMATION_TRANSLATIONS)
+# LLM settings text, same rule.
+assert not TRANSLATIONS.keys() & LLM_TRANSLATIONS.keys()
+TRANSLATIONS.update(LLM_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

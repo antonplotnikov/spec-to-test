@@ -123,7 +123,7 @@ Open http://localhost:8501 and try it with
 |---|---|---|
 | `requirements.txt` | Streamlit, Pydantic, pypdf, pandas | you only want to run the app |
 | `requirements-dev.txt` | the above + pytest, ruff, mypy | you want to run tests or contribute |
-| `requirements-ai.txt` | the above + the `anthropic` SDK | you want the optional AI features |
+| `requirements-ai.txt` | the above + the `anthropic` and `openai` SDKs | you want the optional AI features with Claude or OpenAI (Ollama needs no SDK) |
 
 No configuration is needed: without a `.env` file the app runs fully offline.
 
@@ -141,12 +141,13 @@ its own Dock icon. Closing the window or **⌘Q** stops the local server.
 
 - `build_app.sh` creates `.venv` if needed and installs
   `requirements-desktop.txt` (the app plus pywebview). If `.env` sets
-  `AI_PROVIDER=anthropic`, the AI SDK is installed on launch too.
+  `AI_PROVIDER` to `anthropic` or `openai`, the AI SDKs are installed on launch too.
 - **Settings** (AI key, Automation hosts and credentials) go in
   `~/Library/Application Support/Spec-to-Test/settings.env` — a private file
   (only your user can read it) created with commented examples on first
-  launch. Uncomment the lines you need and restart the app. Only `AI_*`,
-  `ANTHROPIC_API_KEY` and `AUTOMATION_*` keys are read from it.
+  launch. Uncomment the lines you need and restart the app. Only the AI
+  provider keys (see [Configuration](#configuration)) and `AUTOMATION_*` keys
+  are read from it.
 - **Automation tab:** if Node.js 20+ is installed (nvm or Homebrew is fine),
   the build also installs `requirements-automation.txt` and the Playwright
   toolchain in `automation/runner`, and remembers where `node` is (apps opened
@@ -167,22 +168,42 @@ its own Dock icon. Closing the window or **⌘Q** stops the local server.
 - The app is signed ad hoc, not notarized: it is meant to be built on the Mac
   that runs it.
 
-### Optional: AI features
+### Optional: AI features (Claude, OpenAI or Ollama)
 
 ```bash
-pip install -r requirements-ai.txt   # official anthropic SDK
-cp .env.example .env                 # then set AI_PROVIDER and ANTHROPIC_API_KEY
+pip install -r requirements-ai.txt   # official anthropic and openai SDKs
+cp .env.example .env                 # then set AI_PROVIDER and the provider's key
 ```
 
+| Provider | `AI_PROVIDER` | Credentials | Default model |
+|---|---|---|---|
+| Claude (Anthropic) | `anthropic` (or `claude`) | `ANTHROPIC_API_KEY` | `claude-opus-5-5` |
+| OpenAI | `openai` | `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL` for a compatible gateway) | `gpt-5` |
+| Ollama (local) | `ollama` | none; `OLLAMA_HOST` (default `http://localhost:11434`) | `llama3.1` (`ollama pull` it first) |
+
+- `AI_PROVIDER` is the default. Every other provider whose key is set (or
+  Ollama, when `OLLAMA_HOST` is set) can be picked per browser session in the
+  sidebar under **AI settings**, together with the model. **Use AI features**
+  switches AI off for your session: the app falls back to the rule-based mode
+  and nothing is sent anywhere. **Test connection** sends one tiny request
+  with no document data. On a shared deployment, `AI_LOCK_SETTINGS=true`
+  shows the settings read-only.
+- API keys come only from the environment, Streamlit secrets or `.env`. They
+  are never entered in or shown by the page (it only says which variable is
+  set), never logged, and never part of error messages.
 - Nothing is sent until you tick the consent checkbox (it names the provider
   and the number of requirements). Consent is asked again for every run and
   for every new document, and it is also enforced in code.
-- Only requirement IDs and texts are sent. The API key is never displayed,
-  logged, or saved, and error messages contain no request data.
+- Only requirement IDs and texts are sent. Every provider must answer in a
+  fixed JSON structure that is validated before use.
 - Each suggestion must reference requirement IDs from your document; its quote
   is checked against the text (✅ found / ⚠️ not found).
-- Default model: `claude-opus-5-5` (override with `AI_MODEL`).
-- The same setup enables the optional AI assistant in Grill Mode (see below).
+- Errors (wrong key, rate limit, unreachable server, unknown model, refused or
+  cut-off answer) are shown as a short message; rule-based results are never
+  affected.
+- The same setup enables the AI interviewer in Grill Mode (see below). The
+  Automation tab always uses Claude, because its browser agent is built on
+  Claude's tool use.
 
 ---
 
@@ -261,13 +282,39 @@ Expected result: The page says "This link has expired"
 
 Lines the parser does not recognize are shown to you, never dropped silently.
 
-**Optional AI assistant.** When AI is configured, an *AI assistant* panel can
-suggest extra interview questions or add an AI review. Each request needs a
-fresh consent tick; only the draft, its linked requirement, and the questions
-already asked are sent. AI questions are always optional, and AI findings can
-warn but never block. Output that cannot be traced (unknown fields, invented
-requirement IDs, quotes not found in your text) is discarded. Only your own
-answers and edits change the draft.
+**AI interviewer (optional).** When AI is on, tick **AI interviewer** at the
+top of a Grill session (that tick is also your consent for this session only).
+After the built-in questions, the model asks follow-up questions **one at a
+time**, each with *why it matters* and an importance (high / medium / low):
+
+- It sees every earlier question and your reply, with its status — *answered*
+  (a confirmed fact), *assumption*, *unknown* or *skipped* — and builds on
+  them (an error path, a limit or a state your answer implies).
+- It must not repeat a question; repeats and close rewordings are also
+  filtered out in code, and fields you marked *unknown* are not asked again.
+- It never fills in the draft and never suggests answers: only your reply
+  does, and you can still answer, assume, say *I don't know*, or skip.
+- It stops when it says nothing important is left (or after 12 questions);
+  **Ask the AI for the next question** asks again. If the provider fails,
+  you see the error once and the interview simply continues without AI.
+
+The **AI assistant** panel can still suggest a batch of extra questions or add
+an AI review (fresh consent tick per request). AI questions are always
+optional, AI findings can warn but never block, and output that cannot be
+traced (unknown fields, invented requirement IDs, quotes not found in your
+text) is discarded.
+
+**Final report.** Every confirmed session ends with a report that keeps three
+kinds of statements apart and never fills a gap: **confirmed facts** (the
+source text, your draft, answers you confirmed), **assumptions** (not
+confirmed), and **unknowns and open questions** (unknown, skipped or
+unanswered). It lists each clarified requirement verbatim with its
+clarifications, and **suggested test cases**: rule-based ones from the linked
+requirements, plus — on request, with consent — AI ideas. An AI test case is
+kept only if its expected result quotes a requirement or one of your answers;
+the app (not the model) labels its basis as *requirement*, *confirmed answer*
+or *depends on an assumption*. **Download as Markdown** contains the result
+followed by the report.
 
 ---
 
@@ -351,9 +398,12 @@ docker compose up --build    # http://localhost:8501
 
 | Setting | Where | Default | Purpose |
 |---|---|---|---|
-| `AI_PROVIDER` | `.env` / env / Streamlit secrets | `none` | `anthropic` enables the AI tab |
-| `ANTHROPIC_API_KEY` | `.env` / env / Streamlit secrets | — | API key for AI analysis |
-| `AI_MODEL` | `.env` / env / Streamlit secrets | `claude-opus-5-5` | Model ID |
+| `AI_PROVIDER` | `.env` / env / Streamlit secrets | `none` | Default provider: `anthropic` (`claude`), `openai` or `ollama`; `none` = AI off |
+| `AI_MODEL` | `.env` / env / Streamlit secrets | provider default | Model for the `AI_PROVIDER` provider |
+| `AI_LOCK_SETTINGS` | `.env` / env / Streamlit secrets | `false` | `true`: the sidebar shows provider and model but cannot change them |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | `.env` / env / Streamlit secrets | — / `claude-opus-5-5` | Claude key and model (Automation always uses Claude) |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | `.env` / env / Streamlit secrets | — / `gpt-5` / OpenAI | OpenAI key, model, optional compatible gateway |
+| `OLLAMA_HOST` / `OLLAMA_MODEL` | `.env` / env / Streamlit secrets | `http://localhost:11434` / `llama3.1` | Local Ollama server and model (no key) |
 | `SPEC_TO_TEST_STORAGE` | env / Streamlit secrets (**not** `.env`) | `session` | Only the exact value `local` (any case, spaces ignored) saves work to disk; anything else, including empty, means `session` (browser session only, nothing on disk) |
 | `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work (`local` mode only) |
 | `AUTOMATION_ALLOWED_HOSTS` | env / Streamlit secrets (**not** `.env`) | — | Staging hosts for the Automation tab (`host`, `*.domain`, `host:port`); empty = off |
@@ -387,6 +437,9 @@ src/spec_to_test/
 ├── formatting.py            Markdown escaping for user text
 ├── storage.py               Storage modes: session (default) and opt-in local JSON
 ├── ai_analysis.py           Optional LLM review (consent required)
+├── llm/                     Optional LLM providers (no Streamlit)
+│   ├── config.py            Provider settings from env / secrets / .env; per-session choice
+│   └── providers.py         One structured request to Claude, OpenAI or Ollama; error codes
 ├── i18n.py                  All UI text in EN / UK / RU
 └── grill/                   Grill Mode domain logic (no Streamlit, no network)
     ├── models.py            Session, drafts, questions, answers, findings, provenance
@@ -395,7 +448,8 @@ src/spec_to_test/
     ├── validation.py        Deterministic review checks
     ├── inputs.py            Labeled-draft parser
     ├── integration.py       Confirmed results → workspace, resolved findings, Markdown
-    └── ai.py                Optional AI questions and review
+    ├── report.py            Final report: facts / assumptions / unknowns, suggested test cases
+    └── ai.py                Optional AI interviewer, questions, review and test ideas
 ├── automation/              Automation tab domain logic (no Streamlit)
 │   ├── config.py            Settings from the environment, prerequisites
 │   ├── security.py          Allowlist, SSRF checks, egress pinning, redaction, destructive actions
@@ -408,6 +462,7 @@ src/spec_to_test/
 │   ├── service.py, store.py Background jobs, ownership, persistence, approval
 │   └── export.py            Evidence bundle, approved-tests Playwright project
 grill_ui.py                  Grill Mode page (rendering only)
+llm_ui.py                    AI settings in the sidebar (rendering only)
 automation_ui.py             Automation tab (rendering only)
 automation/runner/           Pinned Node toolchain: @playwright/test, @playwright/mcp
 tests/                       Unit, integration, regression and Streamlit UI tests
@@ -431,8 +486,11 @@ mypy                   # type check
 
 Tests never touch your saved data or the network: `tests/conftest.py` points
 storage at a temporary folder (in `local` mode, so persistence can be tested;
-the `session` default has its own tests) and switches AI off; AI tests use a
-fake client.
+the `session` default has its own tests) and switches AI off (provider keys
+from your shell are removed). AI tests use fake clients; the Ollama client
+and the real OpenAI SDK are exercised against a local HTTP server on
+127.0.0.1, so no provider is ever contacted (the SDK tests skip themselves
+when `openai` is not installed).
 `pytest -m e2e` runs the Automation pipeline against a local page with the
 real Playwright MCP server, Chromium and test runner (only the model is
 scripted); these tests skip themselves when `automation/runner` is not
@@ -461,9 +519,13 @@ The app is ready for **Streamlit Community Cloud**. See
   (no injected links or images).
 - CSV exports neutralise spreadsheet formulas (CSV injection).
 - No data leaves your machine unless AI is configured **and** you consent for
-  that run. In Grill Mode, consent is asked for every AI request and only the
-  current draft, its linked requirement, and the questions already asked are
-  sent.
+  that run (with Ollama, data goes only to your own Ollama server). In Grill
+  Mode, consent is asked for every one-off AI request; the AI interviewer's
+  tick covers its follow-up questions in that Grill session only. Only the
+  current draft, its linked requirement, and the questions so far with your
+  replies are sent.
+- Any session can switch AI off in **AI settings**; the rule-based features
+  never depend on it.
 - Grill Mode keeps its session in your browser session only; nothing is
   written to disk, and a confirmed result you add to the workspace stays in
   your browser session too (unless you opted into `local` storage).

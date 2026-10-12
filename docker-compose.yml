@@ -8,8 +8,14 @@ services:
       - "127.0.0.1:8501:8501"
     environment:
       AI_PROVIDER: ${AI_PROVIDER:-none}
+      AI_MODEL: ${AI_MODEL:-}  # empty = the provider's default model
+      AI_LOCK_SETTINGS: ${AI_LOCK_SETTINGS:-false}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      # Ollama on the host machine: OLLAMA_HOST=http://host.docker.internal:11434
+      OLLAMA_HOST: ${OLLAMA_HOST:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       AUTOMATION_ALLOWED_HOSTS: ${AUTOMATION_ALLOWED_HOSTS:-}
       AUTOMATION_ALLOW_PRIVATE_NETWORK: ${AUTOMATION_ALLOW_PRIVATE_NETWORK:-false}
       AUTOMATION_IGNORE_HTTPS_ERRORS: ${AUTOMATION_IGNORE_HTTPS_ERRORS:-false}

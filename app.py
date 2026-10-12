@@ -12,8 +12,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from automation_ui import render_automation  # noqa: E402
 from grill_ui import render_grill  # noqa: E402
+from llm_ui import render_llm_settings  # noqa: E402
 from spec_to_test import __version__  # noqa: E402
-from spec_to_test.ai_analysis import AIError, load_config, run_ai_analysis  # noqa: E402
+from spec_to_test.ai_analysis import AIError, run_ai_analysis  # noqa: E402
 from spec_to_test.bug_reports import (  # noqa: E402
     defect_from_suggestion,
     generate_defects,
@@ -36,6 +37,7 @@ from spec_to_test.input_parser import (  # noqa: E402
     extract_requirements,
     read_uploaded_file,
 )
+from spec_to_test.llm.config import load_settings  # noqa: E402
 from spec_to_test.models import (  # noqa: E402
     DefectReport,
     ReviewStatus,
@@ -195,7 +197,13 @@ app_mode = st.sidebar.radio(
     format_func=lambda mode: t(f"grill.ui.mode_{mode}", lang),
     key="app_mode",
 )
-ai_config = load_config()
+# Which LLM this browser session uses (None = rule-based only). Keys come from the
+# environment / secrets / .env, never from the page.
+llm_settings = load_settings()
+ai_config = render_llm_settings(lang, llm_settings)
+# The Automation agent loop is built on Claude's tool use, so it always uses Claude
+# (when this session has AI on and a Claude key is configured).
+automation_ai = ai_config if ai_config is None or ai_config.provider == "anthropic" else llm_settings.configs.get("anthropic")
 st.sidebar.info(t("sidebar.privacy_ai" if ai_config else "sidebar.privacy", lang))
 st.sidebar.caption(t("sidebar.storage" if persistence_enabled() else "sidebar.storage_session", lang))
 if secrets_error:
@@ -734,12 +742,12 @@ with tab_ai:
         st.info(t("ai.not_configured", lang), icon="🔌")
     else:
         st.markdown(
-            t("ai.configured", lang, provider=ai_config.provider, model=escape_markdown(ai_config.model))
+            t("ai.configured", lang, provider=ai_config.provider_name, model=escape_markdown(ai_config.model))
         )
         if st.session_state.pop("ai_consent_reset", False):
             st.session_state["ai_consent"] = False
         consent = st.checkbox(
-            t("ai.consent", lang, provider=ai_config.provider, count=len(ws.requirements)), key="ai_consent"
+            t("ai.consent", lang, provider=ai_config.provider_name, count=len(ws.requirements)), key="ai_consent"
         )
         if st.button(t("ai.run", lang), icon=":material/psychology:", disabled=not consent, key="ai_run"):
             st.session_state["ai_consent_reset"] = True  # ask again before the next run
@@ -787,7 +795,7 @@ with tab_ai:
 
 # --- Automation (Approved test case -> validated Playwright test) -----------
 with tab_automation:
-    render_automation(lang, ws, ai_config, persist)
+    render_automation(lang, ws, automation_ai, persist)
 
 # --- Exports ---------------------------------------------------------------
 with tab_export:

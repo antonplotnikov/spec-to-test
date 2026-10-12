@@ -7,6 +7,35 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- LLM providers: Claude (Anthropic), OpenAI and local Ollama models behind one
+  structured-output call (`spec_to_test.llm`). `AI_PROVIDER` picks the default
+  (`anthropic`/`claude`, `openai`, `ollama`); every provider with credentials
+  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` + optional `OPENAI_BASE_URL`,
+  `OLLAMA_HOST`) can be chosen per browser session in the new sidebar
+  **AI settings**, with the model (`AI_MODEL`, `ANTHROPIC_MODEL`,
+  `OPENAI_MODEL`, `OLLAMA_MODEL`), a **Use AI features** switch (off = the
+  rule-based mode, nothing sent) and a **Test connection** button.
+  `AI_LOCK_SETTINGS=true` makes the settings read-only on shared deployments.
+  Keys are read only from the environment, Streamlit secrets or `.env`, never
+  shown or logged. Ollama is called over plain HTTP (no SDK). New error codes
+  `model_not_found` and `unsupported_provider`. `requirements-ai.txt` now also
+  installs `openai`. Automation keeps using Claude whichever provider is
+  selected.
+- Grill Mode AI interviewer: after the built-in questions, the model asks
+  follow-up questions one at a time, each with why it matters and an
+  importance. It receives every earlier question with the reply and its
+  status (answered / assumed / unknown / skipped), must not repeat itself
+  (exact and near-duplicate questions are also filtered in code), never asks
+  again about unknown fields, and stops when nothing important is left or
+  after 12 questions. Consent is one tick per Grill session; a provider
+  failure is shown once and the interview continues without AI.
+- Grill Mode final report (`grill/report.py`): clarified requirements
+  (verbatim, with confirmed and assumed clarifications and open questions),
+  confirmed facts, assumptions and unknowns kept apart, and suggested test
+  cases — rule-based from the linked requirements, plus optional AI ideas that
+  are kept only when their expected result quotes a requirement or the
+  author's answer (the basis label is decided in code). Included in the
+  existing Markdown download.
 - Automation tab: an Approved test case becomes a validated Playwright
   TypeScript test. Claude (opt-in per run) explores the staging UI through the
   Playwright MCP server and submits a structured script; Spec-to-Test renders
@@ -59,6 +88,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   removed.
 
 ### Changed
+- AI configuration moved to `spec_to_test.llm`; `spec_to_test.ai_analysis`
+  re-exports the old names (`AIConfig`, `AIError`, `load_config`,
+  `request_structured`, ...), so existing imports keep working. AI error
+  messages no longer assume Claude, and `NotFoundError` from an SDK now shows
+  "unknown model" instead of a generic failure. `docker-compose.yml` no longer
+  forces `AI_MODEL=claude-opus-5-5` (empty = the provider's default).
 - **Behavior change for local users:** work is no longer saved to
   `.spec_to_test_data/` unless you set `SPEC_TO_TEST_STORAGE=local`
   (for example `SPEC_TO_TEST_STORAGE=local streamlit run app.py`).

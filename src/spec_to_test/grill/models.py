@@ -174,6 +174,8 @@ class Question(BaseModel):
     essential: bool = True
     requirement_ids: list[str] = Field(default_factory=list)
     origin: Source = Source.RULE
+    # How much a test depends on the answer (AI interviewer questions); "" = not rated.
+    importance: Literal["", "high", "medium", "low"] = ""
 
     @model_validator(mode="after")
     def _has_prompt(self) -> "Question":

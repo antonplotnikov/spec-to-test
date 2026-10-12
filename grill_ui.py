@@ -7,12 +7,18 @@ reruns. Buttons use callbacks that pass the revision the page was rendered
 with, so a double click or an outdated page is rejected instead of applied.
 
 AI is optional. It is offered only when configured, and every request needs
-a fresh consent tick; the model is called from `spec_to_test.grill.ai`, and
-its output enters the session only through the workflow's AI transitions.
+consent; the model is called from `spec_to_test.grill.ai`, and its output
+enters the session only through the workflow's AI transitions. One-off
+requests (extra questions, review, test ideas) need a fresh tick each time;
+the AI interviewer is switched on once per Grill session, with a consent that
+covers its follow-up questions in that session only. If the model fails, the
+interview simply continues with the built-in questions.
 
 A finalized result can be downloaded as Markdown or handed to the analysis
 workspace (`spec_to_test.grill.integration`); the page that owns the
-workspace passes `persist`, which is used to save it.
+workspace passes `persist`, which is used to save it. The final report
+(`spec_to_test.grill.report`) separates confirmed facts, assumptions and
+unknowns and lists suggested test cases.
 """
 
 from collections.abc import Callable
@@ -55,6 +61,14 @@ from spec_to_test.grill.models import (
     load_session,
 )
 from spec_to_test.grill.planner import DETERMINISTIC_WORKFLOW
+from spec_to_test.grill.report import (
+    GrillReport,
+    SuggestedTestCase,
+    build_report,
+    case_label,
+    origin_label,
+    report_markdown,
+)
 from spec_to_test.grill.text import (
     draft_rows,
     field_label,
@@ -78,6 +92,8 @@ NOTICE = "grill_notice"  # (translation key, params), shown once on the next run
 SUCCESS = "grill_success"  # (translation key, params), shown once on the next run
 WORKSPACE = "workspace"  # the analysis page's workspace (see app.py)
 AI_RUNS = "grill_ai_runs"  # part of the consent checkbox key, so consent resets after every request
+AI_ASKED = "grill_ai_asked"  # interview state the AI interviewer was last asked about (asked once per state)
+AI_TESTS = "grill_ai_test_ideas"  # session ID -> AI test case ideas for the final report
 OTHER = "__other__"
 
 LEVEL_ICONS = {FindingLevel.BLOCKING: "⛔", FindingLevel.WARNING: "⚠️", FindingLevel.SUGGESTION: "💡"}
@@ -177,6 +193,8 @@ def _on_start(kind: str, mode: str, artifact: str, use_analyzed: bool, context: 
 def _on_new_session() -> None:
     st.session_state.pop(STATE, None)
     st.session_state.pop(UNPARSED, None)
+    st.session_state.pop(AI_ASKED, None)
+    st.session_state.pop(AI_TESTS, None)
 
 
 def _on_answer(revision: int, status: str, choice_key: str, text_key: str) -> None:
@@ -367,6 +385,8 @@ def _session_screen(
             st.warning(t(f"grill.ui.{blocker}", lang), icon=":material/warning:")
 
     actions = allowed_actions(session)
+    if ai_config is not None and not session.is_terminal and session.kind != GrillKind.REVIEW:
+        _ai_interviewer(lang, session, ai_config, actions)
     step = session.step
     if step == GrillStep.ASK_QUESTION:
         _question_panel(lang, session, actions)
@@ -381,6 +401,7 @@ def _session_screen(
         st.success(t("grill.ui.finalized", lang), icon=":material/verified:")
         _result_view(lang, session)
         _use_panel(lang, session, workspace, persist)
+        _report_panel(lang, session, ai_config)
     elif step == GrillStep.CANCELLED:
         st.info(t("grill.ui.cancelled", lang), icon=":material/cancel:")
 
@@ -406,6 +427,8 @@ def _question_panel(lang: str, session: GrillSession, actions: set[Action]) -> N
             st.caption(_md(t("grill.ui.why", lang, reason=reason)))
         if question.origin == Source.AI:
             st.caption(t("grill.ui.ai_question", lang))
+        if question.importance:
+            st.caption(t("grill.ui.importance", lang, level=t(f"grill.importance.{question.importance}", lang)))
         _linked_requirements(lang, session, question)
         if question.essential:
             st.caption(t("grill.ui.essential", lang))
@@ -675,10 +698,11 @@ def _use_panel(lang: str, session: GrillSession, workspace: Workspace | None, pe
     """Download the confirmed result, or hand it to the analysis workspace."""
     with st.container(border=True, key="grill_use"):
         st.markdown(f"##### {t('grill.ui.use_heading', lang)}")
+        report = build_report(session, lang, _ai_tests(session))
         st.download_button(
-            t("grill.ui.download_markdown", lang), result_markdown(session, lang),
+            t("grill.ui.download_markdown", lang), result_markdown(session, lang) + "\n" + report_markdown(report, lang),
             file_name=markdown_file_name(session), mime="text/markdown", icon=":material/download:",
-            key="grill_download",
+            key="grill_download", help=t("grill.report.download_tooltip", lang),
         )
         if persist is None:
             return
@@ -726,7 +750,7 @@ def _ai_panel(lang: str, session: GrillSession, config: AIConfig) -> None:
         st.caption(t("grill.ui.ai_explainer", lang))
         what = "requirements" if isinstance(session.draft, RequirementsDraft) else "draft"
         consent = st.checkbox(
-            t(f"grill.ui.ai_consent_{what}", lang, provider=config.provider, model=_md(config.model)),
+            t(f"grill.ui.ai_consent_{what}", lang, provider=config.provider_name, model=_md(config.model)),
             key=_key(session, "ai_consent", st.session_state.get(AI_RUNS, 0)),
         )
         can_review = session.step == GrillStep.REVIEW and session.review_is_current
@@ -770,6 +794,132 @@ def _run_ai(lang: str, session: GrillSession, config: AIConfig, consent: bool, *
         _error(f"ai.error.{exc.code}")
     except GrillError as exc:
         _error(f"grill.error.{exc.code}")
+
+
+def _ai_interviewer(lang: str, session: GrillSession, config: AIConfig, actions: set[Action]) -> None:
+    """Switch on the AI interviewer; while on, ask it for the next question whenever one is due."""
+    with st.container(border=True, key="grill_ai_interviewer"):
+        on = st.checkbox(
+            t("grill.ui.ai_interviewer", lang, provider=config.provider_name, model=_md(config.model)),
+            key=_key(session, "ai_interviewer"), help=t("grill.ui.ai_interviewer_help", lang),
+        )
+        if not on:
+            return
+        fingerprint = grill_ai.interview_fingerprint(session)
+        if grill_ai.wants_next_question(session) and st.session_state.get(AI_ASKED) != fingerprint:
+            _ask_next(lang, session, config)  # once per interview state, so a failure is not retried in a loop
+            st.rerun()
+        if Action.ADD_QUESTIONS in actions and session.step != GrillStep.ASK_QUESTION:
+            st.caption(t("grill.ui.ai_interviewer_idle", lang))
+            if st.button(t("grill.ui.ai_next", lang), key="grill_ai_next", icon=":material/forum:"):
+                _ask_next(lang, session, config)
+                st.rerun()
+
+
+def _ask_next(lang: str, session: GrillSession, config: AIConfig) -> None:
+    st.session_state[AI_ASKED] = grill_ai.interview_fingerprint(session)
+    try:
+        with st.spinner(t("grill.ui.ai_thinking", lang)):
+            question = grill_ai.next_question(session, config, True, lang)
+        if question is None:
+            _notice("grill.ui.ai_interview_done")
+            return
+        _save(WF.add_questions(session, [question], expected_revision=session.revision))
+    except AIError as exc:
+        _error(f"ai.error.{exc.code}")
+        _notice("grill.ui.ai_fallback")
+    except GrillError as exc:
+        _error(f"grill.error.{exc.code}")
+
+
+# --- Final report ----------------------------------------------------------------------
+
+def _report_panel(lang: str, session: GrillSession, ai_config: AIConfig | None) -> None:
+    """Confirmed facts, assumptions and unknowns kept apart, plus suggested test cases."""
+    report = build_report(session, lang, _ai_tests(session))
+    with st.container(border=True, key="grill_report"):
+        st.markdown(f"##### {t('grill.report.title', lang)}")
+        st.caption(t("grill.report.note", lang))
+        if report.clarified_requirements:
+            st.markdown(f"**{t('grill.report.clarified', lang)}**")
+            _table([
+                {
+                    t("column.id", lang): r.id,
+                    t("column.requirement", lang): r.text,
+                    t("grill.report.col_confirmed", lang): "; ".join(r.confirmed) or "—",
+                    t("grill.report.col_assumed", lang): "; ".join(r.assumed) or "—",
+                    t("grill.report.col_open", lang): "; ".join(r.open) or "—",
+                }
+                for r in report.clarified_requirements
+            ])
+        for key, items, icon in (
+            ("grill.report.confirmed", report.confirmed, "✅"),
+            ("grill.report.assumptions", report.assumptions, "🟡"),
+            ("grill.report.unknowns", report.unknowns, "❓"),
+        ):
+            st.markdown(f"**{icon} {t(key, lang)}** ({len(items)})")
+            if not items:
+                st.caption(t("grill.report.none", lang))
+                continue
+            _table([
+                {
+                    t("grill.report.col_statement", lang): i.text,
+                    t("grill.ui.column_origin", lang): origin_label(i.origin, lang),
+                    t("grill.ui.column_where", lang): i.where or "—",
+                    t("grill.ui.column_requirements", lang): ", ".join(i.requirement_ids) or "—",
+                }
+                for i in items
+            ])
+        _suggested_tests(lang, report)
+        if ai_config is not None:
+            _ai_test_ideas(lang, session, ai_config)
+        st.caption(t("grill.report.download_help", lang))
+
+
+def _ai_tests(session: GrillSession) -> list[SuggestedTestCase]:
+    stored = st.session_state.get(AI_TESTS) or {}
+    return [SuggestedTestCase.model_validate(item) for item in stored.get(session.id, [])]
+
+
+def _suggested_tests(lang: str, report: GrillReport) -> None:
+    st.markdown(f"**🧪 {t('grill.report.tests', lang)}** ({len(report.suggested_tests)})")
+    if not report.suggested_tests:
+        st.caption(t("grill.report.no_tests", lang))
+        return
+    st.caption(t("grill.report.tests_note", lang))
+    _table([
+        {
+            t("column.title", lang): case.title,
+            t("grill.ui.column_requirements", lang): ", ".join(case.requirement_ids),
+            t("grill.report.col_kind", lang): case_label(case, lang),
+            t("grill.field.steps", lang): "\n".join(f"{n}. {step}" for n, step in enumerate(case.steps, start=1)),
+            t("grill.field.expected_result", lang): case.expected_result,
+        }
+        for case in report.suggested_tests
+    ])
+
+
+def _ai_test_ideas(lang: str, session: GrillSession, config: AIConfig) -> None:
+    what = "requirements" if isinstance(session.draft, RequirementsDraft) else "draft"
+    consent = st.checkbox(
+        t(f"grill.ui.ai_consent_{what}", lang, provider=config.provider_name, model=_md(config.model)),
+        key=_key(session, "ai_tests_consent", st.session_state.get(AI_RUNS, 0)),
+    )
+    if not st.button(
+        t("grill.report.ai_tests", lang), key="grill_ai_tests", icon=":material/science:", disabled=not consent,
+    ):
+        return
+    st.session_state[AI_RUNS] = st.session_state.get(AI_RUNS, 0) + 1  # ask for consent again next time
+    try:
+        with st.spinner(t("ai.running", lang)):
+            found = grill_ai.suggest_test_cases(session, config, consent, lang)
+    except AIError as exc:
+        _error(f"ai.error.{exc.code}")
+    else:
+        # One list per Grill session, replaced by the next request.
+        st.session_state[AI_TESTS] = {session.id: [case.model_dump(mode="json") for case in found]}
+        _notice("grill.report.ai_tests_added" if found else "grill.report.ai_tests_none", count=len(found))
+    st.rerun()
 
 
 def _footer(lang: str, session: GrillSession, actions: set[Action]) -> None:

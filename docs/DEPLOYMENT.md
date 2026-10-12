@@ -67,14 +67,18 @@ gh release create v1.1.0 --title "Spec-to-Test v1.1.0" --notes-file docs/release
 Every visitor's AI run would use **your** API key and budget. If you still
 want it:
 
-1. Add the line `anthropic>=1.0,<2` to `requirements.txt` (Streamlit Cloud
-   installs only that file).
+1. Add the SDK you need to `requirements.txt` (Streamlit Cloud installs only
+   that file): `anthropic>=1.0,<2` for Claude or `openai>=2.0,<4` for OpenAI.
 2. Add to the app's Secrets:
    ```toml
-   AI_PROVIDER = "anthropic"
+   AI_PROVIDER = "anthropic"          # or "openai" with OPENAI_API_KEY
    ANTHROPIC_API_KEY = "<your key>"
+   AI_LOCK_SETTINGS = "true"          # visitors cannot switch provider or model
    ```
-3. Set a spending limit for the key in the Anthropic Console.
+3. Set a spending limit for the key in the provider's console.
+
+Ollama is not an option on Streamlit Cloud (it needs a server you run). Each
+visitor can still turn AI off for their own session in **AI settings**.
 
 Never commit the key. Streamlit secrets are not part of the repository.
 

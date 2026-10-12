@@ -31,14 +31,24 @@ SUPPORT_DIR = Path.home() / "Library" / "Application Support" / APP_NAME
 LOG_FILE = Path.home() / "Library" / "Logs" / APP_NAME / "server.log"
 SETTINGS_FILE = SUPPORT_DIR / "settings.env"
 # Only these settings are taken from the file; anything else in it is ignored.
-SETTING_KEYS = ("AI_PROVIDER", "AI_MODEL", "ANTHROPIC_API_KEY")
+SETTING_KEYS = (
+    "AI_PROVIDER", "AI_MODEL", "AI_LOCK_SETTINGS", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
+    "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL",
+)
 SETTING_PREFIX = "AUTOMATION_"
 SETTINGS_TEMPLATE = """# Spec-to-Test settings for this Mac. Only your macOS user can read this file.
 # Remove the "# " in front of a line to use it, then restart Spec-to-Test.
 
-# AI (AI analysis, Grill Mode assistant, Automation):
+# AI (AI analysis, Grill Mode AI interviewer, Automation). AI_PROVIDER is the default
+# provider: anthropic, openai or ollama. Every provider with a key can be picked in
+# the app's "AI settings"; Automation always uses Claude.
 # AI_PROVIDER=anthropic
 # ANTHROPIC_API_KEY=
+# OPENAI_API_KEY=
+# Local models with Ollama (no key; data stays on this Mac):
+# OLLAMA_HOST=http://localhost:11434
+# OLLAMA_MODEL=llama3.1
+# Optional model override for the default provider:
 # AI_MODEL=claude-opus-5-5
 
 # Automation: staging hosts the browser may open (e.g. staging.example.com,
