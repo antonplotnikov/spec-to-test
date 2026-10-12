@@ -1,0 +1,4 @@
+# Optional: enables the Automation tab (Approved test case -> validated Playwright test).
+# Also needs Node.js 20+ and the pinned toolchain: cd automation/runner && npm ci && npx playwright install chromium
+-r requirements-ai.txt
+mcp>=2.2,<3

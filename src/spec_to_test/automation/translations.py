@@ -1,0 +1,438 @@
+"""Automation tab text in English, Ukrainian and Russian.
+
+Merged into spec_to_test.i18n.TRANSLATIONS, so use `t()` as everywhere else.
+"""
+
+AUTOMATION_TRANSLATIONS: dict[str, dict[str, str]] = {
+    "tab.automation": {"en": "Automation", "uk": "Автоматизація", "ru": "Автоматизация"},
+    "automation.explainer": {
+        "en": "Turn an Approved test case into a Playwright test: Claude explores the staging site in a real browser, Spec-to-Test generates TypeScript, runs it in a sandboxed Chromium and shows the evidence. Only tests that passed a real run can be approved.",
+        "uk": "Перетворіть затверджений тест-кейс на тест Playwright: Claude досліджує staging-сайт у справжньому браузері, Spec-to-Test генерує TypeScript, запускає його в ізольованому Chromium і показує докази. Затвердити можна лише тест, що пройшов справжній запуск.",
+        "ru": "Превратите утверждённый тест-кейс в тест Playwright: Claude исследует staging-сайт в настоящем браузере, Spec-to-Test генерирует TypeScript, запускает его в изолированном Chromium и показывает доказательства. Утвердить можно только тест, прошедший настоящий запуск.",
+    },
+    "automation.not_ready": {
+        "en": "Automation is not set up on this server yet. Missing:",
+        "uk": "Автоматизацію на цьому сервері ще не налаштовано. Бракує:",
+        "ru": "Автоматизация на этом сервере ещё не настроена. Не хватает:",
+    },
+    "automation.missing.ai": {
+        "en": "AI configuration (AI_PROVIDER=anthropic and ANTHROPIC_API_KEY)",
+        "uk": "налаштування ШІ (AI_PROVIDER=anthropic і ANTHROPIC_API_KEY)",
+        "ru": "настройки ИИ (AI_PROVIDER=anthropic и ANTHROPIC_API_KEY)",
+    },
+    "automation.missing.allowlist": {
+        "en": "a list of staging hosts the browser may open (AUTOMATION_ALLOWED_HOSTS)",
+        "uk": "список staging-хостів, які може відкривати браузер (AUTOMATION_ALLOWED_HOSTS)",
+        "ru": "список staging-хостов, которые может открывать браузер (AUTOMATION_ALLOWED_HOSTS)",
+    },
+    "automation.missing.node": {
+        "en": "Node.js 20 or newer",
+        "uk": "Node.js версії 20 або новішої",
+        "ru": "Node.js версии 20 или новее",
+    },
+    "automation.missing.runner": {
+        "en": "the Playwright toolchain: npm ci in automation/runner, then npx playwright install chromium",
+        "uk": "інструменти Playwright: npm ci в automation/runner, потім npx playwright install chromium",
+        "ru": "инструменты Playwright: npm ci в automation/runner, затем npx playwright install chromium",
+    },
+    "automation.missing.mcp_sdk": {
+        "en": "the Python MCP client: pip install -r requirements-automation.txt",
+        "uk": "Python-клієнт MCP: pip install -r requirements-automation.txt",
+        "ru": "Python-клиент MCP: pip install -r requirements-automation.txt",
+    },
+    "automation.missing.anthropic_sdk": {
+        "en": "the Anthropic SDK: pip install -r requirements-automation.txt",
+        "uk": "Anthropic SDK: виконайте pip install -r requirements-automation.txt",
+        "ru": "Anthropic SDK: выполните pip install -r requirements-automation.txt",
+    },
+    "automation.new_heading": {"en": "New automated test", "uk": "Новий автотест", "ru": "Новый автотест"},
+    "automation.no_approved": {
+        "en": "No Approved test cases yet. Approve a test case on the Test cases tab first.",
+        "uk": "Ще немає затверджених тест-кейсів. Спершу затвердіть тест-кейс на вкладці «Тест-кейси».",
+        "ru": "Пока нет утверждённых тест-кейсов. Сначала утвердите тест-кейс на вкладке «Тест-кейсы».",
+    },
+    "automation.select_tc": {
+        "en": "Approved test case",
+        "uk": "Затверджений тест-кейс",
+        "ru": "Утверждённый тест-кейс",
+    },
+    "automation.target_url": {
+        "en": "Staging URL to start from",
+        "uk": "URL staging-середовища для старту",
+        "ru": "URL staging-среды для старта",
+    },
+    "automation.allowed_hosts": {
+        "en": "Allowed hosts on this server: {hosts}. Every other site is blocked in the browser.",
+        "uk": "Дозволені хости на цьому сервері: {hosts}. Усі інші сайти в браузері заблоковано.",
+        "ru": "Разрешённые хосты на этом сервере: {hosts}. Все остальные сайты в браузере заблокированы.",
+    },
+    "automation.allow_destructive": {
+        "en": "Allow actions that change or delete data on staging",
+        "uk": "Дозволити дії, що змінюють або видаляють дані на staging",
+        "ru": "Разрешить действия, которые меняют или удаляют данные на staging",
+    },
+    "automation.allow_destructive_help": {
+        "en": "Off by default: clicks on things like Delete, Pay or Transfer are refused, and a test case that needs them is reported as blocked.",
+        "uk": "Типово вимкнено: натискання на «Видалити», «Оплатити», «Переказати» тощо відхиляються, а тест-кейс, якому вони потрібні, позначається як заблокований.",
+        "ru": "По умолчанию выключено: нажатия на «Удалить», «Оплатить», «Перевести» и т. п. отклоняются, а тест-кейс, которому они нужны, помечается как заблокированный.",
+    },
+    "automation.secrets": {
+        "en": "Credentials available by name: {names}. Their values are never sent to the model or shown.",
+        "uk": "Облікові дані, доступні за назвою: {names}. Їхні значення ніколи не надсилаються моделі й не показуються.",
+        "ru": "Учётные данные, доступные по имени: {names}. Их значения никогда не отправляются модели и не показываются.",
+    },
+    "automation.consent": {
+        "en": "I agree to send this test case, its requirement and the content of the staging pages to {provider} ({model}) for this run.",
+        "uk": "Я погоджуюся надіслати цей тест-кейс, його вимогу та вміст staging-сторінок до {provider} ({model}) для цього запуску.",
+        "ru": "Я согласен отправить этот тест-кейс, его требование и содержимое staging-страниц в {provider} ({model}) для этого запуска.",
+    },
+    "automation.run": {
+        "en": "Generate & validate",
+        "uk": "Згенерувати й перевірити",
+        "ru": "Сгенерировать и проверить",
+    },
+    "automation.busy_hint": {
+        "en": "One job at a time per session: wait for the current job or cancel it.",
+        "uk": "Одне завдання за раз на сесію: дочекайтеся поточного або скасуйте його.",
+        "ru": "Одна задача за раз на сессию: дождитесь текущей или отмените её.",
+    },
+    "automation.submitted": {
+        "en": "Automation of {id} started. You can keep working; the status updates by itself.",
+        "uk": "Автоматизацію {id} запущено. Можна працювати далі — статус оновлюється сам.",
+        "ru": "Автоматизация {id} запущена. Можно продолжать работу — статус обновляется сам.",
+    },
+    "automation.jobs_heading": {"en": "Runs in this session", "uk": "Запуски в цій сесії", "ru": "Запуски в этой сессии"},
+    "automation.column.job": {"en": "Run", "uk": "Запуск", "ru": "Запуск"},
+    "automation.column.started": {"en": "Started (UTC)", "uk": "Початок (UTC)", "ru": "Начало (UTC)"},
+    "automation.column.target": {"en": "Target", "uk": "Ціль", "ru": "Цель"},
+    "automation.select_job": {"en": "Show run", "uk": "Показати запуск", "ru": "Показать запуск"},
+    "automation.status.queued": {"en": "Queued", "uk": "У черзі", "ru": "В очереди"},
+    "automation.status.planning": {"en": "Planning", "uk": "Планування", "ru": "Планирование"},
+    "automation.status.exploring": {"en": "Exploring the UI", "uk": "Дослідження інтерфейсу", "ru": "Исследование интерфейса"},
+    "automation.status.generating": {"en": "Generating code", "uk": "Генерація коду", "ru": "Генерация кода"},
+    "automation.status.validating": {"en": "Running the test", "uk": "Запуск тесту", "ru": "Запуск теста"},
+    "automation.status.passed": {"en": "Passed", "uk": "Пройдено", "ru": "Пройден"},
+    "automation.status.failed": {"en": "Failed", "uk": "Не пройдено", "ru": "Не пройден"},
+    "automation.status.blocked": {"en": "Blocked", "uk": "Заблоковано", "ru": "Заблокирован"},
+    "automation.status.cancelled": {"en": "Cancelled", "uk": "Скасовано", "ru": "Отменён"},
+    "automation.progress": {
+        "en": "{status} · browser actions: {calls}",
+        "uk": "{status} · дій у браузері: {calls}",
+        "ru": "{status} · действий в браузере: {calls}",
+    },
+    "automation.cancel": {"en": "Cancel run", "uk": "Скасувати запуск", "ru": "Отменить запуск"},
+    "automation.cancel_requested": {
+        "en": "Cancelling: the browser and the test run are being stopped.",
+        "uk": "Скасування: браузер і запуск тесту зупиняються.",
+        "ru": "Отмена: браузер и запуск теста останавливаются.",
+    },
+    "automation.activity": {"en": "Activity", "uk": "Хід виконання", "ru": "Ход выполнения"},
+    # --- Events -------------------------------------------------------------
+    "automation.event.queued": {"en": "Waiting for a free worker", "uk": "Очікування вільного виконавця", "ru": "Ожидание свободного исполнителя"},
+    "automation.event.planning": {
+        "en": "Checking the test case, the URL and the toolchain",
+        "uk": "Перевірка тест-кейса, URL та інструментів",
+        "ru": "Проверка тест-кейса, URL и инструментов",
+    },
+    "automation.event.plan_ready": {
+        "en": "Plan ready: {steps} step(s); reachable hosts: {hosts}",
+        "uk": "План готовий: кроків — {steps}; доступні хости: {hosts}",
+        "ru": "План готов: шагов — {steps}; доступные хосты: {hosts}",
+    },
+    "automation.event.exploring": {
+        "en": "Claude is exploring the staging UI in a sandboxed browser",
+        "uk": "Claude досліджує інтерфейс staging в ізольованому браузері",
+        "ru": "Claude исследует интерфейс staging в изолированном браузере",
+    },
+    "automation.event.browser_started": {
+        "en": "Sandboxed browser started; Claude is planning the next step",
+        "uk": "Ізольований браузер запущено; Claude планує наступний крок",
+        "ru": "Изолированный браузер запущен; Claude планирует следующий шаг",
+    },
+    "automation.event.destructive_refused": {
+        "en": "A destructive action was refused ({tool})",
+        "uk": "Руйнівну дію відхилено ({tool})",
+        "ru": "Разрушительное действие отклонено ({tool})",
+    },
+    "automation.event.script_rejected": {
+        "en": "The submitted script was rejected ({count} problem(s)); Claude was asked to fix it",
+        "uk": "Надісланий сценарій відхилено (проблем: {count}); Claude попросили виправити його",
+        "ru": "Присланный сценарий отклонён (проблем: {count}); Claude попросили исправить его",
+    },
+    "automation.event.script_accepted": {
+        "en": "Script accepted: {steps} step(s), {assertions} traced assertion(s)",
+        "uk": "Сценарій прийнято: кроків — {steps}, простежуваних перевірок — {assertions}",
+        "ru": "Сценарий принят: шагов — {steps}, прослеживаемых проверок — {assertions}",
+    },
+    "automation.event.generating": {
+        "en": "Generating the Playwright TypeScript test",
+        "uk": "Генерація тесту Playwright на TypeScript",
+        "ru": "Генерация теста Playwright на TypeScript",
+    },
+    "automation.event.validating": {
+        "en": "Running the test in a sandboxed Chromium",
+        "uk": "Запуск тесту в ізольованому Chromium",
+        "ru": "Запуск теста в изолированном Chromium",
+    },
+    "automation.event.run_passed": {"en": "The run passed", "uk": "Запуск пройдено", "ru": "Запуск пройден"},
+    "automation.event.run_failed": {"en": "The run failed", "uk": "Запуск не пройдено", "ru": "Запуск не пройден"},
+    "automation.event.repairing": {
+        "en": "Repair attempt (the only one): Claude investigates the failure; assertions stay unchanged",
+        "uk": "Спроба виправлення (єдина): Claude аналізує збій; перевірки не змінюються",
+        "ru": "Попытка исправления (единственная): Claude анализирует сбой; проверки не меняются",
+    },
+    # --- Final reasons --------------------------------------------------------
+    "automation.reason.passed": {
+        "en": "The generated test passed a real run in Chromium.",
+        "uk": "Згенерований тест пройшов справжній запуск у Chromium.",
+        "ru": "Сгенерированный тест прошёл настоящий запуск в Chromium.",
+    },
+    "automation.reason.passed_after_repair": {
+        "en": "The test passed after one repair (locators or steps only; the assertions are unchanged).",
+        "uk": "Тест пройшов після одного виправлення (лише локатори чи кроки; перевірки не змінено).",
+        "ru": "Тест прошёл после одного исправления (только локаторы или шаги; проверки не изменены).",
+    },
+    "automation.reason.test_failed": {
+        "en": "The test still fails after the repair attempt. This may be a product defect or a test problem — check the error, screenshots and trace.",
+        "uk": "Тест і далі не проходить після спроби виправлення. Це може бути дефект продукту або проблема тесту — перегляньте помилку, знімки екрана й трасу.",
+        "ru": "Тест всё ещё не проходит после попытки исправления. Это может быть дефект продукта или проблема теста — посмотрите ошибку, скриншоты и трассу.",
+    },
+    "automation.reason.product_defect": {
+        "en": "The application does not do what the approved expected result says (the test was not changed to pass): {details}",
+        "uk": "Застосунок не робить того, що каже затверджений очікуваний результат (тест не змінювали, щоб він пройшов): {details}",
+        "ru": "Приложение не делает того, что говорит утверждённый ожидаемый результат (тест не меняли, чтобы он прошёл): {details}",
+    },
+    "automation.reason.run_error": {
+        "en": "The test could not be run (no test result was produced). See the log in the evidence download.",
+        "uk": "Тест не вдалося запустити (результату немає). Дивіться журнал в архіві доказів.",
+        "ru": "Тест не удалось запустить (результата нет). Смотрите журнал в архиве доказательств.",
+    },
+    "automation.reason.cancelled": {"en": "Cancelled by the user.", "uk": "Скасовано користувачем.", "ru": "Отменено пользователем."},
+    "automation.reason.interrupted": {
+        "en": "Interrupted: the server restarted while this run was active. Start it again.",
+        "uk": "Перервано: сервер перезапустився під час цього запуску. Запустіть його знову.",
+        "ru": "Прервано: сервер перезапустился во время этого запуска. Запустите его снова.",
+    },
+    "automation.reason.job_timeout": {
+        "en": "Stopped after the time limit of {minutes} minutes.",
+        "uk": "Зупинено після ліміту часу {minutes} хв.",
+        "ru": "Остановлено после лимита времени {minutes} мин.",
+    },
+    "automation.reason.not_approved": {
+        "en": "{id} is not Approved. Only Approved test cases can be automated.",
+        "uk": "{id} не затверджено. Автоматизувати можна лише затверджені тест-кейси.",
+        "ru": "{id} не утверждён. Автоматизировать можно только утверждённые тест-кейсы.",
+    },
+    "automation.reason.missing": {
+        "en": "The automation toolchain is incomplete: {items}.",
+        "uk": "Інструменти автоматизації неповні: {items}.",
+        "ru": "Инструменты автоматизации неполные: {items}.",
+    },
+    "automation.reason.url_scheme": {
+        "en": "Only http and https URLs can be tested.",
+        "uk": "Тестувати можна лише URL з http або https.",
+        "ru": "Тестировать можно только URL с http или https.",
+    },
+    "automation.reason.url_credentials": {
+        "en": "The URL must not contain a user name or password. Use AUTOMATION_SECRET_* settings for credentials.",
+        "uk": "URL не повинен містити ім'я користувача чи пароль. Для облікових даних використовуйте налаштування AUTOMATION_SECRET_*.",
+        "ru": "URL не должен содержать имя пользователя или пароль. Для учётных данных используйте настройки AUTOMATION_SECRET_*.",
+    },
+    "automation.reason.url_invalid": {"en": "This is not a valid URL.", "uk": "Це некоректний URL.", "ru": "Это некорректный URL."},
+    "automation.reason.url_too_long": {"en": "The URL is too long.", "uk": "URL задовгий.", "ru": "URL слишком длинный."},
+    "automation.reason.url_not_allowed": {
+        "en": "{host} is not on this server's staging allowlist (AUTOMATION_ALLOWED_HOSTS), or the port is not allowed.",
+        "uk": "{host} немає в списку дозволених staging-хостів сервера (AUTOMATION_ALLOWED_HOSTS) або порт не дозволено.",
+        "ru": "{host} нет в списке разрешённых staging-хостов сервера (AUTOMATION_ALLOWED_HOSTS) или порт не разрешён.",
+    },
+    "automation.reason.url_dns": {
+        "en": "{host} could not be resolved.",
+        "uk": "Не вдалося визначити адресу {host}.",
+        "ru": "Не удалось определить адрес {host}.",
+    },
+    "automation.reason.url_private": {
+        "en": "{host} points to a private network address. Allow internal staging with AUTOMATION_ALLOW_PRIVATE_NETWORK=true.",
+        "uk": "{host} вказує на адресу приватної мережі. Дозвольте внутрішній staging через AUTOMATION_ALLOW_PRIVATE_NETWORK=true.",
+        "ru": "{host} указывает на адрес частной сети. Разрешите внутренний staging через AUTOMATION_ALLOW_PRIVATE_NETWORK=true.",
+    },
+    "automation.reason.url_metadata": {
+        "en": "{host} points to a link-local or cloud metadata address, which is never allowed.",
+        "uk": "{host} вказує на link-local адресу або адресу хмарних метаданих — це заборонено завжди.",
+        "ru": "{host} указывает на link-local адрес или адрес облачных метаданных — это запрещено всегда.",
+    },
+    "automation.reason.url_reserved": {
+        "en": "{host} points to a reserved address.",
+        "uk": "{host} вказує на зарезервовану адресу.",
+        "ru": "{host} указывает на зарезервированный адрес.",
+    },
+    "automation.reason.browser_unavailable": {
+        "en": "The browser could not be started ({error}). Check the Playwright toolchain.",
+        "uk": "Не вдалося запустити браузер ({error}). Перевірте інструменти Playwright.",
+        "ru": "Не удалось запустить браузер ({error}). Проверьте инструменты Playwright.",
+    },
+    "automation.reason.runner_unavailable": {
+        "en": "The test runner could not be started ({error}).",
+        "uk": "Не вдалося запустити виконавця тестів ({error}).",
+        "ru": "Не удалось запустить исполнителя тестов ({error}).",
+    },
+    "automation.reason.ai_blocker": {
+        "en": "Claude could not automate this test case — {reason}: {details}",
+        "uk": "Claude не зміг автоматизувати цей тест-кейс — {reason}: {details}",
+        "ru": "Claude не смог автоматизировать этот тест-кейс — {reason}: {details}",
+    },
+    "automation.reason.no_script": {
+        "en": "Claude finished without submitting a test script.",
+        "uk": "Claude завершив роботу, не надіславши сценарій тесту.",
+        "ru": "Claude завершил работу, не прислав сценарий теста.",
+    },
+    "automation.reason.invalid_script": {
+        "en": "The submitted scripts kept breaking the rules (for example assertions not traceable to the approved text): {details}",
+        "uk": "Надіслані сценарії й далі порушували правила (наприклад, перевірки не простежуються до затвердженого тексту): {details}",
+        "ru": "Присланные сценарии продолжали нарушать правила (например, проверки не прослеживаются к утверждённому тексту): {details}",
+    },
+    "automation.reason.tool_budget": {
+        "en": "Claude used all {limit} browser actions without finishing.",
+        "uk": "Claude використав усі {limit} дій у браузері, не завершивши роботу.",
+        "ru": "Claude использовал все {limit} действий в браузере, не завершив работу.",
+    },
+    "automation.reason.internal": {
+        "en": "Unexpected error ({error}). The details are in the server log.",
+        "uk": "Неочікувана помилка ({error}). Подробиці — у журналі сервера.",
+        "ru": "Неожиданная ошибка ({error}). Подробности — в журнале сервера.",
+    },
+    "automation.blocker.site_unreachable": {"en": "the site is unreachable", "uk": "сайт недоступний", "ru": "сайт недоступен"},
+    "automation.blocker.login_required": {
+        "en": "a login is needed that is not configured",
+        "uk": "потрібен вхід, який не налаштовано",
+        "ru": "нужен вход, который не настроен",
+    },
+    "automation.blocker.missing_test_data": {"en": "test data is missing", "uk": "бракує тестових даних", "ru": "не хватает тестовых данных"},
+    "automation.blocker.not_automatable": {
+        "en": "a step cannot be done in a browser",
+        "uk": "крок неможливо виконати в браузері",
+        "ru": "шаг невозможно выполнить в браузере",
+    },
+    "automation.blocker.destructive_action": {
+        "en": "it needs a destructive action that is not allowed",
+        "uk": "потрібна руйнівна дія, яку не дозволено",
+        "ru": "нужно разрушительное действие, которое не разрешено",
+    },
+    "automation.blocker.unclear_test_case": {"en": "the test case is unclear", "uk": "тест-кейс незрозумілий", "ru": "тест-кейс неясен"},
+    "automation.blocker.product_defect": {
+        "en": "the application differs from the expected result",
+        "uk": "застосунок відрізняється від очікуваного результату",
+        "ru": "приложение отличается от ожидаемого результата",
+    },
+    "automation.blocker.other": {"en": "other reason", "uk": "інша причина", "ru": "другая причина"},
+    # --- Results ----------------------------------------------------------------
+    "automation.metric.runs": {"en": "Test runs", "uk": "Запусків тесту", "ru": "Запусков теста"},
+    "automation.metric.duration": {"en": "Duration", "uk": "Тривалість", "ru": "Длительность"},
+    "automation.metric.tool_calls": {"en": "Browser actions", "uk": "Дій у браузері", "ru": "Действий в браузере"},
+    "automation.metric.tokens": {"en": "AI tokens", "uk": "Токенів ШІ", "ru": "Токенов ИИ"},
+    "automation.repair_note": {
+        "en": "The single allowed repair attempt was used. It could change locators and steps, never the assertions.",
+        "uk": "Використано єдину дозволену спробу виправлення. Вона могла змінити локатори й кроки, але не перевірки.",
+        "ru": "Использована единственная разрешённая попытка исправления. Она могла изменить локаторы и шаги, но не проверки.",
+    },
+    "automation.notes_heading": {"en": "Notes from Claude", "uk": "Нотатки від Claude", "ru": "Заметки от Claude"},
+    "automation.assertions_heading": {
+        "en": "Assertions and their source",
+        "uk": "Перевірки та їхнє джерело",
+        "ru": "Проверки и их источник",
+    },
+    "automation.assertions_explainer": {
+        "en": "Each assertion quotes the approved expected result or requirement word for word. “Interpreted” means the quote was found, but the checked element or URL is Claude's reading of it — review those.",
+        "uk": "Кожна перевірка дослівно цитує затверджений очікуваний результат або вимогу. «Інтерпретовано» означає, що цитату знайдено, але перевірюваний елемент чи URL — це прочитання Claude; перегляньте такі перевірки.",
+        "ru": "Каждая проверка дословно цитирует утверждённый ожидаемый результат или требование. «Интерпретировано» значит, что цитата найдена, но проверяемый элемент или URL — это прочтение Claude; просмотрите такие проверки.",
+    },
+    "automation.column.assertion": {"en": "Assertion", "uk": "Перевірка", "ru": "Проверка"},
+    "automation.column.expected": {"en": "Expects", "uk": "Очікує", "ru": "Ожидает"},
+    "automation.column.quote": {"en": "Quote", "uk": "Цитата", "ru": "Цитата"},
+    "automation.column.source": {"en": "From", "uk": "Звідки", "ru": "Откуда"},
+    "automation.column.trace": {"en": "Traceability", "uk": "Простежуваність", "ru": "Прослеживаемость"},
+    "automation.column.location": {"en": "Failed at", "uk": "Місце збою", "ru": "Место сбоя"},
+    "automation.source.expected_result": {"en": "Expected result", "uk": "Очікуваний результат", "ru": "Ожидаемый результат"},
+    "automation.source.requirement": {"en": "Requirement", "uk": "Вимога", "ru": "Требование"},
+    "automation.check.verified": {"en": "✅ Verified", "uk": "✅ Підтверджено", "ru": "✅ Подтверждено"},
+    "automation.check.interpreted": {"en": "⚠️ Interpreted", "uk": "⚠️ Інтерпретовано", "ru": "⚠️ Интерпретировано"},
+    "automation.code_heading": {
+        "en": "Generated Playwright test (TypeScript)",
+        "uk": "Згенерований тест Playwright (TypeScript)",
+        "ru": "Сгенерированный тест Playwright (TypeScript)",
+    },
+    "automation.results_heading": {"en": "Last run", "uk": "Останній запуск", "ru": "Последний запуск"},
+    "automation.screenshots": {"en": "Screenshots", "uk": "Знімки екрана", "ru": "Скриншоты"},
+    "automation.download.spec": {"en": "Test → .spec.ts", "uk": "Тест → .spec.ts", "ru": "Тест → .spec.ts"},
+    "automation.download.trace": {"en": "Playwright trace", "uk": "Траса Playwright", "ru": "Трасса Playwright"},
+    "automation.download.evidence": {
+        "en": "Evidence (report, screenshots, trace)",
+        "uk": "Докази (звіт, знімки, траса)",
+        "ru": "Доказательства (отчёт, скриншоты, трасса)",
+    },
+    "automation.approve_help": {
+        "en": "Approve after reviewing the code and the evidence. Approved tests are saved with the workspace and can be exported.",
+        "uk": "Затвердьте після перегляду коду й доказів. Затверджені тести зберігаються в робочому просторі, їх можна експортувати.",
+        "ru": "Утвердите после просмотра кода и доказательств. Утверждённые тесты сохраняются в рабочем пространстве, их можно экспортировать.",
+    },
+    "automation.approve": {"en": "Approve automated test", "uk": "Затвердити автотест", "ru": "Утвердить автотест"},
+    "automation.approved": {
+        "en": "{id} approved for {tc}.",
+        "uk": "{id} затверджено для {tc}.",
+        "ru": "{id} утверждён для {tc}.",
+    },
+    "automation.already_approved": {
+        "en": "Approved and saved in the workspace.",
+        "uk": "Затверджено й збережено в робочому просторі.",
+        "ru": "Утверждено и сохранено в рабочем пространстве.",
+    },
+    "automation.approved_heading": {"en": "Approved automated tests", "uk": "Затверджені автотести", "ru": "Утверждённые автотесты"},
+    "automation.approved_none": {
+        "en": "None yet. A test can be approved after it passed a real run.",
+        "uk": "Поки немає. Тест можна затвердити після того, як він пройшов справжній запуск.",
+        "ru": "Пока нет. Тест можно утвердить после того, как он прошёл настоящий запуск.",
+    },
+    "automation.column.test": {"en": "Automated test", "uk": "Автотест", "ru": "Автотест"},
+    "automation.column.file": {"en": "File", "uk": "Файл", "ru": "Файл"},
+    "automation.column.approved_at": {"en": "Approved (UTC)", "uk": "Затверджено (UTC)", "ru": "Утверждён (UTC)"},
+    "automation.download.approved": {
+        "en": "Approved tests → Playwright project (.zip)",
+        "uk": "Затверджені тести → проєкт Playwright (.zip)",
+        "ru": "Утверждённые тесты → проект Playwright (.zip)",
+    },
+    # --- Errors -------------------------------------------------------------------
+    "automation.error.consent_required": {
+        "en": "Tick the consent box to send this run to the AI provider.",
+        "uk": "Поставте позначку згоди, щоб надіслати цей запуск постачальнику ШІ.",
+        "ru": "Поставьте отметку согласия, чтобы отправить этот запуск поставщику ИИ.",
+    },
+    "automation.error.ai_not_configured": {
+        "en": "AI is not configured on this server.",
+        "uk": "ШІ на цьому сервері не налаштовано.",
+        "ru": "ИИ на этом сервере не настроен.",
+    },
+    "automation.error.not_configured": {
+        "en": "Automation is not configured on this server.",
+        "uk": "Автоматизацію на цьому сервері не налаштовано.",
+        "ru": "Автоматизация на этом сервере не настроена.",
+    },
+    "automation.error.not_approved": {
+        "en": "Only Approved test cases can be automated or approved.",
+        "uk": "Автоматизувати чи затверджувати можна лише затверджені тест-кейси.",
+        "ru": "Автоматизировать или утверждать можно только утверждённые тест-кейсы.",
+    },
+    "automation.error.busy": {
+        "en": "A run is already active in this session.",
+        "uk": "У цій сесії вже є активний запуск.",
+        "ru": "В этой сессии уже есть активный запуск.",
+    },
+    "automation.error.job_missing": {
+        "en": "This run no longer exists.",
+        "uk": "Цього запуску більше не існує.",
+        "ru": "Этого запуска больше не существует.",
+    },
+    "automation.error.not_passed": {
+        "en": "Only a test that passed a real run can be approved.",
+        "uk": "Затвердити можна лише тест, що пройшов справжній запуск.",
+        "ru": "Утвердить можно только тест, прошедший настоящий запуск.",
+    },
+}

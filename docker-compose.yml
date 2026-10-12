@@ -1,0 +1,30 @@
+# Spec-to-Test with the Automation tab. Put settings in a .env file next to
+# this file (compose reads it for ${...}); see README "Automation".
+services:
+  app:
+    build: .
+    image: spec-to-test:local
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
+      AUTOMATION_ALLOWED_HOSTS: ${AUTOMATION_ALLOWED_HOSTS:-}
+      AUTOMATION_ALLOW_PRIVATE_NETWORK: ${AUTOMATION_ALLOW_PRIVATE_NETWORK:-false}
+      AUTOMATION_IGNORE_HTTPS_ERRORS: ${AUTOMATION_IGNORE_HTTPS_ERRORS:-false}
+      # Credentials the tests may type, by name. Add one line per secret:
+      # AUTOMATION_SECRET_STAGING_PASSWORD: ${AUTOMATION_SECRET_STAGING_PASSWORD:-}
+    # Isolation for the browser and the test runner.
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+      - /home/pwuser:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    shm_size: 1gb  # Chromium needs more shared memory than Docker's 64 MB default
+    pids_limit: 512
+    mem_limit: 3g
+    cpus: 2
+    restart: unless-stopped

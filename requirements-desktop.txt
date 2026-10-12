@@ -1,0 +1,3 @@
+# macOS desktop app (macos/build_app.sh): the app plus a native window.
+-r requirements.txt
+pywebview>=6.2,<7

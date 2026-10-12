@@ -10,7 +10,7 @@ SOURCE_FILES = [
     p
     for p in PROJECT_ROOT.rglob("*")
     if p.is_file()
-    and not {".venv", "__pycache__", ".pytest_cache", ".git"} & set(p.parts)
+    and not {".venv", "__pycache__", ".pytest_cache", ".git", "node_modules"} & set(p.parts)
     and p.suffix in {".py", ".toml", ".yml", ".yaml", ".md", ".txt", ".example", ""}
 ]
 SECRET_PATTERNS = [

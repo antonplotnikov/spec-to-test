@@ -1,0 +1,13 @@
+{
+  "name": "spec-to-test-automation-runner",
+  "private": true,
+  "description": "Pinned Playwright toolchain for the Automation tab: the test runner and the Playwright MCP server used for exploration.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@playwright/mcp": "0.0.80",
+    "@playwright/test": "1.63.0"
+  }
+}
