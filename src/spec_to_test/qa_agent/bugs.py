@@ -61,9 +61,10 @@ def bug_markdown(bug: BugReport) -> str:
     links = f"Requirement: {bug.requirement_id}" + (f" · Test case: {bug.test_case_id}" if bug.test_case_id else "")
     fenced = bug.error.replace("```", "'''")  # keep the code block closed
     error = f"\n\n**Error**\n\n```\n{fenced}\n```" if bug.error else ""
+    classification = f" · Classification: {bug.classification}" if bug.classification else ""
     return (
         f"### {bug.id}: {bug.title}\n\n"
-        f"Severity: {bug.severity.value} · {links} · Plan case: {bug.case_id}\n\n"
+        f"Severity: {bug.severity.value} · {links} · Plan case: {bug.case_id}{classification}\n\n"
         f"**Steps to reproduce**\n\n{steps}\n\n"
         f"**Expected**\n\n{bug.expected or '—'}\n\n"
         f"**Actual**\n\n{bug.actual or '—'}{error}\n\n"

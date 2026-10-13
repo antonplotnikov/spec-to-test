@@ -179,11 +179,12 @@ def results_csv(run: QARun) -> str:
 
 def bugs_csv(run: QARun) -> str:
     headers = ["ID", "Summary", "Severity", "Requirement", "Test case", "Steps to reproduce", "Expected", "Actual",
-               "Error", "Evidence", "Environment"]
+               "Error", "Evidence", "Environment", "Classification"]
     rows = [
         [b.id, b.title, b.severity.value, b.requirement_id, b.test_case_id,
          "\n".join(f"{i}. {s}" for i, s in enumerate(b.steps_to_reproduce, start=1)), b.expected, b.actual,
-         b.error, "\n".join(b.evidence), "\n".join(f"{k}: {v}" for k, v in b.environment.items())]
+         b.error, "\n".join(b.evidence), "\n".join(f"{k}: {v}" for k, v in b.environment.items()),
+         b.classification]
         for b in run.bugs
     ]
     return _to_csv(headers, rows)

@@ -25,6 +25,9 @@ from spec_to_test.qa_agent.safety import RUN_SLOT, QASettings
 from spec_to_test.qa_agent.store import RunStore, new_run_id
 
 Progress = Callable[[int, int, CaseResult], None]
+# Runs whose worker is alive in this process; a saved run still "running" that is not
+# here was interrupted (the server stopped) and can be resumed.
+ACTIVE_RUNS: set[str] = set()
 
 
 class QAError(Exception):
@@ -62,11 +65,13 @@ def run_cases(
     *,
     authorized: bool,
     allow_destructive: bool = False,
+    allow_forms: bool = False,
     document_hash: str = "",
     document_title: str = "",
     parent_run_id: str = "",
     on_progress: Progress | None = None,
     resolver: Resolver = socket.getaddrinfo,
+    on_finish: Callable[[QARun], None] | None = None,
 ) -> QARun:
     if not authorized:
         raise QAError("not_authorized")
@@ -90,6 +95,7 @@ def run_cases(
         created_at=now(),
         authorized=True,
         allow_destructive=allow_destructive,
+        allow_forms=allow_forms,
         parent_run_id=parent_run_id,
         limits=settings.limits.model_dump(),
         cases=[case.model_copy(deep=True) for case in cases],
@@ -104,16 +110,21 @@ def run_cases(
     def work() -> None:
         # The worker finishes the run (bug reports, saving, freeing the slot) even when
         # the caller stops listening, e.g. because the person left the page mid-run.
+        ACTIVE_RUNS.add(run.id)
         try:
             store.save(run)
-            executor = Executor(settings, policy, store.run_dir(run.id), allow_destructive=allow_destructive)
+            executor = Executor(settings, policy, store.run_dir(run.id), allow_destructive=allow_destructive,
+                                allow_forms=allow_forms)
             executor.run(run, on_case=save_progress)
             run.bugs = generate_bugs(run)
+            if on_finish:  # e.g. Autonomous QA classifies the results and refines the bug reports
+                on_finish(run)
             store.save(run)
             store.prune(settings.limits.max_runs_kept)
         except BaseException as exc:  # noqa: BLE001 - re-raised in the caller's thread
             outcome["error"] = exc
         finally:
+            ACTIVE_RUNS.discard(run.id)
             RUN_SLOT.release()
             events.put(None)
 

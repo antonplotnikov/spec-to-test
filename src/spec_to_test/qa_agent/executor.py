@@ -130,12 +130,14 @@ class Executor:
         run_dir: Path,
         allow_destructive: bool = False,
         clock: Callable[[], float] = time.monotonic,
+        allow_forms: bool = False,
     ) -> None:
         self.settings = settings
         self.limits = settings.limits
         self.policy = policy
         self.run_dir = run_dir
         self.allow_destructive = allow_destructive
+        self.allow_forms = allow_forms
         self.secrets = settings.automation.secret_values()
         self.redact = settings.redactor()
         self.clock = clock
@@ -207,7 +209,7 @@ class Executor:
     def _next_result(
         self, run: QARun, index: int, case: PlanCase, executed: int, deadline: float, launch_error: str
     ) -> CaseResult | None:
-        if verdict := preflight(case, self.policy, self.secrets, self.limits, self.allow_destructive):
+        if verdict := preflight(case, self.policy, self.secrets, self.limits, self.allow_destructive, self.allow_forms):
             return self._skipped(case, verdict.status, verdict.reason, verdict.params)
         if executed >= self.limits.max_cases:
             return self._skipped(case, RunStatus.NOT_RUN, "run_limit", {"max": str(self.limits.max_cases)})
