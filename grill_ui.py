@@ -26,10 +26,12 @@ from typing import Any
 
 import streamlit as st
 
+import theme_ui
 from spec_to_test.ai_analysis import AIConfig, AIError
 from spec_to_test.formatting import escape_markdown
 from spec_to_test.grill import ai as grill_ai
-from spec_to_test.grill.conflicts import detect_conflicts, question_states
+from spec_to_test.grill import insights
+from spec_to_test.grill.conflicts import Conflict, detect_conflicts, question_states
 from spec_to_test.grill.drafts import DraftError, draft_from_text, editable_fields, is_list_field
 from spec_to_test.grill.inputs import parse_draft, requirements_draft
 from spec_to_test.grill.integration import (
@@ -72,6 +74,7 @@ from spec_to_test.grill.report import (
     origin_label,
     report_markdown,
 )
+from spec_to_test.grill.rules import rule_question_id
 from spec_to_test.grill.text import (
     draft_rows,
     field_label,
@@ -83,9 +86,10 @@ from spec_to_test.grill.text import (
 )
 from spec_to_test.grill.validation import is_placeholder
 from spec_to_test.grill.workflow import Action, GrillError, allowed_actions
-from spec_to_test.i18n import t
+from spec_to_test.i18n import clarification_question, t
 from spec_to_test.input_parser import MAX_TEXT_CHARS, InputError
-from spec_to_test.models import Requirement, Severity, Source, TestType, Workspace
+from spec_to_test.models import Finding, Requirement, Severity, Source, TestType, Workspace
+from spec_to_test.quality import QualityScore, score_all
 
 WF = DETERMINISTIC_WORKFLOW
 STATE = "grill_session"
@@ -105,6 +109,13 @@ STATE_ICONS = {
     ClarificationState.CONFLICT: "⚔️", ClarificationState.OPEN: "⏳",
 }
 PRIORITY_ICONS = {"high": "🔴", "medium": "🟠", "low": "⚪"}
+PRIORITY_TONES = {"high": "danger", "medium": "warning", "low": "neutral"}
+STATE_TONES = {
+    ClarificationState.CONFIRMED: "success", ClarificationState.ASSUMPTION: "warning",
+    ClarificationState.UNKNOWN: "neutral", ClarificationState.CONFLICT: "danger", ClarificationState.OPEN: "info",
+}
+LEVEL_TONES = {FindingLevel.BLOCKING: "danger", FindingLevel.WARNING: "warning", FindingLevel.SUGGESTION: "info"}
+CENTER_RIGHT = [1.75, 1]  # the interview and the analysis panel beside it
 SHORT_TEXT_FIELDS = {"title", "feature", "summary", "environment", "app_version", "requirement_id"}
 CHOICE_FIELDS: dict[str, tuple[list[str], str]] = {
     "test_type": ([v.value for v in TestType], "test_type"),
@@ -283,13 +294,6 @@ def _on_resolve(revision: int, persist: Persist, choice_keys: dict[str, str]) ->
 def render_grill(
     lang: str, workspace: Workspace | None, ai_config: AIConfig | None = None, persist: Persist | None = None
 ) -> None:
-    st.subheader(t("grill.ui.heading", lang))
-    st.caption(t("grill.ui.intro", lang))
-    if ai_config is None:
-        st.info(t("grill.ui.mode_deterministic", lang), icon=":material/rule:")
-    else:
-        st.info(t("grill.ui.mode_ai_available", lang, model=_md(ai_config.model)), icon=":material/rule:")
-
     raw = st.session_state.get(STATE)
     session = load_session(raw)
     if raw is not None and session is None:  # stale or broken state: start over, say so
@@ -306,14 +310,30 @@ def render_grill(
         st.success(t(key, lang, **params), icon=":material/check_circle:")
 
     if session is None:
-        _start_screen(lang, workspace)
+        _start_screen(lang, workspace, ai_config)
     else:
         _session_screen(lang, session, ai_config, workspace, persist)
 
 
-def _start_screen(lang: str, workspace: Workspace | None) -> None:
+def _mode_note(lang: str, ai_config: AIConfig | None) -> None:
+    if ai_config is None:
+        st.info(t("grill.ui.mode_deterministic", lang), icon=":material/rule:")
+    else:
+        st.info(t("grill.ui.mode_ai_available", lang, model=_md(ai_config.model)), icon=":material/rule:")
+
+
+def _start_screen(lang: str, workspace: Workspace | None, ai_config: AIConfig | None = None) -> None:
     context = list(workspace.requirements) if workspace else []
-    with st.container(border=True, key="grill_panel"):
+    center, right = st.columns(CENTER_RIGHT, gap="large")
+    with right:
+        _mode_note(lang, ai_config)
+        if workspace is not None and workspace.requirements:
+            theme_ui.quality_card(
+                lang, list(score_all(workspace.requirements, workspace.findings).values()), "grill_doc_quality",
+            )
+        _states_legend(lang)
+    with center, theme_ui.card("grill_panel"):
+        theme_ui.section(t("ui.grill.setup", lang), ":material/play_circle:", t("grill.ui.intro", lang))
         kind = GrillKind(
             st.radio(
                 t("grill.ui.choose_workflow", lang), [k.value for k in GrillKind],
@@ -367,6 +387,17 @@ def _start_screen(lang: str, workspace: Workspace | None) -> None:
         )
 
 
+def _states_legend(lang: str) -> None:
+    with theme_ui.card("grill_legend"):
+        theme_ui.section(t("ui.grill.legend", lang), ":material/info:")
+        for state in (ClarificationState.CONFIRMED, ClarificationState.ASSUMPTION,
+                      ClarificationState.UNKNOWN, ClarificationState.CONFLICT):
+            st.markdown(
+                theme_ui.badge(t(f"grill.state.{state.value}", lang), STATE_TONES[state])
+                + " " + _md(t(f"ui.grill.legend_{state.value}", lang))
+            )
+
+
 def _session_screen(
     lang: str,
     session: GrillSession,
@@ -374,20 +405,17 @@ def _session_screen(
     workspace: Workspace | None = None,
     persist: Persist | None = None,
 ) -> None:
-    title = t(f"grill.kind.{session.kind.value}", lang)
-    if session.kind == GrillKind.REVIEW:
-        title += f" · {t(f'grill.artifact.{session.artifact.value}', lang)}"
-    st.markdown(f"#### {_md(title)} · {_md(t(f'grill.step.{session.step.value}', lang))}")
+    center, right = st.columns(CENTER_RIGHT, gap="large")
+    with center:
+        _session_center(lang, session, ai_config, workspace, persist)
+    with right:
+        _insights_panel(lang, session, workspace)
 
-    done, total = session.progress
-    if total:
-        st.progress(done / total, text=t("grill.ui.progress", lang, done=done, total=total))
-        counts = {state: 0 for state in ClarificationState}
-        for state in question_states(session).values():
-            counts[state] += 1
-        st.caption(" · ".join(
-            f"{STATE_ICONS[state]} {t(f'grill.state.{state.value}', lang)}: {counts[state]}" for state in ClarificationState
-        ))
+
+def _session_center(
+    lang: str, session: GrillSession, ai_config: AIConfig | None, workspace: Workspace | None, persist: Persist | None,
+) -> None:
+    _progress_card(lang, session, ai_config)
     if (unparsed := st.session_state.get(UNPARSED)) and not session.is_terminal:
         st.warning(t("grill.ui.unparsed", lang), icon=":material/help:")
         st.code("\n".join(unparsed), language=None)  # shown literally, never interpreted
@@ -403,7 +431,7 @@ def _session_screen(
         _ai_interviewer(lang, session, ai_config, actions)
     step = session.step
     if step == GrillStep.ASK_QUESTION:
-        _question_panel(lang, session, actions)
+        _question_panel(lang, session, actions, workspace)
     elif step == GrillStep.SHOW_DRAFT:
         _draft_panel(lang, session, actions)
     elif step == GrillStep.REVIEW:
@@ -424,27 +452,123 @@ def _session_screen(
         return
     if ai_config is not None and Action.ADD_QUESTIONS in actions:
         _ai_panel(lang, session, ai_config)
-    _issues_panel(lang, session)
     _answers_panel(lang, session, actions)
+    _issues_panel(lang, session)
     _footer(lang, session, actions)
+
+
+def _progress_card(lang: str, session: GrillSession, ai_config: AIConfig | None) -> None:
+    title = t(f"grill.kind.{session.kind.value}", lang)
+    if session.kind == GrillKind.REVIEW:
+        title += f" · {t(f'grill.artifact.{session.artifact.value}', lang)}"
+    with theme_ui.card("grill_progress"):
+        st.markdown(f"#### {_md(title)}")
+        theme_ui.badges(
+            theme_ui.badge(t(f"grill.step.{session.step.value}", lang), "accent", ":material/flag:"),
+            theme_ui.badge(t("ui.grill.ai_on" if ai_config else "ui.grill.rules_only", lang), "neutral",
+                           ":material/smart_toy:" if ai_config else ":material/rule:"),
+        )
+        if ai_config is None:
+            st.caption(t("grill.ui.mode_deterministic", lang))
+        else:
+            st.caption(t("grill.ui.mode_ai_available", lang, model=_md(ai_config.model)))
+        done, total = session.progress
+        if not total:
+            return
+        st.progress(done / total, text=t("grill.ui.progress", lang, done=done, total=total))
+        counts = insights.interview_counts(session)
+        cols = st.columns(4)
+        for col, name, value in zip(cols, ("confirmed", "assumptions", "unknowns", "conflicts"), (
+            counts.confirmed, counts.assumptions, counts.unknowns, counts.conflicts,
+        ), strict=True):
+            with col.container(key=f"kpi_{name}"):
+                st.metric(t(f"ui.grill.count_{name}", lang), value)
+        st.caption(t("ui.grill.open_count", lang, count=counts.open) + " · " + t("ui.grill.count_assumptions_help", lang))
 
 
 # --- Interview ----------------------------------------------------------------
 
-def _question_panel(lang: str, session: GrillSession, actions: set[Action]) -> None:
+def _source_label(session: GrillSession, lang: str) -> str:
+    if isinstance(session.draft, RequirementsDraft) and session.input_text.strip():
+        return t("ui.grill.source_pasted", lang)
+    return t("ui.grill.source_document", lang)
+
+
+def _requirement_card(lang: str, session: GrillSession, question: Question, workspace: Workspace | None) -> None:
+    requirement = insights.focus_requirement(session, question)
+    with theme_ui.card("requirement"):
+        head, link = st.columns([3, 2], vertical_alignment="center")
+        head.markdown(f"**:material/description: {t('ui.grill.current_requirement', lang)}**")
+        if requirement is None:
+            st.caption(t("ui.grill.no_requirement", lang))
+            return
+        findings = insights.scope_findings(session, workspace)
+        score = score_all([requirement], findings)[requirement.id]
+        source = _source_label(session, lang)
+        if requirement.source_line:
+            source += " · " + t("ui.grill.line", lang, line=requirement.source_line)
+        theme_ui.badges(
+            theme_ui.badge(requirement.id, "accent"),
+            theme_ui.badge(source, "neutral", ":material/source:"),
+            theme_ui.badge(f"{t('column.quality', lang)} {score.score}/100", theme_ui.GRADE_TONES[score.grade]),
+        )
+        st.markdown("> " + _md(requirement.text).replace("\n", "\n> "))
+        for rid in question.requirement_ids:
+            other = next((r for r in insights.session_requirements(session) if r.id == rid), None)
+            if other is not None and other.id != requirement.id:
+                st.caption(_md(t("grill.ui.linked", lang, id=other.id, text=other.text)))
+        with link.popover(t("ui.grill.full_requirement", lang), icon=":material/open_in_full:", width="stretch"):
+            _full_requirement(lang, requirement, score, [f for f in findings if f.requirement_id == requirement.id])
+
+
+def _full_requirement(lang: str, requirement: Requirement, score: QualityScore, findings: list[Finding]) -> None:
+    st.markdown(f"**{_md(requirement.id)}**")
+    st.markdown(_md(requirement.text))
+    st.caption(t("ui.grill.quality_of", lang, score=score.score, grade=t(f"grade.{score.grade}", lang)))
+    lost = [c for c in score.criteria if not c.passed]
+    for criterion in lost:
+        evidence = ", ".join(criterion.evidence)
+        st.markdown(
+            f"- {t(f'criterion.{criterion.key}', lang)}: {criterion.points}/{criterion.max_points}"
+            + (f" — {_md(evidence)}" if evidence else "")
+        )
+    if not lost:
+        st.caption(t("ui.grill.all_criteria_pass", lang))
+    open_ones = insights.open_findings(findings)
+    if open_ones:
+        st.markdown(f"**{t('ui.grill.open_findings', lang)}**")
+        for finding in open_ones:
+            st.markdown(f"- {t(f'finding.{finding.type.value}', lang)} · {t(f'severity.{finding.severity.value}', lang)}")
+
+
+def _question_panel(
+    lang: str, session: GrillSession, actions: set[Action], workspace: Workspace | None = None
+) -> None:
     question = session.current_question
     assert question is not None  # guaranteed in ASK_QUESTION
     rev = session.revision
     prompt, reason = render_question(question, lang)
-    with st.container(border=True, key="grill_question"):
-        st.markdown(f"**{_md(prompt)}**")
+    _requirement_card(lang, session, question, workspace)
+    with theme_ui.card("question"):
+        category = insights.question_category(question)
+        category_label = t(f"finding.{category}", lang) if category in {
+            "ambiguous_wording", "missing_expected_result", "missing_boundary", "missing_error_handling",
+        } else t(f"ui.grill.category.{category}", lang)
+        theme_ui.badges(
+            theme_ui.badge(t("grill.ui.importance", lang, level=t(f"grill.importance.{question.priority}", lang)),
+                           PRIORITY_TONES[question.priority], ":material/priority_high:"),
+            theme_ui.badge(category_label, "accent", ":material/category:"),
+            *(theme_ui.badge(rid, "info", ":material/link:") for rid in question.requirement_ids),
+            theme_ui.badge(t("ui.grill.tag_required", lang), "neutral", ":material/lock:") if question.essential else "",
+            theme_ui.badge(t("source.ai", lang), "accent", ":material/smart_toy:")
+            if question.origin == Source.AI else "",
+        )
+        st.markdown(f"### {_md(prompt)}")
         if reason:
             st.caption(_md(t("grill.ui.why", lang, reason=reason)))
         if question.origin == Source.AI:
             st.caption(t("grill.ui.ai_question", lang))
-        st.caption(t("grill.ui.importance", lang, level=t(f"grill.importance.{question.priority}", lang)))
-        _linked_requirements(lang, session, question)
-        if question.id.startswith("conflict.") or question.id.startswith("rule.contradiction."):
+        if question.is_decision:
             st.warning(t("grill.ui.conflict_question", lang), icon=":material/compare_arrows:")
         if question.id in session.answers:
             state = question_states(session)[question.id]
@@ -482,45 +606,40 @@ def _question_panel(lang: str, session: GrillSession, actions: set[Action]) -> N
             st.text_area(
                 t("grill.ui.answer_label", lang), key=text_key, help=list_hint, max_chars=MAX_TEXT_CHARS,
                 value=previous_value if previous_value not in {c.value for c in question.choices} else "",
+                placeholder=t("ui.grill.answer_placeholder", lang),
             )
 
         history = session.history
         position = history.index(question.id) if question.id in history else 0
-        row1 = st.columns(3)
-        row1[0].button(
-            t("grill.ui.answer", lang), type="primary", key="grill_answer", width="stretch",
-            on_click=_on_answer, args=(rev, AnswerStatus.ANSWERED.value, choice_key, text_key),
-        )
-        row1[1].button(
-            t("grill.ui.assume", lang), key="grill_assume", width="stretch",
-            on_click=_on_answer, args=(rev, AnswerStatus.ASSUMED.value, choice_key, text_key),
-        )
-        row1[2].button(
-            t("grill.ui.unknown", lang), key="grill_unknown", width="stretch",
-            on_click=_on_answer, args=(rev, AnswerStatus.UNKNOWN.value, choice_key, text_key),
-        )
-        row2 = st.columns(3)
-        row2[0].button(
-            t("grill.ui.skip", lang), key="grill_skip", width="stretch", disabled=question.essential,
-            on_click=_run, args=(WF.skip, rev),
-        )
-        row2[1].button(
-            t("grill.ui.back", lang), key="grill_back", icon=":material/arrow_back:", width="stretch",
-            disabled=position == 0 or Action.BACK not in actions, on_click=_run, args=(WF.back, rev),
-        )
-        row2[2].button(
-            t("grill.ui.to_draft", lang), key="grill_to_draft", width="stretch",
-            on_click=_run, args=(WF.proceed_to_draft, rev),
-        )
-
-
-def _linked_requirements(lang: str, session: GrillSession, question: Question) -> None:
-    texts = {r.id: r.text for r in session.context_requirements}
-    if isinstance(session.draft, RequirementsDraft):
-        texts |= {r.id: r.text for r in session.draft.requirements}
-    for req_id in question.requirement_ids:
-        if req_id in texts:
-            st.caption(_md(t("grill.ui.linked", lang, id=req_id, text=texts[req_id])))
+        with st.container(horizontal=True, key="grill_actions"):  # wraps on narrow screens
+            st.button(
+                t("grill.ui.answer", lang), type="primary", key="grill_answer", icon=":material/send:",
+                on_click=_on_answer, args=(rev, AnswerStatus.ANSWERED.value, choice_key, text_key),
+            )
+            st.button(
+                t("grill.ui.assume", lang), key="grill_assume", icon=":material/help_center:",
+                help=t("ui.grill.assume_help", lang),
+                on_click=_on_answer, args=(rev, AnswerStatus.ASSUMED.value, choice_key, text_key),
+            )
+            st.button(
+                t("grill.ui.unknown", lang), key="grill_unknown", icon=":material/question_mark:",
+                help=t("ui.grill.unknown_help", lang),
+                on_click=_on_answer, args=(rev, AnswerStatus.UNKNOWN.value, choice_key, text_key),
+            )
+            st.button(
+                t("grill.ui.skip", lang), key="grill_skip", icon=":material/skip_next:", disabled=question.essential,
+                help=t("ui.grill.skip_disabled" if question.essential else "ui.grill.skip_help", lang),
+                on_click=_run, args=(WF.skip, rev),
+            )
+        with st.container(horizontal=True, key="grill_nav"):
+            st.button(
+                t("grill.ui.back", lang), key="grill_back", icon=":material/arrow_back:", type="tertiary",
+                disabled=position == 0 or Action.BACK not in actions, on_click=_run, args=(WF.back, rev),
+            )
+            st.button(
+                t("grill.ui.to_draft", lang), key="grill_to_draft", icon=":material/article:", type="tertiary",
+                on_click=_run, args=(WF.proceed_to_draft, rev),
+            )
 
 
 def _issues_panel(lang: str, session: GrillSession) -> None:
@@ -549,29 +668,31 @@ def _issues_panel(lang: str, session: GrillSession) -> None:
 
 
 def _answers_panel(lang: str, session: GrillSession, actions: set[Action]) -> None:
+    """Questions handled so far, with their answers and states; an answer can be reopened."""
     handled = [q for q in session.questions if q.id in session.answers]
     if not handled:
         return
-    with st.expander(t("grill.ui.answers_heading", lang), icon=":material/history:"):
-        rows = []
+    with theme_ui.card("grill_previous"):
+        theme_ui.section(t("ui.grill.previous", lang, count=len(handled)), ":material/history:")
         states = question_states(session)
-        for question in session.questions:
-            answer = session.answers.get(question.id)
+        rows = []
+        for question in handled:
+            answer = session.answers[question.id]
             state = states[question.id]
             rows.append({
                 t("grill.ui.column_question", lang): render_question(question, lang)[0],
-                t("grill.ui.column_answer", lang): answer.value if answer else "",
-                t("grill.ui.column_status", lang): t(f"grill.answer_status.{answer.status.value}", lang)
-                if answer else t("grill.ui.pending", lang),
+                t("grill.ui.column_answer", lang): answer.value,
+                t("grill.ui.column_status", lang): t(f"grill.answer_status.{answer.status.value}", lang),
                 t("grill.ui.column_state", lang): f"{STATE_ICONS[state]} {t(f'grill.state.{state.value}', lang)}",
             })
         _table(rows)
         if Action.EDIT_ANSWER in actions:
             select_key = _key(session, "edit", session.revision)
             prompts = {q.id: render_question(q, lang)[0] for q in handled}
-            st.selectbox(t("grill.ui.column_question", lang), list(prompts), key=select_key, format_func=prompts.__getitem__)
-            st.button(
-                t("grill.ui.edit_answer", lang), key="grill_edit_answer", icon=":material/edit:",
+            cols = st.columns([3, 1], vertical_alignment="bottom")
+            cols[0].selectbox(t("ui.grill.edit_which", lang), list(prompts), key=select_key, format_func=prompts.__getitem__)
+            cols[1].button(
+                t("grill.ui.edit_answer", lang), key="grill_edit_answer", icon=":material/edit:", width="stretch",
                 on_click=_on_edit_answer, args=(session.revision, select_key),
             )
 
@@ -999,3 +1120,179 @@ def _footer(lang: str, session: GrillSession, actions: set[Action]) -> None:
         st.button(
             t("grill.ui.cancel_yes", lang), key="grill_cancel", on_click=_run, args=(WF.cancel, session.revision),
         )
+
+
+# --- Analysis panel (right column) ------------------------------------------------------
+
+def _insights_panel(lang: str, session: GrillSession, workspace: Workspace | None) -> None:
+    """Analysis / Findings / Report beside the interview, all derived from the session."""
+    requirements = insights.session_requirements(session)
+    findings = insights.scope_findings(session, workspace)
+    conflicts = detect_conflicts(session)
+    question = session.current_question if session.step == GrillStep.ASK_QUESTION else None
+    focus = insights.focus_requirement(session, question)
+    groups = insights.group_findings(findings)
+    tab_analysis, tab_findings, tab_report = st.tabs(
+        [t("ui.grill.tab_analysis", lang), t("ui.grill.tab_findings", lang), t("ui.grill.tab_report", lang)]
+    )
+    with tab_analysis:
+        theme_ui.quality_card(
+            lang, list(score_all(requirements, findings).values()), "grill_quality", t("ui.grill.quality_note", lang),
+        )
+        with theme_ui.card("grill_open_items"):
+            theme_ui.section(t("ui.grill.open_items", lang), ":material/report:")
+            risks = [f for f in session.findings if f.level != FindingLevel.SUGGESTION]
+            theme_ui.badges(
+                theme_ui.badge(t("ui.grill.ambiguities_n", lang, count=len(groups.ambiguities)), "warning"),
+                theme_ui.badge(t("ui.grill.missing_n", lang, count=len(groups.missing)), "info"),
+                theme_ui.badge(t("ui.grill.contradictions_n", lang,
+                                 count=len(groups.contradictions) + sum(c.kind.value != "source" for c in conflicts if not c.resolved)),
+                               "danger"),
+                theme_ui.badge(t("ui.grill.risks_n", lang, count=len(risks)), "neutral"),
+            )
+        _assumptions_card(lang, session, limit=5)
+        _unresolved_card(lang, session, limit=5)
+        _related_card(lang, session, focus, findings, conflicts)
+    with tab_findings:
+        _findings_lists(lang, session, groups, conflicts)
+    with tab_report:
+        _live_report(lang, session)
+
+
+def _assumptions_card(lang: str, session: GrillSession, limit: int | None = None) -> None:
+    assumed = insights.assumed_answers(session)
+    draft_assumptions = list(session.draft.assumptions) if session.draft is not None else []
+    with theme_ui.card(f"grill_assumptions_{limit or 'all'}"):
+        theme_ui.section(t("ui.grill.active_assumptions", lang, count=len(assumed) + len(draft_assumptions)),
+                         ":material/help_center:", t("ui.grill.assumptions_note", lang))
+        if not assumed and not draft_assumptions:
+            st.caption(t("ui.grill.none_yet", lang))
+            return
+        items = [(render_question(q, lang)[0], value, q.requirement_ids) for q, value in assumed]
+        items += [("", value, []) for value in draft_assumptions]
+        for prompt, value, ids in items[:limit]:
+            st.markdown(
+                theme_ui.badge(t("grill.state.assumption", lang), "warning")
+                + "".join(" " + theme_ui.badge(rid, "info") for rid in ids)
+                + f" {_md(value)}"
+            )
+            if prompt:
+                st.caption(_md(prompt))
+        if limit is not None and len(items) > limit:
+            st.caption(t("ui.grill.more_in_report", lang, count=len(items) - limit))
+
+
+def _unresolved_card(lang: str, session: GrillSession, limit: int | None = None) -> None:
+    waiting = insights.unresolved(session)
+    states = question_states(session)
+    with theme_ui.card(f"grill_unresolved_{limit or 'all'}"):
+        theme_ui.section(t("ui.grill.unresolved", lang, count=len(waiting)), ":material/pending_actions:")
+        if not waiting:
+            st.caption(t("grill.ui.no_issues", lang))
+            return
+        for question in waiting[:limit]:
+            state = states[question.id]
+            st.markdown(
+                theme_ui.badge(t(f"grill.importance.{question.priority}", lang), PRIORITY_TONES[question.priority])
+                + " " + theme_ui.badge(t(f"grill.state.{state.value}", lang), STATE_TONES[state])
+                + "".join(" " + theme_ui.badge(rid, "info") for rid in question.requirement_ids)
+                + f" {_md(render_question(question, lang)[0])}"
+            )
+        if limit is not None and len(waiting) > limit:
+            st.caption(t("ui.grill.more_in_report", lang, count=len(waiting) - limit))
+
+
+def _related_card(
+    lang: str, session: GrillSession, focus: Requirement | None, findings: list[Finding], conflicts: list[Conflict]
+) -> None:
+    with theme_ui.card("grill_related"):
+        theme_ui.section(t("ui.grill.related", lang), ":material/hub:")
+        if focus is None:
+            st.caption(t("ui.grill.no_requirement", lang))
+            return
+        related = insights.related_requirements(session, focus.id, findings, conflicts)
+        st.caption(t("ui.grill.related_to", lang, id=focus.id))
+        if not related:
+            st.caption(t("ui.grill.no_related", lang))
+        for requirement in related:
+            st.markdown(f"{theme_ui.badge(requirement.id, 'info', ':material/link:')} {_md(requirement.text)}")
+
+
+def _finding_line(lang: str, finding: Finding, states: dict[str, ClarificationState]) -> None:
+    """One open rule finding, with what the interview made of it so far (if anything)."""
+    terms = ", ".join(f"“{term}”" for term in finding.matched_terms)
+    state = states.get(rule_question_id(finding), ClarificationState.OPEN)
+    decided = "" if state == ClarificationState.OPEN else " " + theme_ui.badge(
+        t("ui.grill.in_interview", lang, state=t(f"grill.state.{state.value}", lang)), STATE_TONES[state],
+    )
+    st.markdown(
+        theme_ui.badge(finding.requirement_id, "info")
+        + " " + theme_ui.badge(t(f"severity.{finding.severity.value}", lang),
+                               {"high": "danger", "medium": "warning", "low": "neutral"}[finding.severity.value])
+        + f" **{t(f'finding.{finding.type.value}', lang)}**" + (f" — {_md(terms)}" if terms else "") + decided
+    )
+    st.caption(_md(clarification_question(finding, lang)))
+
+
+def _findings_lists(lang: str, session: GrillSession, groups: insights.FindingGroups, conflicts: list[Conflict]) -> None:
+    st.caption(t("results.rule_disclaimer", lang))
+    states = question_states(session)
+    for key, items in (("ambiguities", groups.ambiguities), ("missing", groups.missing)):
+        with theme_ui.card(f"grill_findings_{key}"):
+            theme_ui.section(t(f"ui.grill.{key}", lang, count=len(items)), "")
+            if not items:
+                st.caption(t("ui.grill.nothing_found", lang))
+            for finding in items:
+                _finding_line(lang, finding, states)
+    with theme_ui.card("grill_findings_contradictions"):
+        interview = [c for c in conflicts if c.kind.value != "source"]
+        theme_ui.section(t("ui.grill.contradictions", lang, count=len(groups.contradictions) + len(interview)), "")
+        if not groups.contradictions and not interview:
+            st.caption(t("ui.grill.nothing_found", lang))
+        for finding in groups.contradictions:
+            _finding_line(lang, finding, states)
+        for conflict in interview:
+            tone, label = ("success", "ui.grill.conflict_resolved") if conflict.resolved else ("danger", "ui.grill.conflict_open")
+            st.markdown(
+                theme_ui.badge(t(label, lang), tone)
+                + "".join(" " + theme_ui.badge(rid, "info") for rid in conflict.requirement_ids)
+                + " " + " ⟷ ".join(f"“{_md(text)}”" for text in conflict.statements)
+            )
+    with theme_ui.card("grill_findings_risks"):
+        risks = [f for f in session.findings if f.level != FindingLevel.SUGGESTION]
+        theme_ui.section(t("ui.grill.risks", lang, count=len(risks)), "", t("ui.grill.risks_note", lang))
+        if session.reviewed_revision is None:
+            st.caption(t("ui.grill.risks_after_review", lang))
+        elif not risks:
+            st.caption(t("ui.grill.nothing_found", lang))
+        for review in risks:
+            message, fix = render_finding(review, lang)
+            st.markdown(
+                theme_ui.badge(t(f"grill.level.{review.level.value}", lang), LEVEL_TONES[review.level])
+                + " " + theme_ui.badge(t(f"grill.category.{review.category.value}", lang), "neutral")
+                + f" {_md(message)}"
+            )
+            if fix:
+                st.caption(_md(fix))
+
+
+def _live_report(lang: str, session: GrillSession) -> None:
+    """What the final report will say so far: facts, assumptions and open points kept apart."""
+    if session.step == GrillStep.FINALIZED:
+        st.success(t("ui.grill.report_final", lang), icon=":material/description:")
+    else:
+        st.caption(t("ui.grill.report_live", lang))
+    states = question_states(session)
+    confirmed = [(q, session.answers[q.id].value) for q in session.questions if states[q.id] == ClarificationState.CONFIRMED]
+    with theme_ui.card("grill_report_confirmed"):
+        theme_ui.section(t("ui.grill.confirmed", lang, count=len(confirmed)), ":material/check_circle:")
+        if not confirmed:
+            st.caption(t("ui.grill.none_yet", lang))
+        for question, value in confirmed:
+            st.markdown(
+                theme_ui.badge(t("grill.state.confirmed", lang), "success")
+                + "".join(" " + theme_ui.badge(rid, "info") for rid in question.requirement_ids)
+                + f" {_md(value)}"
+            )
+    _assumptions_card(lang, session)
+    _unresolved_card(lang, session)

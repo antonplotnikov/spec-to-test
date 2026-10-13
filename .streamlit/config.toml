@@ -5,18 +5,27 @@ maxUploadSize = 2
 [browser]
 gatherUsageStats = false
 
+# Colors match TOKENS in theme_ui.py (checked by tests/test_theme.py).
 [theme]
 base = "light"
-primaryColor = "#4F46E5"
-backgroundColor = "#F7F8FC"
-secondaryBackgroundColor = "#EEF0F8"
-textColor = "#1E1B3A"
-borderColor = "#E2E5F0"
+primaryColor = "#5B50E6"
+backgroundColor = "#F4F6FB"
+secondaryBackgroundColor = "#EEF1F6"
+textColor = "#121933"
+borderColor = "#E2E7F0"
 showWidgetBorder = true
-baseRadius = "0.75rem"
+baseRadius = "0.625rem"
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+chartCategoricalColors = ["#5B50E6", "#2457C5", "#0F7A55", "#9A5B06", "#BE2B2B", "#58627F"]
 
 [theme.sidebar]
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F3F4FA"
+primaryColor = "#A49EFF"
+backgroundColor = "#0D1431"
+secondaryBackgroundColor = "#172046"
+textColor = "#C9D0E8"
+borderColor = "#242E5C"
+
+[client]
+# Only the app menu, no developer "Deploy" button.
+toolbarMode = "minimal"

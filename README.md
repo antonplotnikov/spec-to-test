@@ -49,6 +49,7 @@ screenshot should show.
 
 | Area | What it does |
 |---|---|
+| **Projects** | Group requirement documents by product or application: pick and create projects in the sidebar, rename and delete them under **Settings → Projects**, add any number of documents to each, and switch between them. Each document keeps its own test cases, reviews and bug reports, so the same text in two projects is two separate pieces of work. |
 | **Input** | Paste text or upload TXT/MD/PDF (≤ 2 MB, ≤ 50 PDF pages). Recognises IDs (`REQ-1:`, `FR-AUTH-01`, `[US-3]`), Markdown headings and tables, bullet and numbered lists, and plain sentences. |
 | **Rule-based analysis** | Ambiguous wording, missing expected result, missing boundaries, missing error handling, possible contradictions — in EN, UK, and RU text. Every finding is a *hint* marked "Needs clarification". |
 | **Quality score** | 0–100 per requirement from 7 fixed criteria, with the evidence that cost points. |
@@ -60,7 +61,7 @@ screenshot should show.
 | **Exports** | Jira CSV (test cases, bugs), TestRail CSV, RTM CSV, and a Markdown QA report. |
 | **Grill Mode** | An interactive QA interviewer: clarify requirements, build or improve a test case or bug report, or run a QA review of an existing artifact. Every value shows where it came from (source, confirmed by you, assumption, unknown); nothing is finalized without your explicit confirmation. |
 | **AI analysis (optional)** | Anthropic Claude looks for ambiguities, contradictions, and missing scenarios. Consent is required for every run; results are labeled and kept apart from rule-based facts. |
-| **Persistence** | By default work lives only in your browser session and nothing is written to disk. Opt-in `SPEC_TO_TEST_STORAGE=local` (single-user machines) saves edits to disk and restores them next time. |
+| **Persistence** | By default work (projects included) lives only in your browser session and nothing is written to disk. Opt-in `SPEC_TO_TEST_STORAGE=local` (single-user machines) saves projects and edits to disk and reopens the last project and document next time. |
 
 ### Coverage status
 
@@ -183,11 +184,15 @@ cp .env.example .env                 # then set AI_PROVIDER and the provider's k
 
 - `AI_PROVIDER` is the default. Every other provider whose key is set (or
   Ollama, when `OLLAMA_HOST` is set) can be picked per browser session in the
-  sidebar under **AI settings**, together with the model. **Use AI features**
+  header's AI menu (the model button next to the status) or under
+  **Settings → AI provider**, together with the model. **Use AI features**
   switches AI off for your session: the app falls back to the rule-based mode
   and nothing is sent anywhere. **Test connection** sends one tiny request
-  with no document data. On a shared deployment, `AI_LOCK_SETTINGS=true`
-  shows the settings read-only.
+  with no document data. The status in the header and the sidebar says
+  *connected* only after that test succeeded for the provider and model in
+  use; otherwise it says *not tested*, *connection failed* or *rule-based
+  mode*. On a shared deployment, `AI_LOCK_SETTINGS=true` shows the settings
+  read-only.
 - API keys come only from the environment, Streamlit secrets or `.env`. They
   are never entered in or shown by the page (it only says which variable is
   set), never logged, and never part of error messages.
@@ -209,22 +214,54 @@ cp .env.example .env                 # then set AI_PROVIDER and the provider's k
 
 ## Usage
 
-1. Paste requirements or upload a file, then click **Analyze**.
-2. **Requirements / Findings** — review possible issues and the quality score
-   breakdown.
-3. **Test cases** — edit the generated drafts and move them to *Approved*.
-4. **Test design** — inspect boundary values, classes, and decision tables.
-5. **Bug reports** — generate reports from open findings and edit them.
-6. **Traceability (RTM) / Dashboard** — check coverage; filter by severity,
-   coverage, quality, or text.
-7. **Export** — download Jira / TestRail / RTM CSV or the Markdown report.
-   Field mappings: [docs/EXPORTS.md](docs/EXPORTS.md).
+The dark sidebar holds the project and document switcher, the navigation, the
+AI status and the interface language. Every page has a header with its title,
+the AI status, a quick AI provider/model menu and a **Settings** shortcut. On
+narrow screens the sidebar collapses (open it with the arrow at the top left)
+and the columns stack.
+
+1. Optional: in the sidebar, open **New project**, enter a name (for example
+   the application under test) and click **Create project**. Without that,
+   documents go to the default project, *My project*.
+2. **Home** — paste requirements or upload a file, then click **Analyze**. The
+   document is added to the current project and **Requirements Analysis**
+   opens; pick it later in **Requirements document**, or choose **➕ New
+   requirements** to add another one. Analyzing a document the project already
+   has reopens its saved work. With a document open, Home shows its key
+   figures and shortcuts.
+3. **Requirements Analysis** — quality score with four dimensions (Clarity,
+   Completeness, Testability, Consistency; each is a fixed group of the
+   explainable criteria), open findings by severity, and the tabs
+   *Requirements*, *Findings*, *Test design*, *Bug reports* and *AI analysis*.
+   **Launch Grill Mode** clarifies the open findings.
+4. **Test Cases** — read each case (preconditions, steps, expected result,
+   linked requirement and its risk), edit it, and move it to *Approved*; the
+   *Automation* tab turns approved cases into Playwright tests.
+5. **Traceability (RTM) / Dashboard** — coverage, unresolved issues and charts;
+   filter by severity, coverage, quality, or text.
+6. **Export** — download Jira / TestRail / RTM CSV or the Markdown report; the
+   page says how many test cases each file will contain and warns when it
+   would be empty. Field mappings: [docs/EXPORTS.md](docs/EXPORTS.md).
+7. **Settings** — AI provider and model, connection test, where keys come
+   from, project rename/delete (with confirmation) and the storage mode.
 
 ---
 
 ## Grill Mode
 
-Switch **Mode → Grill Mode** in the sidebar. Pick a workflow:
+Open **Grill Mode** in the sidebar (or **Launch Grill Mode** on Requirements
+Analysis). The page has two columns: the interview in the middle (progress,
+counters for confirmed answers, assumptions, unknowns and unresolved
+contradictions, the current requirement, the question card with its priority,
+category, requirement IDs and testing rationale, the answer actions and your
+previous answers) and an analysis panel on the right with three tabs:
+*Analysis* (quality score and dimensions of the session's requirements, open
+items, active assumptions, unresolved questions, related requirements),
+*Findings* (ambiguities, missing information, contradictions and review
+risks, each with what the interview decided so far) and *Report* (a live
+summary that keeps confirmed facts, assumptions and open questions apart).
+Everything in the panel is computed from the session; assumptions are never
+counted or listed as confirmed. Pick a workflow:
 
 | Workflow | Start from | Result |
 |---|---|---|
@@ -238,7 +275,7 @@ How it works:
 1. **Questions, one at a time, most important first.** Every question has a
    priority (high / medium / low), names the requirement(s) it is about, and
    says why it matters for testing. Answer it, keep your answer as an
-   *assumption*, say *I don't know*, or skip it (essential questions cannot be
+   *assumption*, mark it as *unknown*, or skip it (essential questions cannot be
    skipped). You can go back and change any answer. The queue adapts after
    every answer:
    - an answer that contradicts its requirement or another answer (for
@@ -312,7 +349,7 @@ always asked next (a contradiction before anything else of its priority).
   input (a presumed answer). Values in an open or lost contradiction do not
   count as input.
 - It never fills in the draft and never suggests answers: only your reply
-  does, and you can still answer, assume, say *I don't know*, or skip.
+  does, and you can still answer, assume, mark it as *unknown*, or skip.
 - It is asked once per answer (never in a loop) and stops after 12 questions;
   **Ask the AI for the next question** asks again. If the provider fails,
   you see the error once and the interview simply continues without AI.
@@ -422,7 +459,7 @@ docker compose up --build    # http://localhost:8501
 |---|---|---|---|
 | `AI_PROVIDER` | `.env` / env / Streamlit secrets | `none` | Default provider: `anthropic` (`claude`), `openai` or `ollama`; `none` = AI off |
 | `AI_MODEL` | `.env` / env / Streamlit secrets | provider default | Model for the `AI_PROVIDER` provider |
-| `AI_LOCK_SETTINGS` | `.env` / env / Streamlit secrets | `false` | `true`: the sidebar shows provider and model but cannot change them |
+| `AI_LOCK_SETTINGS` | `.env` / env / Streamlit secrets | `false` | `true`: Settings and the header show provider and model but cannot change them |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | `.env` / env / Streamlit secrets | — / `claude-opus-5-5` | Claude key and model (Automation always uses Claude) |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | `.env` / env / Streamlit secrets | — / `gpt-5` / OpenAI | OpenAI key, model, optional compatible gateway |
 | `OLLAMA_HOST` / `OLLAMA_MODEL` | `.env` / env / Streamlit secrets | `http://localhost:11434` / `llama3.1` | Local Ollama server and model (no key) |
@@ -445,12 +482,12 @@ them in sync).
 ## Architecture
 
 ```
-app.py                       Streamlit UI (tabs, editor forms, downloads, mode switch)
+app.py                       Streamlit entry point: settings, open document, AI choice, page dispatch
 src/spec_to_test/
 ├── models.py                Pydantic models: Requirement, Finding, TestCase, DefectReport, Workspace …
 ├── input_parser.py          File validation (type, size, encoding, PDF pages) + requirement extraction
 ├── rule_engine.py           Keyword rules → Findings (EN / UK / RU)
-├── quality.py               Explainable 0–100 score
+├── quality.py               Explainable 0–100 score and its four dimensions
 ├── test_design.py           BVA, equivalence partitions, decision tables
 ├── test_generator.py        Draft test cases
 ├── bug_reports.py           Defect reports from findings / AI suggestions
@@ -458,6 +495,7 @@ src/spec_to_test/
 ├── exports.py               Jira / TestRail / RTM CSV, Markdown report
 ├── formatting.py            Markdown escaping for user text
 ├── storage.py               Storage modes: session (default) and opt-in local JSON
+├── projects.py              Projects of requirement documents; session and disk stores
 ├── ai_analysis.py           Optional LLM review (consent required)
 ├── llm/                     Optional LLM providers (no Streamlit)
 │   ├── config.py            Provider settings from env / secrets / .env; per-session choice
@@ -472,6 +510,7 @@ src/spec_to_test/
     ├── inputs.py            Labeled-draft parser
     ├── integration.py       Confirmed results → workspace, resolved findings, Markdown
     ├── report.py            Final report: facts / assumptions / unknowns, suggested test cases
+    ├── insights.py          Analysis panel data: findings by kind, counts, related requirements
     └── ai.py                Optional AI interviewer, questions, review and test ideas
 ├── automation/              Automation tab domain logic (no Streamlit)
 │   ├── config.py            Settings from the environment, prerequisites
@@ -484,16 +523,20 @@ src/spec_to_test/
 │   ├── results.py           Playwright JSON report → results and artifacts
 │   ├── service.py, store.py Background jobs, ownership, persistence, approval
 │   └── export.py            Evidence bundle, approved-tests Playwright project
-grill_ui.py                  Grill Mode page (rendering only)
-llm_ui.py                    AI settings in the sidebar (rendering only)
-automation_ui.py             Automation tab (rendering only)
+theme_ui.py                  Design tokens, scoped CSS and small components (cards, badges, score bars)
+shell_ui.py                  Sidebar navigation, AI status, page header
+pages_ui.py                  Home, Requirements Analysis, Test Cases, RTM, Dashboard, Export, Settings
+grill_ui.py                  Grill Mode page: interview + analysis panel (rendering only)
+projects_ui.py               Project/document switcher (sidebar) and project settings
+llm_ui.py                    AI settings, header AI menu and connection status (rendering only)
+automation_ui.py             Automation tab of Test Cases (rendering only)
 automation/runner/           Pinned Node toolchain: @playwright/test, @playwright/mcp
 tests/                       Unit, integration, regression and Streamlit UI tests
 docs/                        Exports, deployment, release checklist, QA documentation
 ```
 
 **Data flow:** input → `input_parser` → `rule_engine` → `Workspace`
-(+ `test_generator`) → saved by `storage`. The RTM, dashboard, and exports are
+(+ `test_generator`) → saved in the current project (`projects`, `storage`). The RTM, dashboard, and exports are
 computed from the same `Workspace` on every render, so an edit appears
 everywhere at once.
 
@@ -547,7 +590,7 @@ The app is ready for **Streamlit Community Cloud**. See
   tick covers its follow-up questions in that Grill session only. Only the
   current draft, its linked requirement, and the questions so far with your
   replies are sent.
-- Any session can switch AI off in **AI settings**; the rule-based features
+- Any session can switch AI off (header AI menu or **Settings**); the rule-based features
   never depend on it.
 - Grill Mode keeps its session in your browser session only; nothing is
   written to disk, and a confirmed result you add to the workspace stays in

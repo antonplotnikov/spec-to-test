@@ -6,7 +6,50 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Redesigned interface: a dark navy sidebar with the project/document switcher,
+  page navigation (Home, Requirements Analysis, Grill Mode, Test Cases,
+  Traceability, Dashboard, Export, Settings), the AI status and the language;
+  a page header with title, AI status, a quick provider/model menu and a
+  Settings shortcut; white cards on a light workspace with blue-violet
+  accents. Design tokens live in `theme_ui.py` (mirrored in
+  `.streamlit/config.toml`, checked by `tests/test_theme.py`); all CSS is
+  scoped to Streamlit test IDs or keyed containers. The former tabs moved to
+  pages: Findings, Test design, Bug reports and AI analysis are tabs of
+  Requirements Analysis, Automation is a tab of Test Cases. Analyze opens
+  Requirements Analysis; a new or deleted document opens Home.
+- Grill Mode layout: the interview in the center (progress, counters for
+  confirmed / assumptions / unknowns / unresolved contradictions, the current
+  requirement with a full-requirement view, a question card with priority,
+  category, requirement IDs and rationale, answer actions, previous answers)
+  and an Analysis / Findings / Report panel on the right, computed from the
+  session (`grill/insights.py`). Buttons read **Submit answer**, **Mark as
+  assumption**, **Mark as unknown** and **Skip**. Findings show what the
+  interview decided without resolving them; assumptions are never shown as
+  confirmed.
+- AI settings moved from the sidebar to **Settings** and the header menu;
+  project rename/delete moved to **Settings → Projects**. The AI choice and
+  typed requirements are kept while their page is not shown. The status says
+  *connected* only after a successful connection test of the provider and
+  model in use.
+- Streamlit toolbar set to `minimal` (no developer "Deploy" button).
+
 ### Added
+- Quality dimensions (`quality.DIMENSIONS`, `dimension_scores`): Clarity,
+  Completeness, Testability and Consistency, each a fixed group of the
+  existing criteria, so they add up to the same points as the score.
+- Test case read view, export validation (how many test cases each file holds, a warning when it would be empty),
+  dashboard "Unresolved issues" and "Requirements by quality", RTM coverage
+  bars, empty states that lead to Home.
+- Projects: group requirement documents by product or application. The
+  sidebar picks the project and one of its documents, creates projects (name,
+  optional description), renames them and deletes a document or a whole
+  project after confirmation. Every document has its own workspace, so the same
+  text in two projects is separate work. In `local` storage projects live in
+  `projects/<id>/` of the data folder and the last project and document reopen
+  on the next start; in `session` storage they stay in the browser session and
+  nothing touches the disk. Work saved by earlier versions opens unchanged in
+  the default project ("My project").
 - Grill Mode, unified adaptive interview: built-in and AI questions share one
   queue ranked by priority (high / medium / low; every built-in question now
   has one), re-ranked after each answer; contradictions are asked first within

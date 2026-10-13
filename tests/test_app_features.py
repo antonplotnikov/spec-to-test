@@ -3,15 +3,16 @@
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from conftest import PROJECT_ROOT
+from conftest import PROJECT_ROOT, goto, home
 from spec_to_test.models import ReviewStatus
 from spec_to_test.storage import load_latest
 
 APP_PATH = str(PROJECT_ROOT / "app.py")
-TAB_LABELS = [
-    "Requirements", "Findings", "Dashboard", "Traceability (RTM)", "Test cases",
-    "Test design", "Bug reports", "AI analysis", "Automation", "Export",
+PAGES = [
+    "Home", "Requirements Analysis", "Grill Mode", "Test Cases", "Traceability (RTM)",
+    "Dashboard", "Export", "Settings",
 ]
+ANALYSIS_TABS = ["Requirements", "Findings", "Test design", "Bug reports", "AI analysis"]
 
 
 def new_app() -> AppTest:
@@ -23,8 +24,8 @@ def new_app() -> AppTest:
 @pytest.fixture
 def analyzed(example_text) -> AppTest:
     at = new_app()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception
     return at
 
@@ -37,17 +38,47 @@ def button(at: AppTest, key: str):
     return next(b for b in at.button if b.key == key)
 
 
-def test_all_tabs_are_present(analyzed):
-    assert [tab.label for tab in analyzed.tabs] == TAB_LABELS
+def nav_labels(at: AppTest) -> list[str]:
+    # Options carry a Material icon before the name: ":material/x: Name".
+    return [option.split(": ", 1)[1] for option in at.sidebar.radio(key="app_mode").options]
 
 
-def test_tabs_are_translated(analyzed):
-    analyzed.sidebar.selectbox[0].select("uk").run()
-    labels = [tab.label for tab in analyzed.tabs]
-    assert "Дашборд" in labels and "Тест-кейси" in labels and "Аналіз ШІ" in labels
-    analyzed.sidebar.selectbox[0].select("ru").run()
+def test_analyze_opens_the_analysis_page(analyzed):
+    assert analyzed.sidebar.radio(key="app_mode").value == "analysis"
+    assert analyzed.title[0].value == "Requirements Analysis"
+
+
+def test_every_page_and_tab_is_present(analyzed):
+    assert nav_labels(analyzed) == PAGES
+    assert [tab.label for tab in analyzed.tabs] == ANALYSIS_TABS
+    assert [tab.label for tab in goto(analyzed, "tests").tabs] == ["Test cases", "Automation"]
+    for page in ("rtm", "dashboard", "export", "settings", "grill", "home"):
+        assert not goto(analyzed, page).exception
+
+
+def test_pages_and_tabs_are_translated(analyzed):
+    analyzed.selectbox(key="language").select("uk").run()
+    assert "Дашборд" in nav_labels(analyzed) and "Тест-кейси" in nav_labels(analyzed)
+    assert "Аналіз ШІ" in [tab.label for tab in analyzed.tabs]
+    analyzed.selectbox(key="language").select("ru").run()
     assert not analyzed.exception
     assert "Баг-репорты" in [tab.label for tab in analyzed.tabs]
+
+
+def test_pages_without_a_document_lead_to_home():
+    at = new_app()
+    for page in ("analysis", "tests", "rtm", "dashboard", "export"):
+        goto(at, page)
+        assert not at.exception
+        assert any(b.key == f"{page}_go_home" for b in at.button)
+    next(b for b in at.button if b.key == "export_go_home").click().run()
+    assert at.sidebar.radio(key="app_mode").value == "home"
+
+
+def test_header_settings_shortcut_opens_settings(analyzed):
+    button(analyzed, "header_settings").click().run()
+    assert analyzed.sidebar.radio(key="app_mode").value == "settings"
+    assert button(analyzed, "header_settings").disabled
 
 
 def test_requirements_show_quality_score(analyzed):
@@ -58,19 +89,21 @@ def test_requirements_show_quality_score(analyzed):
 
 
 def test_dashboard_metrics(analyzed):
+    goto(analyzed, "dashboard")
     labels = {m.label: m.value for m in analyzed.metric}
     assert labels["Test cases"] != "0"
     assert labels["Coverage"] == "0%"  # nothing approved yet
 
 
 def test_rtm_lists_every_requirement(analyzed):
+    goto(analyzed, "rtm")
     rtm = table_with_column(analyzed, "Approved tests")
     assert list(rtm["ID"]) == [f"REQ-{n}" for n in range(1, 10)]
     assert set(rtm["Coverage"]) == {"🟡 Partially covered"}
 
 
 def test_edit_and_approve_test_case_updates_rtm_and_persists(analyzed):
-    at = analyzed
+    at = goto(analyzed, "tests")
     form_inputs = [ti for ti in at.text_input if ti.label == "Title"]
     form_inputs[0].input("My edited title")
     review = next(sb for sb in at.selectbox if sb.label == "Review status")
@@ -84,21 +117,21 @@ def test_edit_and_approve_test_case_updates_rtm_and_persists(analyzed):
     edited = next(tc for tc in saved.test_cases if tc.title == "My edited title")
     assert edited.review_status.value == "approved"
 
-    rtm = table_with_column(at, "Approved tests")
+    rtm = table_with_column(goto(at, "rtm"), "Approved tests")
     row = rtm[rtm["ID"] == edited.requirement_id].iloc[0]
     assert edited.id in row["Approved tests"]
     assert row["Coverage"] == "✅ Covered"
 
 
 def test_invalid_edit_is_rejected(analyzed):
-    at = analyzed
+    at = goto(analyzed, "tests")
     next(ti for ti in at.text_input if ti.label == "Title").input("   ")
     next(b for b in at.button if b.label == "Save").click().run()
     assert any("required" in e.value for e in at.error)
 
 
 def test_add_and_delete_test_case(analyzed):
-    at = analyzed
+    at = goto(analyzed, "tests")
     before = len(load_latest().test_cases)
     button(at, "tc_add").click().run()
     after_add = load_latest().test_cases
@@ -134,8 +167,8 @@ def test_ai_run_requires_consent(example_text, monkeypatch):
     monkeypatch.setenv("AI_PROVIDER", "anthropic")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-123")
     at = new_app()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     assert button(at, "ai_run").disabled
     assert not any("test-key-123" in str(el.value) for el in at.markdown)
 
@@ -154,20 +187,20 @@ def test_work_is_restored_in_a_new_session(analyzed, example_text):
     button(analyzed, "bug_generate").click().run()
     at = new_app()  # simulates reopening the app
     assert any("Restored" in info.value for info in at.info)
-    assert table_with_column(at, "Bug ID") is not None
+    assert table_with_column(goto(at, "analysis"), "Bug ID") is not None
 
 
 def test_reanalyzing_same_document_keeps_edits(analyzed, example_text):
     button(analyzed, "bug_generate").click().run()
     count = len(load_latest().defects)
-    analyzed.button[0].click().run()
+    home(analyzed).button(key="analyze").click().run()
     assert len(load_latest().defects) == count
 
 
 # --- Regression tests for v1.0.0 fixes ---------------------------------------------------
 
 def test_save_confirmation_survives_rerun(analyzed):
-    at = analyzed
+    at = goto(analyzed, "tests")
     next(ti for ti in at.text_input if ti.label == "Title").input("Renamed")
     next(b for b in at.button if b.label == "Save").click().run()
     assert any("saved" in toast.value for toast in at.toast)
@@ -175,8 +208,8 @@ def test_save_confirmation_survives_rerun(analyzed):
 
 def test_user_text_is_not_rendered_as_markdown():
     at = new_app()
-    at.text_area[0].input("REQ-1: The system must show [help](http://x) and *all* items.").run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input("REQ-1: The system must show [help](http://x) and *all* items.").run()
+    home(at).button(key="analyze").click().run()
     requirement = table_with_column(at, "Quality score")["Requirement"].iloc[0]
     assert requirement == r"The system must show \[help\](http://x) and \*all\* items."
 
@@ -185,8 +218,8 @@ def test_session_storage_mode_keeps_nothing_on_disk(example_text, monkeypatch, t
     monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "session")
     at = new_app()
     assert any("only for this browser session" in c.value for c in at.sidebar.caption)
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception
     assert not (tmp_path / "data").exists()
     assert not any("Restored" in info.value for info in new_app().info)
@@ -214,8 +247,8 @@ def fake_ai(monkeypatch):
 def test_ai_consent_is_required_again_for_every_run(example_text, monkeypatch):
     calls = fake_ai(monkeypatch)
     at = new_app()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     next(c for c in at.checkbox if c.key == "ai_consent").check().run()
     button(at, "ai_run").click().run()
     assert calls == [True]
@@ -227,8 +260,8 @@ def test_ai_consent_is_required_again_for_every_run(example_text, monkeypatch):
 def test_ai_suggestion_to_bug_report_appears_immediately(example_text, monkeypatch):
     fake_ai(monkeypatch)
     at = new_app()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     next(c for c in at.checkbox if c.key == "ai_consent").check().run()
     button(at, "ai_run").click().run()
     button(at, "ai_to_bug").click().run()
@@ -240,15 +273,16 @@ def test_ai_suggestion_to_bug_report_appears_immediately(example_text, monkeypat
 def test_new_document_resets_ai_consent(example_text, monkeypatch):
     fake_ai(monkeypatch)
     at = new_app()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     next(c for c in at.checkbox if c.key == "ai_consent").check().run()
-    at.text_area[0].input("REQ-1: The system must save drafts.").run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input("REQ-1: The system must save drafts.").run()
+    home(at).button(key="analyze").click().run()
     assert next(c for c in at.checkbox if c.key == "ai_consent").value is False
 
 
 def test_markdown_report_download_is_offered(analyzed):
+    goto(analyzed, "export")
     labels = [b.label for b in analyzed.get("download_button")]
     assert "QA report → Markdown" in labels
     assert len(labels) == 5

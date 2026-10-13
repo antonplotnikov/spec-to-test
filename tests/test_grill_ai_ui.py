@@ -79,7 +79,7 @@ def tc_review(at=None):
 
 def test_without_ai_configuration_nothing_ai_is_offered():
     at = start(grill(), "bug_report", mode="review_draft", text_key="grill_draft_text", text=BUG_DRAFT)
-    assert any(t("grill.ui.mode_deterministic") in info.value for info in at.info)
+    assert t("grill.ui.mode_deterministic") in [c.value for c in at.caption]
     assert not any(b.key in ("grill_ai_questions", "grill_ai_review") for b in at.button)
     assert not any(c.key and "_ai_consent_" in c.key for c in at.checkbox)
 
@@ -90,7 +90,7 @@ def test_ai_buttons_need_consent_and_consent_resets_after_each_request(ai_on):
     calls, result = ai_on
     result["questions"] = [ai_question()]
     at = start(grill(), "test_case", mode="review_draft", text_key="grill_draft_text", text=TC_DRAFT)
-    assert any("claude" in info.value for info in at.info)  # AI available, model named
+    assert any("claude" in c.value for c in at.caption)  # AI available, model named
     assert at.button(key="grill_ai_questions").disabled
     assert at.button(key="grill_ai_review").disabled
 
@@ -185,11 +185,11 @@ def test_ai_screens_are_translated(ai_on, lang):
     result["findings"] = [ai_finding()]
     screens = []
     at = grill()
-    at.sidebar.selectbox[0].select(lang).run()
+    at.selectbox(key="language").select(lang).run()
     start(at, "requirements", text_key="grill_requirements_text", text=REQS)
     screens.append(at)
     other = grill()
-    other.sidebar.selectbox[0].select(lang).run()
+    other.selectbox(key="language").select(lang).run()
     tc_review(other)
     give_consent(other)
     screens.append(other)

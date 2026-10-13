@@ -2,7 +2,7 @@
 
 import re
 
-from conftest import PROJECT_ROOT
+from conftest import PROJECT_ROOT, home
 from spec_to_test.input_parser import extract_requirements
 from spec_to_test.rule_engine import analyze_requirements
 
@@ -51,8 +51,8 @@ def test_app_makes_no_network_calls(no_network, example_text):
 
     at = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=30)
     at.run()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception
 
 

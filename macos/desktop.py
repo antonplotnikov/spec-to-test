@@ -65,14 +65,14 @@ START_TIMEOUT_S = 90
 # Colors from .streamlit/config.toml, so the loading screen matches the app.
 PAGE_STYLE = """
 body { margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center;
-       background: #F7F8FC; color: #1E1B3A; font: 15px -apple-system, BlinkMacSystemFont, sans-serif; }
+       background: #F4F6FB; color: #121933; font: 15px -apple-system, BlinkMacSystemFont, sans-serif; }
 main { max-width: 640px; padding: 24px; text-align: center; }
 h1 { font-size: 20px; font-weight: 600; margin: 16px 0 8px; }
 p { color: #5B5876; margin: 4px 0; }
 pre { text-align: left; background: #EEF0F8; border-radius: 12px; padding: 12px; font-size: 12px;
       white-space: pre-wrap; max-height: 40vh; overflow: auto; }
 .spinner { width: 36px; height: 36px; margin: auto; border: 4px solid #E2E5F0;
-           border-top-color: #4F46E5; border-radius: 50%; animation: spin 0.9s linear infinite; }
+           border-top-color: #5B50E6; border-radius: 50%; animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 """
 
@@ -263,7 +263,7 @@ def main() -> None:
         width=1280,
         height=860,
         min_size=(900, 600),
-        background_color="#F7F8FC",
+        background_color="#F4F6FB",
         text_select=True,
         zoomable=True,
     )

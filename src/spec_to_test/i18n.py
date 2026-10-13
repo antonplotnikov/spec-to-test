@@ -8,6 +8,7 @@ from spec_to_test.automation.translations import AUTOMATION_TRANSLATIONS
 from spec_to_test.grill.translations import GRILL_TRANSLATIONS
 from spec_to_test.llm.translations import LLM_TRANSLATIONS
 from spec_to_test.models import Finding
+from spec_to_test.ui_translations import UI_TRANSLATIONS
 
 DEFAULT_LANGUAGE = "en"
 
@@ -862,6 +863,121 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "report.summary": {"en": "Summary", "uk": "Підсумок", "ru": "Сводка"},
     "report.metric": {"en": "Metric", "uk": "Показник", "ru": "Показатель"},
     "report.value": {"en": "Value", "uk": "Значення", "ru": "Значение"},
+    # --- Projects ------------------------------------------------------------
+    "projects.heading": {"en": "Projects", "uk": "Проєкти", "ru": "Проекты"},
+    "projects.project": {"en": "Project", "uk": "Проєкт", "ru": "Проект"},
+    "projects.default_name": {"en": "My project", "uk": "Мій проєкт", "ru": "Мой проект"},
+    "projects.document": {
+        "en": "Requirements document",
+        "uk": "Документ із вимогами",
+        "ru": "Документ с требованиями",
+    },
+    "projects.document_help": {
+        "en": "Each document analyzed in this project is kept here with its own test cases, reviews and bug reports. Choose “New requirements” to add another one.",
+        "uk": "Кожен документ, проаналізований у цьому проєкті, зберігається тут зі своїми тест-кейсами, рев'ю та баг-репортами. Оберіть «Нові вимоги», щоб додати ще один.",
+        "ru": "Каждый документ, проанализированный в этом проекте, хранится здесь со своими тест-кейсами, ревью и баг-репортами. Выберите «Новые требования», чтобы добавить ещё один.",
+    },
+    "projects.new_document": {
+        "en": "➕ New requirements",
+        "uk": "➕ Нові вимоги",
+        "ru": "➕ Новые требования",
+    },
+    "projects.document_option": {
+        "en": "({count}) {title}",
+        "uk": "({count}) {title}",
+        "ru": "({count}) {title}",
+    },
+    "projects.untitled": {"en": "Document {id}", "uk": "Документ {id}", "ru": "Документ {id}"},
+    "projects.document_count": {
+        "en": "Documents in this project: {count}",
+        "uk": "Документів у проєкті: {count}",
+        "ru": "Документов в проекте: {count}",
+    },
+    "projects.new_heading": {"en": "New project", "uk": "Новий проєкт", "ru": "Новый проект"},
+    "projects.settings_heading": {
+        "en": "Project settings",
+        "uk": "Налаштування проєкту",
+        "ru": "Настройки проекта",
+    },
+    "projects.name": {"en": "Name", "uk": "Назва", "ru": "Название"},
+    "projects.name_placeholder": {
+        "en": "e.g. Mobile banking app",
+        "uk": "напр. Мобільний банкінг",
+        "ru": "напр. Мобильный банкинг",
+    },
+    "projects.description": {"en": "Description", "uk": "Опис", "ru": "Описание"},
+    "projects.create": {"en": "Create project", "uk": "Створити проєкт", "ru": "Создать проект"},
+    "projects.save": {"en": "Save", "uk": "Зберегти", "ru": "Сохранить"},
+    "projects.confirm_delete": {
+        "en": "I understand that deleting cannot be undone",
+        "uk": "Я розумію, що видалення не можна скасувати",
+        "ru": "Я понимаю, что удаление нельзя отменить",
+    },
+    "projects.delete_document": {
+        "en": "Delete this document",
+        "uk": "Видалити цей документ",
+        "ru": "Удалить этот документ",
+    },
+    "projects.delete_project": {
+        "en": "Delete project",
+        "uk": "Видалити проєкт",
+        "ru": "Удалить проект",
+    },
+    "projects.created": {
+        "en": "Project “{name}” created. Add its requirements below.",
+        "uk": "Проєкт «{name}» створено. Додайте його вимоги нижче.",
+        "ru": "Проект «{name}» создан. Добавьте его требования ниже.",
+    },
+    "projects.saved": {
+        "en": "Project “{name}” saved.",
+        "uk": "Проєкт «{name}» збережено.",
+        "ru": "Проект «{name}» сохранён.",
+    },
+    "projects.deleted": {
+        "en": "Project “{name}” deleted.",
+        "uk": "Проєкт «{name}» видалено.",
+        "ru": "Проект «{name}» удалён.",
+    },
+    "projects.document_deleted": {
+        "en": "Document deleted from the project.",
+        "uk": "Документ видалено з проєкту.",
+        "ru": "Документ удалён из проекта.",
+    },
+    "projects.error.name_required": {
+        "en": "Enter a project name.",
+        "uk": "Введіть назву проєкту.",
+        "ru": "Введите название проекта.",
+    },
+    "projects.error.name_too_long": {
+        "en": "The name is too long (at most 80 characters).",
+        "uk": "Назва задовга (максимум 80 символів).",
+        "ru": "Название слишком длинное (максимум 80 символов).",
+    },
+    "projects.error.name_taken": {
+        "en": "A project with this name already exists.",
+        "uk": "Проєкт із такою назвою вже існує.",
+        "ru": "Проект с таким названием уже существует.",
+    },
+    "projects.error.description_too_long": {
+        "en": "The description is too long (at most 500 characters).",
+        "uk": "Опис задовгий (максимум 500 символів).",
+        "ru": "Описание слишком длинное (максимум 500 символов).",
+    },
+    "projects.error.save_failed": {
+        "en": "Could not save the project.",
+        "uk": "Не вдалося зберегти проєкт.",
+        "ru": "Не удалось сохранить проект.",
+    },
+    "projects.error.delete_failed": {
+        "en": "Could not delete it. Please try again.",
+        "uk": "Не вдалося видалити. Спробуйте ще раз.",
+        "ru": "Не удалось удалить. Попробуйте ещё раз.",
+    },
+    "projects.input_heading": {
+        "en": "Project: {name}. **Analyze** adds the text below to this project as a document; each document keeps its own requirements, test cases and bug reports.",
+        "uk": "Проєкт: {name}. **Аналізувати** додає текст нижче до цього проєкту як документ; кожен документ має власні вимоги, тест-кейси та баг-репорти.",
+        "ru": "Проект: {name}. **Анализировать** добавляет текст ниже в этот проект как документ; у каждого документа свои требования, тест-кейсы и баг-репорты.",
+    },
 }
 
 # Grill Mode text lives in its own module; keys must not collide.
@@ -873,6 +989,9 @@ TRANSLATIONS.update(AUTOMATION_TRANSLATIONS)
 # LLM settings text, same rule.
 assert not TRANSLATIONS.keys() & LLM_TRANSLATIONS.keys()
 TRANSLATIONS.update(LLM_TRANSLATIONS)
+# App shell and page layout text, same rule.
+assert not TRANSLATIONS.keys() & UI_TRANSLATIONS.keys()
+TRANSLATIONS.update(UI_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

@@ -17,6 +17,7 @@ are used; AI suggestions never change the score.
 """
 
 import re
+from collections.abc import Iterable
 from typing import Literal
 
 from pydantic import BaseModel
@@ -73,11 +74,7 @@ class QualityScore(BaseModel):
 
     @property
     def grade(self) -> Grade:
-        if self.score >= GOOD_THRESHOLD:
-            return "good"
-        if self.score >= FAIR_THRESHOLD:
-            return "fair"
-        return "poor"
+        return grade_of(self.score)
 
 
 def _obligation_count(text: str) -> int:
@@ -133,3 +130,54 @@ def score_requirement(requirement: Requirement, findings: list[Finding]) -> Qual
 def score_all(requirements: list[Requirement], findings: list[Finding]) -> dict[str, QualityScore]:
     return {req.id: score_requirement(req, findings) for req in requirements}
 
+
+
+# ---------------------------------------------------------------------------
+# Dimensions: the criteria grouped for an at-a-glance summary
+# ---------------------------------------------------------------------------
+
+# Every criterion belongs to exactly one dimension, so the dimensions add up to
+# the same points as the score itself and stay just as explainable.
+DIMENSIONS: dict[str, tuple[str, ...]] = {
+    "clarity": ("unambiguous", "atomic"),
+    "completeness": ("boundaries", "error_handling", "identifiable"),
+    "testability": ("expected_result",),
+    "consistency": ("consistent",),
+}
+assert sorted(c for criteria in DIMENSIONS.values() for c in criteria) == sorted(CRITERIA)
+_DIMENSION_OF = {criterion: key for key, criteria in DIMENSIONS.items() for criterion in criteria}
+
+
+class DimensionScore(BaseModel):
+    key: str
+    points: int
+    max_points: int
+
+    @property
+    def percent(self) -> int:
+        return round(100 * self.points / self.max_points) if self.max_points else 0
+
+
+def dimension_scores(scores: Iterable[QualityScore]) -> list[DimensionScore]:
+    """Points per dimension summed over `scores` (several requirements give one total)."""
+    totals = {key: [0, 0] for key in DIMENSIONS}
+    for score in scores:
+        for criterion in score.criteria:
+            total = totals[_DIMENSION_OF[criterion.key]]
+            total[0] += criterion.points
+            total[1] += criterion.max_points
+    return [DimensionScore(key=key, points=p, max_points=m) for key, (p, m) in totals.items()]
+
+
+def average_score(scores: Iterable[QualityScore]) -> int | None:
+    """Mean score, rounded; None when there is nothing to score."""
+    values = [s.score for s in scores]
+    return round(sum(values) / len(values)) if values else None
+
+
+def grade_of(score: int) -> Grade:
+    if score >= GOOD_THRESHOLD:
+        return "good"
+    if score >= FAIR_THRESHOLD:
+        return "fair"
+    return "poor"

@@ -53,7 +53,7 @@ def interviewer(at):
 def started(lang: str = "en"):
     at = grill()
     if lang != "en":
-        at.sidebar.selectbox[0].select(lang).run()
+        at.selectbox(key="language").select(lang).run()
     return start(at, "requirements", text_key="grill_requirements_text", text=REQS)
 
 
@@ -88,7 +88,7 @@ def test_one_interview_ranks_ai_and_built_in_questions_together(model):
     assert len(model["calls"]) == 2
     session = session_of(at)
     assert session.current_question_id == "ai.req.1"  # high outranks the medium ambiguity question
-    assert any(t("grill.ui.importance", level=t("grill.importance.high")) == c.value for c in at.caption)
+    assert any(t("grill.ui.importance", level=t("grill.importance.high")) in m.value for m in at.markdown)  # badge
     assert any("A boundary test depends on it." in c.value for c in at.caption)
     assert not at.button(key="grill_skip").disabled  # AI questions can always be skipped
 

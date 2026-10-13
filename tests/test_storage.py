@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import goto, home
 from spec_to_test import storage
 from spec_to_test.models import Requirement, ReviewStatus, TestCase, TestType, Workspace
 from spec_to_test.storage import (
@@ -118,11 +119,11 @@ def test_dotenv_file_cannot_switch_the_mode(tmp_path, monkeypatch, no_network, e
     monkeypatch.delenv("AI_PROVIDER", raising=False)  # let the file's AI settings apply
     monkeypatch.chdir(tmp_path)  # a .env in the working directory is not picked up either
 
-    at = new_app()
-    assert any("AI is configured" in info.value for info in at.sidebar.info)  # the file was read
+    at = goto(new_app(), "settings")
+    assert any("AI is configured" in info.value for info in at.info)  # the file was read
     assert any("only for this browser session" in c.value for c in at.sidebar.caption)
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     button(at, "bug_generate").click().run()
     assert not at.exception
     assert at.session_state["workspace"].defects

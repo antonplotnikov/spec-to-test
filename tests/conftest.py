@@ -67,3 +67,19 @@ def no_network(monkeypatch):
 
     monkeypatch.setattr(socket.socket, "connect", blocked)
     monkeypatch.setattr(socket, "create_connection", blocked)
+
+
+# --- Navigating the app in AppTest ---------------------------------------------
+
+def goto(at, page: str):
+    """Open a page from the sidebar navigation ("home", "analysis", "grill", "tests",
+    "rtm", "dashboard", "export" or "settings")."""
+    at.sidebar.radio(key="app_mode").set_value(page).run()
+    return at
+
+
+def home(at):
+    """Home holds the requirements input and the Analyze button."""
+    if not any(area.key == "requirements_text" for area in at.text_area):
+        goto(at, "home")
+    return at

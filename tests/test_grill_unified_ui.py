@@ -16,12 +16,20 @@ REQ-3: Users can upload a profile photo."""
 def started(lang: str = "en"):
     at = grill()
     if lang != "en":
-        at.sidebar.selectbox[0].select(lang).run()
+        at.selectbox(key="language").select(lang).run()
     return start(at, "requirements", text_key="grill_requirements_text", text=REQS)
 
 
 def captions(at) -> list[str]:
     return [c.value for c in at.caption]
+
+
+def metrics(at) -> dict[str, str]:
+    return {m.label: m.value for m in at.metric}
+
+
+def badges(at) -> str:
+    return "\n".join(m.value for m in at.markdown if "-badge[" in m.value)
 
 
 def issues(at):
@@ -32,11 +40,17 @@ def test_question_shows_priority_requirement_impact_and_progress_states():
     at = started()
     session = session_of(at)
     assert session.current_question.priority == "high"
-    assert t("grill.ui.importance", level=t("grill.importance.high")) in captions(at)
+    assert t("grill.ui.importance", level=t("grill.importance.high")) in badges(at)
+    assert t("ui.grill.category.contradiction") in badges(at)  # the question category
+    assert "REQ-1" in badges(at) and "REQ-2" in badges(at)  # the requirement IDs involved
     assert any(c.startswith("Why it matters for testing:") for c in captions(at))
-    assert any(c.startswith("Requirement REQ-1:") for c in captions(at))  # the requirement IDs involved
+    assert any("> The password must be at least 8 characters." in m.value for m in at.markdown)
+    assert any(c.startswith("Requirement REQ-2:") for c in captions(at))  # the other side
     assert any(t("grill.ui.conflict_question") == w.value for w in at.warning)  # a source contradiction
-    assert any(c.startswith("✅ Confirmed: 0") and "⏳ Open: " in c for c in captions(at))
+    assert metrics(at) | {"Quality score": ""} == {
+        "Confirmed": "0", "Assumptions": "0", "Unknowns": "0", "Conflicts": "1", "Quality score": "",
+    }
+    assert any(c.startswith(t("ui.grill.open_count", count=len(session.questions))) for c in captions(at))
     assert issues(at).label == t("grill.ui.issues_heading", count=len(session.questions))
 
 
@@ -49,7 +63,7 @@ def test_answers_update_states_issues_and_the_history():
     session = session_of(at)
     # Adaptive: the new limit asks what happens beyond it, ahead of the remaining medium question.
     assert session.current_question_id == "followup.limit.rule.missing_expected_result.REQ-3"
-    assert any(c.startswith("✅ Confirmed: 2") for c in captions(at))
+    assert metrics(at)["Confirmed"] == "2" and metrics(at)["Conflicts"] == "0"
     history = next(table.value for table in at.table if t("grill.ui.column_answer") in table.value.columns)
     assert "✅ Confirmed" in history[t("grill.ui.column_state")].tolist()
 
@@ -64,12 +78,12 @@ def test_answer_contradicting_its_requirement_is_asked_about_without_ai():
     question = session.current_question
     assert question.id.startswith("conflict.") and question.priority == "high"
     assert any(t("grill.ui.conflict_question") == w.value for w in at.warning)
-    assert any("⚔️ Conflict: 1" in c for c in captions(at))  # the contested answer
+    assert metrics(at)["Conflicts"] == "1"  # the contested answer
     assert at.button(key="grill_skip").disabled  # a contradiction must be decided or marked unknown
     choose(at, "REQ-3: Users can upload a profile photo of at most 5 MB.")
     session = session_of(at)
     assert not session.current_question_id or not session.current_question_id.startswith("conflict.")
-    assert any("⚔️ Conflict: 0" in c for c in captions(at))
+    assert metrics(at)["Conflicts"] == "0"
 
 
 def test_unresolved_contradiction_appears_in_issues_and_report():

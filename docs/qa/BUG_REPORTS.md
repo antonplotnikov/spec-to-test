@@ -173,7 +173,7 @@ or bug report added to the workspace would write that text to the save file.
 
 **Steps to reproduce (before the fix).**
 1. Start **Test case → Interview** in Grill Mode.
-2. Paste 200,000 characters as an answer and click **Save answer**.
+2. Paste 200,000 characters as an answer and click **Submit answer**.
 
 **Expected.** The answer is rejected with a clear message.
 **Actual.** The answer was accepted and stored in the draft.
