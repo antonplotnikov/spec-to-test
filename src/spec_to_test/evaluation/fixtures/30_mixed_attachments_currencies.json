@@ -1,0 +1,102 @@
+{
+ "name": "mixed_attachments_currencies",
+ "description": "Смешанная запись единиц (MB латиницей и МБ кириллицей): 25 MB против 20 МБ — противоречие; цены в USD и рублях — разные валюты, не противоречие. Прикрепление файла без пути ошибки.",
+ "language": "ru",
+ "requirements": "REQ-1: Максимальный размер вложения — 25 MB.\nREQ-2: Максимальный размер вложения — 20 МБ.\nREQ-3: Пользователь прикрепляет файл к письму.\nREQ-4: Подписка стоит 10 USD в месяц.\nREQ-5: Подписка стоит 900 рублей в месяц.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1",
+     "REQ-2"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "25",
+     "20"
+    ],
+    "note": "размер вложения 25 или 20 МБ"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некорректн"
+    ],
+    "note": "слишком большой файл"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "что видит пользователь после прикрепления"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ]
+  ],
+  "non_contradictions": [
+   [
+    "REQ-4",
+    "REQ-5"
+   ]
+  ],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-4"
+    ],
+    "topics": [
+     "missing_boundary",
+     "contradiction"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_boundary",
+     "contradiction"
+    ],
+    "keywords": [],
+    "note": ""
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-1+REQ-2": {
+   "status": "answered",
+   "value": "REQ-2: Максимальный размер вложения — 20 МБ."
+  },
+  "rule.missing_error_handling.REQ-3": {
+   "status": "answered",
+   "value": "Файл больше лимита не прикрепляется, показывается ошибка."
+  },
+  "rule.missing_expected_result.REQ-3": {
+   "status": "answered",
+   "value": "Файл появляется под письмом с названием и размером."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

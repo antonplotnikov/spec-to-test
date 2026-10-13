@@ -9,6 +9,7 @@ from decimal import Decimal
 from functools import lru_cache
 
 from spec_to_test.models import Finding, FindingType, Language, Requirement
+from spec_to_test.quantities import NUMBER, dimension, parse_number, to_base
 from spec_to_test.rule_engine import (
     _AMBIGUOUS,
     _ERROR,
@@ -17,6 +18,7 @@ from spec_to_test.rule_engine import (
     _matches,
     _normalize,
     analyze_requirements,
+    scope_qualifiers,
 )
 from spec_to_test.test_design import Constraint, boundary_values, extract_constraints, format_value
 
@@ -110,6 +112,13 @@ def compare_limits(
     different value, and ("new", draft_limit, None) when the draft states a
     limit the requirement does not have.
 
+    Limits are compared per dimension in base units, so "2 minutes" agrees
+    with "120 seconds" and amounts in different currencies are never compared.
+    A limit stated for a narrower scope ("for admin accounts: at least 12
+    characters") is a new rule, not a conflict. Conditions in an answer ("if
+    the password is shorter, an error is shown") usually describe the failure
+    path, so only an added scope qualifier counts here.
+
     Exact values ("enter 7 characters") are usually test inputs, not rules, so
     they are compared only with `include_exact` (e.g. for a bug's expected
     result, which must follow the requirement).
@@ -117,16 +126,19 @@ def compare_limits(
     source_bounds: dict[str, list[tuple[str, Decimal, Constraint]]] = {}
     for constraint in extract_constraints(source.text):
         for side, value in _bounds(constraint, include_exact=True).items():
-            source_bounds.setdefault(constraint.unit, []).append((side, value, constraint))
+            source_bounds.setdefault(dimension(constraint.unit), []).append(
+                (side, to_base(value, constraint.unit), constraint)
+            )
+    other_context = bool(scope_qualifiers(text) - scope_qualifiers(source.text))
 
     result: list[tuple[str, Constraint, Constraint | None]] = []
     for constraint in extract_constraints(text):
         for side, value in _bounds(constraint, include_exact).items():
-            match = next((s for s in source_bounds.get(constraint.unit, []) if s[0] == side), None)
+            match = next((s for s in source_bounds.get(dimension(constraint.unit), []) if s[0] == side), None)
             if match is None:
                 result.append(("new", constraint, None))
-            elif match[1] != value:
-                result.append(("conflict", constraint, match[2]))
+            elif match[1] != to_base(value, constraint.unit):
+                result.append(("new", constraint, None) if other_context else ("conflict", constraint, match[2]))
             else:
                 continue
             break  # one finding per stated limit
@@ -141,8 +153,9 @@ def boundary_hints(source: Requirement) -> list[tuple[str, list[str]]]:
     ]
 
 
-_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+_NUMBER = re.compile(rf"(?<![\d.,])(?:{NUMBER})")
 
 
 def numbers_in(text: str) -> set[str]:
-    return {format_value(Decimal(n.replace(",", "."))) for n in _NUMBER.findall(text)}
+    """Every number in the text, normalized ("1 000" and "1,000" -> "1000", "2,5" -> "2.5")."""
+    return {format_value(value) for n in _NUMBER.findall(text) if (value := parse_number(n)) is not None}

@@ -22,8 +22,20 @@ Rules:
 - Enumerated fields offer choices; everything else accepts free text.
 - Requirement IDs are offered only from the loaded document, never invented.
 - Requirement questions come from the existing rule engine findings and keep
-  the real requirement IDs.
+  the real requirement IDs. Findings already resolved in the analyzed document
+  (`GrillSession.settled_question_ids`) are not asked about again.
+- Within a priority, riskier questions come first (`question_risk`): a severe
+  finding on a low-quality requirement is asked before a minor one. Field
+  questions of test case and bug report drafts keep their logical order.
+- An answer can settle more than its own question (`covered_questions`): a
+  confirmed clarification that states a limit ("5 failed attempts") answers
+  the missing-boundary question of the same requirement, and one that
+  describes the failure path answers its error-handling question. Covered
+  questions leave the queue with the reason "answered elsewhere"; contradictions
+  and missing outcomes are never covered this way.
 """
+
+import re
 
 from spec_to_test.grill.conflicts import (
     FOLLOWUP_PREFIX,
@@ -45,10 +57,20 @@ from spec_to_test.grill.models import (
     RequirementsDraft,
     TestCaseDraft,
 )
-from spec_to_test.grill.rules import boundary_hints, describes_failure, requirement_findings, vague_terms
+from spec_to_test.grill.rules import (
+    _FAILURE,
+    _NEGATION,
+    boundary_hints,
+    describes_failure,
+    numbers_in,
+    requirement_findings,
+    vague_terms,
+)
 from spec_to_test.grill.validation import deterministic_review, is_placeholder
 from spec_to_test.grill.workflow import GrillWorkflow
-from spec_to_test.models import FindingType, Requirement, Severity, Source, TestType
+from spec_to_test.models import Finding, FindingType, Requirement, Severity, Source, TestType
+from spec_to_test.quality import score_all
+from spec_to_test.quantities import limits
 from spec_to_test.test_design import extract_constraints
 
 # Test types whose steps are driven by concrete input values.
@@ -69,6 +91,18 @@ _CONFIRMING = (AnswerStatus.ANSWERED, AnswerStatus.ASSUMED)
 INPUT_LIMIT_UNITS = frozenset({"characters", "attempts", "megabytes"})
 
 _LABEL_CHARS = 80
+# Risk points for a finding's severity; the requirement's quality adds up to 40 more.
+SEVERITY_RISK = {Severity.HIGH: 50, Severity.MEDIUM: 30, Severity.LOW: 10}
+
+
+def question_risk(finding: Finding, quality: int) -> int:
+    """0-100: how much a wrong guess about this finding could hurt testing.
+
+    Severity of the finding, plus how weak the requirement is overall (its
+    quality score), plus a little when the finding spans several requirements.
+    """
+    spread = 10 if finding.related_requirement_ids else 0
+    return min(100, SEVERITY_RISK[finding.severity] + (100 - quality) * 2 // 5 + spread)
 
 
 def _needs_value(draft: AnyDraft, field: str) -> bool:
@@ -262,8 +296,13 @@ def plan_bug_report(session: GrillSession, draft: BugReportDraft) -> list[Questi
 def plan_requirements(session: GrillSession, draft: RequirementsDraft) -> list[Question]:
     """One clarification question per rule finding, linked to real requirement IDs."""
     texts = {r.id: r.text for r in draft.requirements}
+    found = requirement_findings(draft.requirements)
+    quality = score_all(draft.requirements, [finding for _, finding in found])
+    settled = set(session.settled_question_ids)
     questions = []
-    for question_id, finding in requirement_findings(draft.requirements):
+    for question_id, finding in found:
+        if question_id in settled:
+            continue  # resolved in the analyzed document before this interview
         ids = [finding.requirement_id, *finding.related_requirement_ids]
         choices = []
         if finding.type == FindingType.CONTRADICTION:
@@ -283,6 +322,7 @@ def plan_requirements(session: GrillSession, draft: RequirementsDraft) -> list[Q
                 requirement_ids=ids,
                 origin=Source.RULE,
                 importance=FINDING_PRIORITY.get(finding.type, "medium"),  # type: ignore[arg-type]
+                risk=question_risk(finding, quality[finding.requirement_id].score),
             )
         )
     return questions
@@ -347,6 +387,7 @@ def followup_questions(session: GrillSession, draft: RequirementsDraft) -> list[
                 reason_key="grill.why.followup.vague",
                 params={"terms": ", ".join(f"“{term}”" for term in terms), "answer": _short(value)},
                 essential=False, requirement_ids=ids, origin=Source.RULE, importance="medium",
+                risk=question.risk,
             ))
         # Input limits only: "within 2 seconds" is a target, not something a user can exceed.
         constraints = [
@@ -361,8 +402,78 @@ def followup_questions(session: GrillSession, draft: RequirementsDraft) -> list[
                 reason_key="grill.why.followup.limit",
                 params={"phrase": constraints[0].phrase},
                 essential=False, requirement_ids=ids, origin=Source.RULE, importance="medium",
+                risk=question.risk,
             ))
     return questions
+
+
+_FAILURE_WORD = re.compile(_FAILURE.pattern + r"|(?<!\w)(?:block|lock|блок|заблок)\w*", re.IGNORECASE)
+# Vague words a stated number settles ("too many attempts" -> "5 attempts"). Prefixes.
+QUANTITY_VAGUE = (
+    "many", "few", "several", "some", "multiple", "fast", "quick", "slow", "soon", "asap", "approximately",
+    "много", "несколько", "некотор", "быстр", "медленн", "примерно", "приблизительно", "как можно скорее",
+    "багато", "кілька", "декільк", "деяк", "швидк", "повільн", "приблизно", "якомога швидше",
+)
+
+
+def names_failure(text: str) -> bool:
+    """True if the text names a failure outcome that is not negated right before it.
+
+    "Files over 20 MB are rejected with an error" names one; "no error is
+    shown" does not. Unlike `failure_terms`, a negation elsewhere in the
+    sentence ("не более 20 МБ") does not cancel it.
+    """
+    for match in _FAILURE_WORD.finditer(text):
+        before = re.findall(r"\w+", text[: match.start()].casefold())[-2:]
+        if not any(_NEGATION.fullmatch(word) for word in before):
+            return True
+    return False
+
+
+def covered_questions(session: GrillSession) -> dict[str, str]:
+    """Open rule questions that another confirmed or assumed answer already covers.
+
+    Maps the covered question ID to the covering question ID. Only answers
+    linked to the same requirement count, and only if they are not disputed:
+    - missing boundary: the answer states a limit (a number with a unit, or a
+      number next to the concept the finding asked about: "after 3 failed attempts");
+    - missing error handling: the answer names the failure (error, invalid,
+      rejected, ...) without negating it ("no error is shown" does not count);
+    - vague wording: the answer states a number and every vague word is about
+      an amount or speed ("many", "fast").
+    """
+    if not isinstance(session.draft, RequirementsDraft):
+        return {}
+    disputed = contested(session)[0]
+    answers = [
+        (q, session.answers[q.id].value) for q in session.questions
+        if not q.field and q.id in session.answers and session.answers[q.id].status in _CONFIRMING
+        and q.id not in disputed and not is_decision(q.id)
+    ]
+    if not answers:
+        return {}
+    covered: dict[str, str] = {}
+    for question_id, finding in requirement_findings(session.draft.requirements):
+        if question_id in session.answers or finding.type in ESSENTIAL_FINDINGS:
+            continue
+        for question, value in answers:
+            if question.id == question_id or finding.requirement_id not in question.requirement_ids:
+                continue
+            has_number = bool(numbers_in(value))
+            if finding.type == FindingType.MISSING_BOUNDARY:
+                hit = bool(limits(value)) or has_number and any(
+                    term.casefold()[:5] in value.casefold() for term in finding.matched_terms
+                )
+            elif finding.type == FindingType.MISSING_ERROR_HANDLING:
+                hit = names_failure(value)
+            elif finding.type == FindingType.AMBIGUOUS_WORDING:
+                hit = has_number and all(term.casefold().startswith(QUANTITY_VAGUE) for term in finding.matched_terms)
+            else:
+                hit = False
+            if hit:
+                covered[question_id] = question.id
+                break
+    return covered
 
 
 def plan_questions(session: GrillSession) -> list[Question]:
@@ -381,4 +492,6 @@ def plan_questions(session: GrillSession) -> list[Question]:
 
 
 # The deterministic Grill: works without an API key or network access.
-DETERMINISTIC_WORKFLOW = GrillWorkflow(planner=plan_questions, reviewer=deterministic_review)
+DETERMINISTIC_WORKFLOW = GrillWorkflow(
+    planner=plan_questions, reviewer=deterministic_review, coverage=covered_questions,
+)

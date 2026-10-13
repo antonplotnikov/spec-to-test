@@ -14,9 +14,16 @@ Storage modes (SPEC_TO_TEST_STORAGE):
 Layout of the data folder:
     latest.json                         last opened project and document
     workspaces/<hash>.json              documents of the default project
+    grill/<session id>.json             Grill interviews of the default project
+    grill/latest.json                   its last active interview
     projects/default/project.json       its name and description, once edited
     projects/<id>/project.json          any other project
     projects/<id>/workspaces/<hash>.json
+    projects/<id>/grill/<session id>.json
+    projects/<id>/grill/latest.json
+
+Workspaces carry a `schema_version`; older files are upgraded on load by
+spec_to_test.migrations (the file itself is rewritten on the next save).
 
 The default project keeps the location used before projects existed, so work
 saved by older versions opens unchanged.
@@ -34,12 +41,16 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from spec_to_test.migrations import migrate_workspace_data
 from spec_to_test.models import DocumentSummary, Project, Workspace
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[2] / ".spec_to_test_data"
 LATEST_FILE = "latest.json"
 PROJECT_FILE = "project.json"
 DEFAULT_PROJECT_ID = "default"
+GRILL_DIR = "grill"
+# Saved interviews larger than this are not read (a normal one is a few hundred KB at most).
+MAX_INTERVIEW_BYTES = 5_000_000
 
 
 def storage_mode() -> str:
@@ -109,7 +120,7 @@ def load_workspace(doc_hash: str, project_id: str = DEFAULT_PROJECT_ID) -> Works
         return None
     try:
         path = _workspace_path(doc_hash, project_id)
-        return Workspace.model_validate_json(path.read_text(encoding="utf-8"))
+        return Workspace.model_validate(migrate_workspace_data(json.loads(path.read_text(encoding="utf-8"))))
     except (OSError, ValueError, ValidationError):
         return None
 
@@ -189,7 +200,89 @@ def delete_project(project_id: str) -> None:
     if project_id == DEFAULT_PROJECT_ID:
         for path in _workspaces_dir(DEFAULT_PROJECT_ID).glob("*.json"):
             path.unlink(missing_ok=True)
+        shutil.rmtree(_grill_dir(DEFAULT_PROJECT_ID), ignore_errors=True)
     shutil.rmtree(_project_dir(project_id), ignore_errors=True)
+
+
+# --- Grill interviews (raw JSON; validated by spec_to_test.grill.persistence) ------------
+
+def _grill_dir(project_id: str) -> Path:
+    if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
+        return data_dir() / GRILL_DIR
+    return _project_dir(project_id) / GRILL_DIR
+
+
+def _interview_path(project_id: str, session_id: str) -> Path:
+    return _grill_dir(project_id) / f"{_file_name(session_id, 'session id')}.json"
+
+
+def _read_json(path: Path) -> dict | None:
+    try:
+        if path.stat().st_size > MAX_INTERVIEW_BYTES:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def save_interview_data(project_id: str, session_id: str, data: dict) -> None:
+    """Write one interview; does nothing in "session" mode."""
+    if not persistence_enabled():
+        return
+    _write_atomic(_interview_path(project_id, session_id), json.dumps(data, ensure_ascii=False, indent=1))
+
+
+def load_interview_data(project_id: str, session_id: str) -> dict | None:
+    if not persistence_enabled():
+        return None
+    try:
+        return _read_json(_interview_path(project_id, session_id))
+    except ValueError:  # not a valid id
+        return None
+
+
+def list_interview_data(project_id: str) -> list[dict]:
+    """Every readable saved interview of the project (unreadable files are skipped)."""
+    if not persistence_enabled():
+        return []
+    try:
+        paths = sorted(_grill_dir(project_id).glob("*.json"))
+    except (OSError, ValueError):
+        return []
+    found = []
+    for path in paths:
+        if path.name.startswith(".") or path.name == LATEST_FILE or not path.stem.isalnum():
+            continue
+        if (data := _read_json(path)) is not None:
+            found.append(data)
+    return found
+
+
+def delete_interview(project_id: str, session_id: str) -> None:
+    if not persistence_enabled():
+        return
+    _interview_path(project_id, session_id).unlink(missing_ok=True)
+
+
+def save_interview_pointer(project_id: str, session_id: str) -> None:
+    """Remember the interview to reopen after a reload ("" = none)."""
+    if not persistence_enabled():
+        return
+    if session_id:
+        _file_name(session_id, "session id")
+    _write_atomic(_grill_dir(project_id) / LATEST_FILE, json.dumps({"session_id": session_id}))
+
+
+def load_interview_pointer(project_id: str) -> str:
+    if not persistence_enabled():
+        return ""
+    try:
+        data = _read_json(_grill_dir(project_id) / LATEST_FILE) or {}
+        session_id = str(data.get("session_id") or "")
+        return _file_name(session_id, "session id") if session_id else ""
+    except ValueError:
+        return ""
 
 
 # --- Last opened project and document ---------------------------------------------------

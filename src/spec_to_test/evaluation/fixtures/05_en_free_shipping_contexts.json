@@ -1,0 +1,151 @@
+{
+ "name": "en_free_shipping_contexts",
+ "description": "Free-shipping thresholds in USD: a real contradiction (50 vs 75 for the same orders) next to a rule for another scope (international orders) that must not be flagged. A promo code input without its failure path.",
+ "language": "en",
+ "requirements": "REQ-1: Orders over 50 USD get free standard shipping.\nREQ-2: International orders over 100 USD get free standard shipping.\nREQ-3: Orders over $75 get free standard shipping.\nREQ-4: The cart page shows the shipping cost before payment.\nREQ-5: The user enters a promo code at checkout.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1",
+     "REQ-3"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "50",
+     "75"
+    ],
+    "note": "free shipping from 50 or from 75 USD"
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "invalid",
+     "expired"
+    ],
+    "note": "invalid or expired promo code"
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "discount"
+    ],
+    "note": "what the user sees after the code is applied"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-1",
+    "REQ-3"
+   ]
+  ],
+  "non_contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ],
+   [
+    "REQ-2",
+    "REQ-3"
+   ]
+  ],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-4"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": "the cart page only displays a value"
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-1+REQ-3": {
+   "status": "answered",
+   "value": "REQ-3: Orders over $75 get free standard shipping."
+  },
+  "rule.missing_error_handling.REQ-5": {
+   "status": "answered",
+   "value": "An invalid or expired code shows an error under the field and the total does not change."
+  },
+  "rule.missing_expected_result.REQ-5": {
+   "status": "answered",
+   "value": "The discount is shown as a separate line and the order total is reduced."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1",
+       "REQ-3"
+      ],
+      "question": "Which free-shipping threshold is correct: 50 USD or 75 USD?",
+      "reason": "Repeats the built-in contradiction question.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "Does the international threshold of 100 USD include taxes?",
+      "reason": "The boundary test depends on which amount is compared.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": []
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": [
+     {
+      "title": "Free shipping above the threshold",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "test_type": "boundary",
+      "preconditions": [],
+      "steps": [
+       "Put items for 76 USD in the cart",
+       "Open the cart"
+      ],
+      "expected_result": "Standard shipping costs 0.",
+      "basis_quote": "Orders over $75 get free standard shipping"
+     }
+    ]
+   }
+  ]
+ }
+}

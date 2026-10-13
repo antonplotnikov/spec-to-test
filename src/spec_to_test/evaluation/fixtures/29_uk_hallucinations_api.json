@@ -1,0 +1,151 @@
+{
+ "name": "uk_hallucinations_api",
+ "description": "Модель вигадує REQ-5 і термін 48 годин; перший виклик падає з помилкою автентифікації; корисне питання про протерміноване посилання має дійти до автора.",
+ "language": "uk",
+ "requirements": "REQ-1: Система надсилає лист із підтвердженням реєстрації.\nREQ-2: Користувач вводить email під час реєстрації.\nREQ-3: Посилання з листа діє обмежений час.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некоректн"
+    ],
+    "note": "невірний email"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "побачити"
+    ],
+    "note": "що відбувається після введення email"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [
+     "обмежен"
+    ],
+    "note": "скільки діє посилання"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [],
+    "keywords": [
+     "після закінчення"
+    ],
+    "note": "відкриття протермінованого посилання"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_error_handling.REQ-2": {
+   "status": "answered",
+   "value": "Під полем з'являється «Некоректний email», форма не надсилається."
+  },
+  "rule.missing_expected_result.REQ-2": {
+   "status": "answered",
+   "value": "Надсилається лист із посиланням для підтвердження."
+  },
+  "rule.missing_boundary.REQ-3": {
+   "status": "unknown"
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "після закінчення",
+   "status": "answered",
+   "value": "Сторінка пропонує надіслати новий лист."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "error": "auth"
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-5"
+      ],
+      "question": "Чи стосується REQ-5 входу через Google?",
+      "reason": "Вигадана вимога.",
+      "importance": "low"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "question": "Посилання має діяти 48 годин?",
+      "reason": "Вигадане число.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "question": "Що бачить користувач, відкривши посилання після закінчення терміну дії?",
+      "reason": "Негативний тест для REQ-3.",
+      "importance": "high"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "error": "connection"
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": [
+     {
+      "title": "Посилання протерміноване",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "test_type": "negative",
+      "preconditions": [],
+      "steps": [
+       "Відкрити посилання після закінчення терміну"
+      ],
+      "expected_result": "Сторінка пропонує надіслати новий лист.",
+      "basis_quote": "Посилання з листа діє обмежений час"
+     }
+    ]
+   }
+  ]
+ }
+}

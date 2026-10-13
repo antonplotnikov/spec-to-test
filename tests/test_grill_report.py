@@ -47,8 +47,8 @@ def requirements_session(final: bool = True) -> GrillSession:
     """Built-in questions: confirmed, skipped, unknown; one AI question answered as an assumption."""
     session = WF.submit_input(WF.start(GrillKind.REQUIREMENTS), RequirementsDraft(requirements=REQS))
     session = WF.answer(session, "", AnswerStatus.UNKNOWN)  # REQ-3 expected result (high, asked first)
+    session = WF.skip(session)  # REQ-3 wording (riskier than REQ-1's, so asked first)
     session = WF.answer(session, CONFIRMED)  # REQ-1 wording
-    session = WF.skip(session)  # REQ-3 wording
     session = WF.add_questions(session, [Question(
         id="ai.req.max", prompt_text="Is there a maximum password length?", requirement_ids=["REQ-2"],
         origin=Source.AI, importance="high",

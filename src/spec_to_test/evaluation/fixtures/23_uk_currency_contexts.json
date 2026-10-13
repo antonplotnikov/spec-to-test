@@ -1,0 +1,116 @@
+{
+ "name": "uk_currency_contexts",
+ "description": "Суми в гривнях (грн, гривень, ₴): 200 проти 500 і понад 1000 проти понад 1500 — суперечності; правило для корпоративних клієнтів — інший контекст.",
+ "language": "uk",
+ "requirements": "REQ-1: Сума замовлення має бути не менше 200 грн.\nREQ-2: Сума замовлення має бути не менше 500 гривень.\nREQ-3: Для корпоративних клієнтів сума замовлення має бути не менше 5000 грн.\nREQ-4: Безкоштовна доставка діє для замовлень понад 1000 грн.\nREQ-5: Безкоштовна доставка діє для замовлень понад 1500 ₴.\nREQ-6: Користувач вводить номер телефону у формі замовлення.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1",
+     "REQ-2"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "200",
+     "500"
+    ],
+    "note": "мінімальна сума 200 чи 500 грн"
+   },
+   {
+    "requirement_ids": [
+     "REQ-4",
+     "REQ-5"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "1000",
+     "1500"
+    ],
+    "note": "поріг безкоштовної доставки"
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некоректн"
+    ],
+    "note": "невірний номер телефону"
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "побачити"
+    ],
+    "note": "що відбувається з номером"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ],
+   [
+    "REQ-4",
+    "REQ-5"
+   ]
+  ],
+  "non_contradictions": [
+   [
+    "REQ-1",
+    "REQ-3"
+   ],
+   [
+    "REQ-2",
+    "REQ-3"
+   ]
+  ],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [],
+    "note": ""
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-1+REQ-2": {
+   "status": "answered",
+   "value": "REQ-2: Сума замовлення має бути не менше 500 гривень."
+  },
+  "rule.contradiction.REQ-4+REQ-5": {
+   "status": "answered",
+   "value": "REQ-5: Безкоштовна доставка діє для замовлень понад 1500 ₴."
+  },
+  "rule.missing_error_handling.REQ-6": {
+   "status": "answered",
+   "value": "Невірний номер підсвічується червоним, замовлення не надсилається."
+  },
+  "rule.missing_expected_result.REQ-6": {
+   "status": "answered",
+   "value": "Номер зберігається в замовленні й показується в підсумку."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

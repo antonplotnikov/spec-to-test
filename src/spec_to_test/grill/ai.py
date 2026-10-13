@@ -21,10 +21,12 @@ each answer it may propose one question, which joins the built-in questions
 in the same priority-ranked queue (`GrillWorkflow.merge_questions`). It sees
 every question so far (planned ones too) with its priority, state and reply,
 and the unresolved conflicts. Its question is dropped unless it is
-traceable and new: not a repeat or close rewording of any known question, not
-about a field the user marked unknown or already confirmed, and not stating a
-number that appears nowhere in the input (a presumed answer). It stops after
-MAX_INTERVIEW_QUESTIONS.
+traceable and new: not a repeat or close rewording of any known question
+(including the questions of findings already resolved in the analyzed
+document), not about a field the user marked unknown or already confirmed, and
+not stating a number that appears nowhere in the input (a presumed answer). It
+stops after MAX_INTERVIEW_QUESTIONS. Every AI question records the model that
+proposed it, for the audit trail.
 """
 
 import hashlib
@@ -57,9 +59,11 @@ from spec_to_test.grill.models import (
     ReviewFinding,
 )
 from spec_to_test.grill.report import Basis, SuggestedTestCase, fact_texts, linked_requirements
-from spec_to_test.grill.rules import numbers_in
+from spec_to_test.grill.rules import numbers_in, requirement_findings
 from spec_to_test.grill.text import render_question
+from spec_to_test.i18n import clarification_question
 from spec_to_test.models import Source, TestType
+from spec_to_test.quantities import limits
 
 MAX_QUESTIONS = 5
 MAX_FINDINGS = 10
@@ -73,6 +77,15 @@ _CHOICE_FIELDS = frozenset({"test_type", "severity", "reproducibility", "priorit
 _REQUIREMENTS_FIELDS = ("requirements", "statements")
 
 ClientFactory = Callable[[AIConfig], Any]
+# Called with the model's parsed reply before any of it is filtered out (used by the
+# evaluation suite to measure what the trust rules catch). Never changes the result.
+ResponseObserver = Callable[[BaseModel], None]
+
+
+def _observed(parsed: Any, observer: ResponseObserver | None) -> Any:
+    if observer is not None:
+        observer(parsed)
+    return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -141,13 +154,25 @@ def interview(session: GrillSession, lang: str = "en") -> list[dict[str, Any]]:
     return items
 
 
+def settled_prompts(session: GrillSession, lang: str = "en") -> list[str]:
+    """Questions of rule findings that were resolved before this interview (not to be asked again)."""
+    if not session.settled_question_ids or not isinstance(session.draft, RequirementsDraft):
+        return []
+    settled = set(session.settled_question_ids)
+    return [
+        clarification_question(finding, lang)
+        for question_id, finding in requirement_findings(session.draft.requirements) if question_id in settled
+    ]
+
+
 def build_message(session: GrillSession, lang: str = "en") -> str:
     assert session.draft is not None
     payload = {
         "artifact": session.artifact.value,
         "draft": _draft_payload(session.draft),
         "requirements": [{"id": r.id, "text": r.text} for r in linked_requirements(session)],
-        "already_asked": [render_question(q, lang)[0] for q in session.questions],
+        "already_asked": [render_question(q, lang)[0] for q in session.questions] + settled_prompts(session, lang)
+        + [render_question(r.question, lang)[0] for r in session.retired],
         "interview": interview(session, lang),
         "conflicts": [
             {"requirement_ids": c.requirement_ids, "statements": c.statements} for c in unresolved_conflicts(session)
@@ -300,6 +325,20 @@ def _input_texts(session: GrillSession) -> list[str]:
     return texts
 
 
+def input_texts(session: GrillSession) -> list[str]:
+    """Public view of what an AI output may refer to (used by the evaluation suite)."""
+    return _input_texts(session)
+
+
+def _equal_values_in_other_units(text: str) -> bool:
+    """True if the text names one value twice in different units (1 MB and 1024 KB)."""
+    found = limits(text)
+    return any(
+        a.unit != b.unit and a.dimension == b.dimension and a.base == b.base
+        for n, a in enumerate(found) for b in found[n + 1:]
+    )
+
+
 def _question_id(field: str, text: str) -> str:
     digest = hashlib.sha256(_normalized(text).encode("utf-8")).hexdigest()[:10]
     return f"ai.{field or 'req'}.{digest}"
@@ -316,8 +355,17 @@ def to_questions(
     confirmed = {f for f, p in draft.provenance.items() if p == Provenance.USER_CONFIRMED}
     known_numbers = numbers_in("\n".join(_input_texts(session)))
     known_ids = session.known_requirement_ids or set()
-    asked = [render_question(q, lang)[0] for q in session.questions]
-    existing = {q.id for q in session.questions}
+    asked = [render_question(q, lang)[0] for q in session.questions] + settled_prompts(session, lang)
+    asked += [render_question(r.question, lang)[0] for r in session.retired]
+    existing = {q.id for q in session.questions} | {r.question.id for r in session.retired}
+    # Requirement pairs whose contradiction a built-in question already asks about (or that was resolved).
+    contradiction_pairs = {
+        frozenset(q.requirement_ids) for q in [*session.questions, *(r.question for r in session.retired)]
+        if q.is_decision and len(q.requirement_ids) > 1
+    } | {
+        frozenset(qid.split(".", 2)[2].split("+")) for qid in session.settled_question_ids
+        if qid.startswith("rule.contradiction.")
+    }
     questions: list[Question] = []
     for item in response.questions:
         text, field = item.question.strip(), item.field.strip()
@@ -326,6 +374,10 @@ def to_questions(
             continue
         if _new_numbers(text, known_numbers, session):
             continue  # a number from nowhere: the question presumes an answer
+        if len(ids) > 1 and frozenset(ids) in contradiction_pairs:
+            continue  # the same contradicting pair: a built-in question asks (or asked) which one holds
+        if _equal_values_in_other_units(text):
+            continue  # "30 minutes or 1800 seconds?": asks to choose between two ways to write one value
         if isinstance(draft, RequirementsDraft):
             if field or not ids:
                 continue  # a clarification must point at a real requirement
@@ -359,6 +411,7 @@ def suggest_questions(
     consent: bool,
     lang: str = "en",
     client_factory: ClientFactory = _default_client_factory,
+    on_response: ResponseObserver | None = None,
 ) -> list[Question]:
     """Ask the model for interview questions. Requires explicit consent for this run."""
     if not consent:
@@ -372,8 +425,8 @@ def suggest_questions(
         limit=MAX_QUESTIONS,
         language=language_name(lang),
     )
-    parsed = request_structured(config, system, build_message(session, lang), AIQuestions, client_factory)
-    return to_questions(parsed, session, lang)
+    parsed = _observed(request_structured(config, system, build_message(session, lang), AIQuestions, client_factory), on_response)
+    return [q.model_copy(update={"ai_model": config.model}) for q in to_questions(parsed, session, lang)]
 
 
 # ---------------------------------------------------------------------------
@@ -416,6 +469,7 @@ def next_question(
     consent: bool,
     lang: str = "en",
     client_factory: ClientFactory = _default_client_factory,
+    on_response: ResponseObserver | None = None,
 ) -> Question | None:
     """The interviewer's next question, or None if nothing important is left."""
     if not consent:
@@ -428,9 +482,11 @@ def next_question(
         field_rule=_field_rule(session.draft),
         language=language_name(lang),
     )
-    parsed = request_structured(config, system, build_message(session, lang), AIInterviewQuestions, client_factory)
+    parsed = _observed(
+        request_structured(config, system, build_message(session, lang), AIInterviewQuestions, client_factory), on_response
+    )
     found = to_questions(parsed, session, lang, limit=1)
-    return found[0] if found else None
+    return found[0].model_copy(update={"ai_model": config.model}) if found else None
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +589,7 @@ def review_draft(
     consent: bool,
     lang: str = "en",
     client_factory: ClientFactory = _default_client_factory,
+    on_response: ResponseObserver | None = None,
 ) -> list[ReviewFinding]:
     """Ask the model to review the draft. Requires explicit consent for this run."""
     if not consent:
@@ -546,7 +603,7 @@ def review_draft(
         limit=MAX_FINDINGS,
         language=language_name(lang),
     )
-    parsed = request_structured(config, system, build_message(session, lang), AIReview, client_factory)
+    parsed = _observed(request_structured(config, system, build_message(session, lang), AIReview, client_factory), on_response)
     return to_findings(parsed, session)
 
 
@@ -637,6 +694,7 @@ def suggest_test_cases(
     consent: bool,
     lang: str = "en",
     client_factory: ClientFactory = _default_client_factory,
+    on_response: ResponseObserver | None = None,
 ) -> list[SuggestedTestCase]:
     """Ask the model for test case ideas for the final report. Requires explicit consent."""
     if not consent:
@@ -648,5 +706,5 @@ def suggest_test_cases(
         limit=MAX_TEST_CASES,
         language=language_name(lang),
     )
-    parsed = request_structured(config, system, build_message(session, lang), AITestCases, client_factory)
+    parsed = _observed(request_structured(config, system, build_message(session, lang), AITestCases, client_factory), on_response)
     return to_test_cases(parsed, session)

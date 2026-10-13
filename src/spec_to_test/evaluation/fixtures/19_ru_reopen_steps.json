@@ -1,0 +1,82 @@
+{
+ "name": "ru_reopen_steps",
+ "description": "Реактивная очередь: замечание к REQ-1 решено до интервью и снова открыто после второго ответа (его нужно задать); замечание об ошибках ввода REQ-3 решено в документе после первого ответа (его задавать нельзя).",
+ "language": "ru",
+ "requirements": "REQ-1: Пользователь может изменить адрес электронной почты в профиле.\nREQ-2: Письмо с подтверждением должно отправляться быстро.\nREQ-3: Пользователь вводит новый адрес в поле «E-mail».",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "что происходит после ввода адреса"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "быстро"
+    ],
+    "note": "размытое: быстро"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "снова открыто: результат смены адреса"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [
+  "rule.missing_expected_result.REQ-1"
+ ],
+ "steps": [
+  {
+   "after": 1,
+   "resolve": [
+    "rule.missing_error_handling.REQ-3"
+   ]
+  },
+  {
+   "after": 2,
+   "reopen": [
+    "rule.missing_expected_result.REQ-1"
+   ]
+  }
+ ],
+ "answers": {
+  "rule.missing_expected_result.REQ-3": {
+   "status": "answered",
+   "value": "Новый адрес сохраняется после подтверждения по ссылке из письма."
+  },
+  "rule.ambiguous_wording.REQ-2": {
+   "status": "answered",
+   "value": "Письмо отправляется не позднее 1 минуты после изменения."
+  },
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "В профиле показан новый адрес с отметкой «не подтверждён»."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

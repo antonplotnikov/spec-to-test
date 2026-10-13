@@ -6,8 +6,20 @@ Trust rules built into these models:
   user-confirmed fact is never mixed up with an assumption or an AI suggestion.
 - Unknown values stay empty and are marked UNKNOWN instead of being guessed.
 - A session reaches FINALIZED only through an explicit confirmation step.
+- Every change is appended to the session's audit log (`events`); entries are
+  never edited or removed, so the history of each answer can be replayed.
+
+Schema versions (stored sessions are migrated on load, see `migrate_session_data`):
+- 1: the first stored format.
+- 2: audit log (`events`), timestamps, `settled_question_ids`, question `risk`
+  and `ai_model`. A v1 session gets one `migrated` event that says its earlier
+  history was not recorded; nothing else is made up.
+- 3: `retired` questions (open questions taken out of the queue, kept with the
+  reason) and the `question_retired` / `question_restored` / `findings_synced`
+  events. A v2 session simply has no retired questions yet.
 """
 
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -16,7 +28,13 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from spec_to_test.models import Requirement, Severity, Source, TestType
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
+SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3})
+
+
+def utc_now() -> str:
+    """ISO-8601 UTC timestamp, the format of every time stored by Grill Mode."""
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 class GrillKind(StrEnum):
@@ -177,6 +195,11 @@ class Question(BaseModel):
     # Priority: how much testing depends on the answer. "" (older sessions) = high
     # for essential questions, otherwise medium.
     importance: Literal["", "high", "medium", "low"] = ""
+    # Risk within a priority (0-100, higher = asked earlier): computed by the planner from
+    # the finding's severity and the requirement's quality. 0 = no risk signal (queue order).
+    risk: int = Field(default=0, ge=0, le=100)
+    # The model that proposed an AI question (kept for the audit trail).
+    ai_model: str = ""
 
     @model_validator(mode="after")
     def _has_prompt(self) -> "Question":
@@ -243,6 +266,63 @@ class Answer(BaseModel):
         if self.status in (AnswerStatus.UNKNOWN, AnswerStatus.SKIPPED) and has_value:
             raise ValueError("unknown or skipped answers carry no value")
         return self
+
+
+# ---------------------------------------------------------------------------
+# Audit log
+# ---------------------------------------------------------------------------
+
+class AuditAction(StrEnum):
+    STARTED = "started"  # input submitted
+    ANSWERED = "answered"  # first answer to a question (any status)
+    ANSWER_CHANGED = "answer_changed"  # a later, different answer to the same question
+    QUESTION_ADDED = "question_added"  # an AI question joined the interview
+    DRAFT_EDITED = "draft_edited"
+    REVIEWED = "reviewed"
+    AI_REVIEWED = "ai_reviewed"
+    CONFIRMATION_REQUESTED = "confirmation_requested"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    MIGRATED = "migrated"  # loaded from an older schema; earlier history was not recorded
+    QUESTION_RETIRED = "question_retired"  # an open question left the queue (detail: the reason)
+    QUESTION_RESTORED = "question_restored"  # a retired question applies again
+    FINDINGS_SYNCED = "findings_synced"  # findings were resolved or reopened in the document
+
+
+class AuditEvent(BaseModel):
+    """One entry of a session's audit log. Appended, never edited."""
+
+    at: str = ""  # ISO-8601 UTC; "" only if the time is not known
+    action: AuditAction
+    question_id: str = ""
+    status: AnswerStatus | None = None
+    value: str = ""
+    previous_status: AnswerStatus | None = None
+    previous_value: str = ""
+    answer_revision: int | None = None
+    # Who or what produced the item: the question's origin for questions, "user" for edits.
+    origin: Source | None = None
+    fields: list[str] = Field(default_factory=list)
+    detail: str = ""  # e.g. the AI model, or "accepted unresolved warnings"
+
+
+class RetireReason(StrEnum):
+    """Why an open question left the queue. Its ID, text and links are kept."""
+
+    SETTLED = "settled"  # its finding was resolved in the analyzed document
+    ANSWERED_ELSEWHERE = "answered_elsewhere"  # another answer already covers it
+    DUPLICATE = "duplicate"  # it asks what another question asks
+    OBSOLETE = "obsolete"  # it no longer applies (the field was filled, the conflict is gone)
+
+
+class RetiredQuestion(BaseModel):
+    """An open question taken out of the queue. It returns (same ID) if it applies again."""
+
+    question: Question
+    reason: RetireReason
+    at: str = ""
+    # The question whose answer covers it (ANSWERED_ELSEWHERE, DUPLICATE).
+    covered_by: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +403,15 @@ class GrillSession(BaseModel):
     # Draft revision the findings were computed for (None = never reviewed).
     reviewed_revision: int | None = None
     accepted_unresolved: bool = False
+    created_at: str = ""
+    updated_at: str = ""
+    # Rule questions (`rule.<type>.<REQ>`) whose findings were already resolved in the
+    # analyzed document when the session started: they are not asked again.
+    settled_question_ids: list[str] = Field(default_factory=list)
+    # Audit log, oldest first (see AuditEvent).
+    events: list[AuditEvent] = Field(default_factory=list)
+    # Open questions currently out of the queue, with the reason (see RetireReason).
+    retired: list[RetiredQuestion] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _consistent(self) -> "GrillSession":
@@ -341,6 +430,9 @@ class GrillSession(BaseModel):
             raise ValueError("question IDs must be unique")
         if any(key != answer.question_id for key, answer in self.answers.items()):
             raise ValueError("answer keys must match question IDs")
+        retired_ids = [r.question.id for r in self.retired]
+        if len(retired_ids) != len(set(retired_ids)) or set(retired_ids) & set(question_ids):
+            raise ValueError("a retired question is neither active nor retired twice")
         if self.step == GrillStep.ASK_QUESTION and self.current_question_id not in question_ids:
             raise ValueError("the current question is unknown")
         if self.step in (GrillStep.AWAITING_CONFIRMATION, GrillStep.FINALIZED):
@@ -352,6 +444,9 @@ class GrillSession(BaseModel):
 
     def question(self, question_id: str) -> Question | None:
         return next((q for q in self.questions if q.id == question_id), None)
+
+    def retired_question(self, question_id: str) -> RetiredQuestion | None:
+        return next((r for r in self.retired if r.question.id == question_id), None)
 
     @property
     def current_question(self) -> Question | None:
@@ -365,11 +460,14 @@ class GrillSession(BaseModel):
     @property
     def next_pending(self) -> Question | None:
         """The open question to ask next: highest priority first; within a priority,
-        contradictions first (nothing should build on a disputed statement), then queue order."""
+        contradictions first (nothing should build on a disputed statement), then the
+        riskiest (see Question.risk), then queue order."""
         pending = self.pending_questions
         if not pending:
             return None
-        return min(enumerate(pending), key=lambda item: (item[1].rank, not item[1].is_decision, item[0]))[1]
+        return min(
+            enumerate(pending), key=lambda item: (item[1].rank, not item[1].is_decision, -item[1].risk, item[0])
+        )[1]
 
     @property
     def unresolved_questions(self) -> list[Question]:
@@ -411,18 +509,41 @@ class GrillSession(BaseModel):
         return None
 
 
+def migrate_session_data(data: dict[str, Any], now: str | None = None) -> dict[str, Any]:
+    """Bring a stored session (a plain dict) up to SCHEMA_VERSION.
+
+    Raises ValueError for an unknown or future version. Migrations only add
+    what the newer schema needs; existing answers and drafts are never changed.
+    """
+    version = data.get("schema_version")
+    if version not in SUPPORTED_SCHEMA_VERSIONS:
+        raise ValueError(f"unsupported Grill session schema: {version!r}")
+    data = dict(data)
+    if version == 1:
+        # v1 kept no history: say so once instead of inventing past events.
+        data["events"] = [{"at": now or utc_now(), "action": AuditAction.MIGRATED.value, "detail": "schema 1 -> 2"}]
+        data.setdefault("settled_question_ids", [])
+        data["schema_version"] = version = 2
+    if version == 2:
+        # v3 only adds retired questions; a v2 session has none.
+        data.setdefault("retired", [])
+        data["schema_version"] = 3
+    return data
+
+
 def load_session(raw: Any) -> GrillSession | None:
-    """Return a valid session from session state, or None if missing or stale.
+    """Return a valid session from session state or a saved file, or None if missing or stale.
 
     Accepts a GrillSession (possibly from an older copy of the class after a
-    code reload) or a plain dict. Anything invalid is discarded, never repaired.
+    code reload) or a plain dict. Older schemas are migrated; anything invalid
+    is discarded, never repaired.
     """
     if raw is None:
         return None
     try:
         data = raw.model_dump() if isinstance(raw, BaseModel) else raw
-        if not isinstance(data, dict) or data.get("schema_version") != SCHEMA_VERSION:
+        if not isinstance(data, dict):
             return None
-        return GrillSession.model_validate(data)
+        return GrillSession.model_validate(migrate_session_data(data))
     except (ValidationError, ValueError, TypeError, AttributeError):
         return None

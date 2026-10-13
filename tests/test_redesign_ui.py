@@ -62,7 +62,7 @@ def test_requirements_analysis_shows_the_real_average_quality():
 def test_grill_panel_is_built_from_the_session():
     at = start(grill(), "requirements", text_key="grill_requirements_text", text=REQS)
     labels = [tab.label for tab in at.tabs]
-    assert labels == ["Analysis", "Findings", "Report"]
+    assert labels == ["Analysis", "Findings", "Report", "History"]
     text = markdown(at)
     assert "Ambiguities: 1" in text and "Contradictions: 1" in text
     assert "REQ-2" in text  # related to the current requirement REQ-1

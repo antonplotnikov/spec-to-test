@@ -201,6 +201,23 @@ CSS = """
 /* Empty states */
 [class*="st-key-empty_"] { padding: 1.25rem 1.25rem 1rem; background: var(--stt-surface-muted); border-style: dashed !important; }
 
+/* List items (list_item): one record per row, badges first */
+[class*="st-key-item_"] { padding: 0.15rem 0 0.35rem; border-bottom: 1px solid var(--stt-border); }
+[class*="st-key-item_"]:last-child { border-bottom: 0; }
+
+/* Saved interviews and save status */
+[class*="st-key-grill_saved_"] { background: var(--stt-surface-muted); border-radius: var(--stt-radius); }
+[class*="st-key-grill_saved_"] p strong { overflow-wrap: anywhere; }
+.st-key-grill_save_controls { flex-wrap: wrap; gap: 0.5rem; }
+.st-key-finding_actions { flex-wrap: wrap; gap: 0.5rem; }
+.st-key-card_finding_changes { border-left: 3px solid var(--stt-accent) !important; }
+
+/* Respect a reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .st-key-app_mode [data-testid="stRadioOption"] { transition: none; }
+  [data-testid="stProgress"] div { transition: none !important; }
+}
+
 /* ---- Small screens: everything stacks; keep things inside the viewport -- */
 @media (max-width: 640px) {
   [data-testid="stMain"] .block-container { padding: 4rem 0.85rem 2rem; }
@@ -261,6 +278,22 @@ def empty_state(title: str, body: str, icon: str = ":material/inbox:", key: str 
     with st.container(border=True, key=f"empty_{key}"):
         st.markdown(f"#### {icon} {title}")
         st.caption(body)
+
+
+def list_item(key: str, badges_md: list[str], text: str = "", caption: str = "") -> None:
+    """One row of a list: badges (built with `badge()`), literal text and an optional caption.
+
+    Keeps lists of findings, assumptions, open questions and saved work looking the same
+    everywhere; `text` and `caption` are escaped, so user input shows exactly as written.
+    """
+    with st.container(key=f"item_{key}"):
+        line = " ".join(b for b in badges_md if b)
+        if text:
+            line = f"{line} {escape_markdown(text)}" if line else escape_markdown(text)
+        if line:
+            st.markdown(line)
+        if caption:
+            st.caption(escape_markdown(caption))
 
 
 def score_bars(items: list[tuple[str, int]]) -> None:

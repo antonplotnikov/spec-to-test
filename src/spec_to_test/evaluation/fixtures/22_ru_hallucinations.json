@@ -1,0 +1,136 @@
+{
+ "name": "ru_hallucinations",
+ "description": "Модель выдумывает требование REQ-9, число попыток и цитату; первый вызов падает с ошибкой.",
+ "language": "ru",
+ "requirements": "REQ-1: Система отправляет SMS с кодом подтверждения.\nREQ-2: Пользователь вводит код из SMS.\nREQ-3: Код действует ограниченное время.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "неверн",
+     "некорректн"
+    ],
+    "note": "неверный код"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "результат ввода верного кода"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [
+     "огранич"
+    ],
+    "note": "срок действия кода"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_error_handling.REQ-2": {
+   "status": "answered",
+   "value": "Показывается «Неверный код», поле очищается."
+  },
+  "rule.missing_expected_result.REQ-2": {
+   "status": "answered",
+   "value": "Номер подтверждён, открывается профиль."
+  },
+  "rule.missing_boundary.REQ-3": {
+   "status": "unknown"
+  }
+ },
+ "answers_by_text": [],
+ "ai": {
+  "interview": [
+   {
+    "error": "rate_limit"
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-9"
+      ],
+      "question": "Относится ли REQ-9 к повторной отправке?",
+      "reason": "Выдуманное требование.",
+      "importance": "low"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "Блокировать ли ввод после 3 неверных попыток?",
+      "reason": "Выдуманное число.",
+      "importance": "high"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": [
+     {
+      "level": "warning",
+      "category": "unsupported_claim",
+      "field": "requirements",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "quote": "действует 5 минут",
+      "issue": "Выдуманная цитата.",
+      "fix": "Нет."
+     }
+    ]
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": [
+     {
+      "title": "Код истекает через 5 минут",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "test_type": "negative",
+      "preconditions": [],
+      "steps": [
+       "Подождать 6 минут",
+       "Ввести код"
+      ],
+      "expected_result": "Код отклонён через 5 минут.",
+      "basis_quote": "действует 5 минут"
+     }
+    ]
+   }
+  ]
+ }
+}

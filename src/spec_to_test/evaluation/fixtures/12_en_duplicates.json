@@ -1,0 +1,134 @@
+{
+ "name": "en_duplicates",
+ "description": "Duplicate detection: two requirements say the same thing, and the model repeats a built-in question in other words. Only new questions may reach the author.",
+ "language": "en",
+ "requirements": "REQ-1: The user can export the report to CSV.\nREQ-2: The export should be fast.\nREQ-3: The user can export the report as a CSV file.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe",
+     "columns"
+    ],
+    "note": "what the exported file contains"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe"
+    ],
+    "note": "what the exported file contains"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "fast"
+    ],
+    "note": "vague: fast"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1",
+     "REQ-3"
+    ],
+    "topics": [],
+    "keywords": [
+     "same"
+    ],
+    "note": "REQ-1 and REQ-3 duplicate each other"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "A CSV file with one row per order is downloaded."
+  },
+  "rule.ambiguous_wording.REQ-2": {
+   "status": "answered",
+   "value": "The file is ready within 5 seconds for 10 000 rows."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "same",
+   "status": "answered",
+   "value": "Yes, REQ-3 repeats REQ-1."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "What measurable criteria replace: \"fast\"?",
+      "reason": "Repeats a built-in question.",
+      "importance": "medium"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1",
+       "REQ-3"
+      ],
+      "question": "Do REQ-1 and REQ-3 describe the same export?",
+      "reason": "Duplicate requirements produce duplicate tests.",
+      "importance": "medium"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "what measurable criteria replace \"FAST\"",
+      "reason": "Same question again, other case.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": []
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": []
+   }
+  ]
+ }
+}

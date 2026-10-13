@@ -1,0 +1,117 @@
+{
+ "name": "ru_duplicates_ai",
+ "description": "Повторы от модели: вопрос о том же противоречии (200 мс или 1 секунда) и повтор встроенного вопроса другими словами; противоречие в миллисекундах и секундах.",
+ "language": "ru",
+ "requirements": "REQ-1: Время ответа API не должно превышать 200 мс.\nREQ-2: Время ответа API не должно превышать 1 секунду.\nREQ-3: Пользователь может отменить заказ.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1",
+     "REQ-2"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "200",
+     "1"
+    ],
+    "note": "200 мс или 1 секунда"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "результат отмены"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [],
+    "keywords": [
+     "после отправки"
+    ],
+    "note": "можно ли отменить отправленный заказ"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ]
+  ],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-1+REQ-2": {
+   "status": "answered",
+   "value": "REQ-1: Время ответа API не должно превышать 200 мс."
+  },
+  "rule.missing_expected_result.REQ-3": {
+   "status": "answered",
+   "value": "Заказ получает статус «Отменён», деньги возвращаются."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "после отправки",
+   "status": "answered",
+   "value": "Нет, только до передачи в доставку."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1",
+       "REQ-2"
+      ],
+      "question": "Какое ограничение времени ответа верно: 200 мс или 1 секунда?",
+      "reason": "Повтор вопроса о противоречии.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "question": "Можно ли отменить заказ после отправки?",
+      "reason": "Тест отмены зависит от статуса.",
+      "importance": "medium"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "question": "Можно ли отменить заказ после отправки",
+      "reason": "Тот же вопрос ещё раз.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ]
+ }
+}

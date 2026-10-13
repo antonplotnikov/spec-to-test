@@ -9,6 +9,9 @@
 - Any result can be downloaded as Markdown that keeps provenance and open items.
 - Requirements Grill: rule findings the user clarified may be marked resolved,
   one by one and only on request (it changes quality scores and coverage views).
+  Each change is recorded in the workspace's finding history with the
+  clarification, the Grill session and an optional reason, and can be reopened
+  or undone later (spec_to_test.findings).
 
 Nothing here works before the user confirmed the session (step FINALIZED), and
 nothing is invented: a missing requirement link or severity stops the hand-over
@@ -17,6 +20,7 @@ instead of being filled in.
 
 from dataclasses import dataclass
 
+from spec_to_test import findings as finding_status
 from spec_to_test.bug_reports import next_defect_id
 from spec_to_test.exports import _md_table
 from spec_to_test.formatting import escape_markdown
@@ -281,19 +285,34 @@ def resolutions(session: GrillSession, workspace: Workspace | None) -> list[Reso
     return result
 
 
-def resolve_findings(session: GrillSession, workspace: Workspace | None, question_ids: list[str]) -> Workspace:
-    """Return a copy of the workspace with the chosen clarifications' findings resolved."""
+def resolve_findings(
+    session: GrillSession, workspace: Workspace | None, question_ids: list[str], reason: str = "",
+    at: str | None = None,
+) -> Workspace:
+    """Return a copy of the workspace with the chosen clarifications' findings resolved.
+
+    The change is recorded in the finding history (one undoable action).
+    """
     if (code := resolve_blocker(session, workspace)) is not None:
         raise IntegrationError(code)
     assert workspace is not None
     available = {r.question_id: r for r in resolutions(session, workspace)}
     if not question_ids or any(qid not in available for qid in question_ids):
         raise IntegrationError("nothing_selected")
-    keys = {key for qid in question_ids for key in available[qid].finding_keys}
-    updated = workspace.model_copy(deep=True)
-    for finding in updated.findings:
-        if finding.key in keys:
-            finding.status = ClarificationStatus.RESOLVED
+    batch, stamp = finding_status.new_batch(), at or finding_status.now()
+    updated = workspace
+    try:
+        for qid in dict.fromkeys(question_ids):
+            option = available[qid]
+            keys = [k for k in option.finding_keys if (f := finding_status.finding_by_key(updated, k)) is not None
+                    and f.status == ClarificationStatus.NEEDS_CLARIFICATION]
+            if keys:  # an earlier choice may already have resolved the same finding
+                updated = finding_status.resolve(
+                    updated, keys, reason=reason, grill_session_id=session.id, clarification=option.clarification,
+                    at=stamp, batch=batch,
+                )
+    except finding_status.FindingError as exc:
+        raise IntegrationError(exc.code) from None
     return updated
 
 

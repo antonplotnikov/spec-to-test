@@ -27,6 +27,7 @@ from projects_ui import (
     render_project_settings,
 )
 from spec_to_test import ai_analysis
+from spec_to_test import findings as finding_status
 from spec_to_test.ai_analysis import AIError
 from spec_to_test.bug_reports import defect_from_suggestion, generate_defects, next_defect_id
 from spec_to_test.exports import (
@@ -48,8 +49,11 @@ from spec_to_test.input_parser import (
 )
 from spec_to_test.llm.config import AIConfig, LLMSettings
 from spec_to_test.models import (
+    MAX_REASON_LENGTH,
     ClarificationStatus,
     DefectReport,
+    Finding,
+    FindingEvent,
     ReviewStatus,
     Severity,
     TestCase,
@@ -313,6 +317,7 @@ def analysis(p: Page) -> None:
         _requirements_tab(lang, ws, scores, statuses)
     with tab_findings:
         _findings_tab(lang, ws)
+        _finding_changes(p, ws)
     with tab_design:
         _design_tab(lang, ws)
     with tab_defects:
@@ -385,6 +390,97 @@ def _findings_tab(lang: str, ws: Workspace) -> None:
             for f in result.findings
         ],
     )
+
+
+def _finding_label(lang: str, finding: Finding) -> str:
+    related = f" ⟷ {', '.join(finding.related_requirement_ids)}" if finding.related_requirement_ids else ""
+    terms = f" — {', '.join(finding.matched_terms)}" if finding.matched_terms else ""
+    return f"{finding.requirement_id}{related} · {t(f'finding.{finding.type.value}', lang)}{terms}"
+
+
+def _event_rows(lang: str, ws: Workspace, events: list[FindingEvent]) -> list[dict]:
+    rows = []
+    for event in reversed(events):
+        finding = finding_status.finding_by_key(ws, event.finding_key)
+        row = {
+            t("findings.col_time", lang): event.at[:16].replace("T", " ") if event.at else "—",
+            t("findings.col_change", lang): t(f"findings.change.{event.change.value}", lang),
+            t("findings.col_finding", lang): _finding_label(lang, finding) if finding else event.finding_key,
+            t("findings.col_via", lang): t(f"findings.via.{event.via}", lang)
+            + (f" ({event.grill_session_id[:8]})" if event.grill_session_id else ""),
+            t("findings.col_reason", lang): event.reason or event.clarification or "—",
+        }
+        rows.append(row)
+    return rows
+
+
+def _on_reopen(p: Page, select_key: str, reason_key: str) -> None:
+    ws: Workspace | None = st.session_state.get(WORKSPACE)
+    key = st.session_state.get(select_key)
+    if ws is None or not key:
+        return
+    try:
+        p.persist(finding_status.reopen(ws, key, reason=str(st.session_state.get(reason_key) or "")))
+    except finding_status.FindingError as exc:
+        flash(t(f"findings.error.{exc.code}", p.lang), icon="⚠️")
+        return
+    st.session_state[reason_key] = ""
+    flash(t("findings.reopened", p.lang))
+
+
+def _on_undo(p: Page, reason_key: str) -> None:
+    ws: Workspace | None = st.session_state.get(WORKSPACE)
+    if ws is None:
+        return
+    try:
+        p.persist(finding_status.undo_last(ws, reason=str(st.session_state.get(reason_key) or "")))
+    except finding_status.FindingError as exc:
+        flash(t(f"findings.error.{exc.code}", p.lang), icon="⚠️")
+        return
+    st.session_state[reason_key] = ""
+    flash(t("findings.undone", p.lang))
+
+
+def _finding_changes(p: Page, ws: Workspace) -> None:
+    """Reopen a resolved finding, undo the last change, and see every change with its reason."""
+    lang = p.lang
+    resolved = finding_status.resolved_findings(ws)
+    last = finding_status.last_change(ws)
+    with theme_ui.card("finding_changes"):
+        theme_ui.section(t("findings.heading", lang, count=len(resolved)), ":material/rule_settings:",
+                         t("findings.explainer", lang))
+        reason_key = "finding_reason"
+        if resolved:
+            options = {f.key: f for f in resolved}
+            select_key = "finding_reopen_select"
+            st.selectbox(t("findings.select", lang), list(options), key=select_key,
+                         format_func=lambda k: _finding_label(lang, options[k]))
+            chosen = st.session_state.get(select_key)
+            if chosen in options and not finding_status.history(ws, chosen):
+                st.caption(t("findings.no_history", lang))
+        else:
+            st.caption(t("findings.none_resolved", lang))
+        if resolved or last:
+            st.text_input(t("findings.reason_label", lang), key=reason_key, max_chars=MAX_REASON_LENGTH,
+                          placeholder=t("findings.reason_placeholder", lang))
+        with st.container(horizontal=True, key="finding_actions"):
+            st.button(
+                t("findings.reopen", lang), key="finding_reopen", icon=":material/undo:", disabled=not resolved,
+                on_click=_on_reopen, args=(p, "finding_reopen_select", reason_key), help=t("findings.reopen_help", lang),
+            )
+            undo_help = t("findings.undo_none", lang)
+            if last:
+                undo_help = t("findings.undo_help", lang, change=t(f"findings.change.{last[-1].change.value}", lang),
+                              count=len(last))
+            st.button(
+                t("findings.undo", lang), key="finding_undo", icon=":material/history:", disabled=not last,
+                on_click=_on_undo, args=(p, reason_key), help=undo_help,
+            )
+        if last:
+            st.caption(undo_help)
+        if ws.finding_history:
+            with st.expander(t("findings.history_heading", lang, count=len(ws.finding_history)), icon=":material/history:"):
+                show_table(_event_rows(lang, ws, ws.finding_history))
 
 
 def _design_tab(lang: str, ws: Workspace) -> None:

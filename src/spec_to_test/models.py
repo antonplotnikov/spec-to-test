@@ -5,8 +5,14 @@ so coverage can be computed from real links instead of raw counts.
 """
 
 from enum import StrEnum
+from typing import Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+# Version of the saved workspace format (see spec_to_test.migrations).
+WORKSPACE_SCHEMA_VERSION = 2
+MAX_REASON_LENGTH = 500
 
 
 class Language(StrEnum):
@@ -184,9 +190,36 @@ class AutomatedTest(BaseModel):
     duration_ms: int = 0
 
 
+class FindingChange(StrEnum):
+    RESOLVED = "resolved"
+    REOPENED = "reopened"
+
+
+class FindingEvent(BaseModel):
+    """One change of a finding's status. Appended to the workspace history, never edited."""
+
+    id: str = Field(default_factory=lambda: uuid4().hex[:12])
+    finding_key: str = Field(min_length=1)
+    requirement_id: str = ""
+    change: FindingChange
+    at: str = ""  # ISO-8601 UTC
+    reason: str = Field(default="", max_length=MAX_REASON_LENGTH)
+    # grill: a confirmed Grill clarification; manual: a person on the Analysis page;
+    # undo: reverts the event in `undoes`.
+    via: Literal["grill", "manual", "undo"] = "manual"
+    grill_session_id: str = ""
+    # The confirmed clarification that resolved the finding (via="grill").
+    clarification: str = ""
+    # IDs of the events this one reverts (via="undo"), comma-separated.
+    undoes: str = ""
+    # Events written by one action share a batch, so "undo" reverts the action as a whole.
+    batch: str = ""
+
+
 class Workspace(BaseModel):
     """Everything the user works on for one document. Persisted locally."""
 
+    schema_version: int = WORKSPACE_SCHEMA_VERSION
     document_hash: str = ""
     # Shown in the project's document list (file name or first line); older saves have "".
     title: str = ""
@@ -199,6 +232,9 @@ class Workspace(BaseModel):
     ai_model: str = ""
     # Automation tab; older saved workspaces load with an empty list.
     automated_tests: list[AutomatedTest] = Field(default_factory=list)
+    # Status changes of findings (resolved / reopened / undone), oldest first.
+    # Saves from before schema 2 start with an empty history.
+    finding_history: list[FindingEvent] = Field(default_factory=list)
 
     @property
     def analysis(self) -> AnalysisResult:

@@ -19,6 +19,13 @@ workspace (`spec_to_test.grill.integration`); the page that owns the
 workspace passes `persist`, which is used to save it. The final report
 (`spec_to_test.grill.report`) separates confirmed facts, assumptions and
 unknowns and lists suggested test cases.
+
+Every change is also saved as an interview of the open project
+(`spec_to_test.grill.persistence`): on disk in "local" storage mode, where the
+last unfinished interview reopens after a page reload, or in this browser
+session otherwise (with "save progress to a file" and "resume from a file").
+The History tab shows where each decision came from and every change to it
+(`spec_to_test.grill.trace`).
 """
 
 from collections.abc import Callable
@@ -27,6 +34,7 @@ from typing import Any
 import streamlit as st
 
 import theme_ui
+from projects_ui import active_project_id
 from spec_to_test.ai_analysis import AIConfig, AIError
 from spec_to_test.formatting import escape_markdown
 from spec_to_test.grill import ai as grill_ai
@@ -64,6 +72,15 @@ from spec_to_test.grill.models import (
     TestCaseDraft,
     load_session,
 )
+from spec_to_test.grill.persistence import (
+    InterviewStore,
+    InterviewSummary,
+    PersistenceError,
+    SavedInterview,
+    export_json,
+    import_json,
+    open_interview_store,
+)
 from spec_to_test.grill.planner import DETERMINISTIC_WORKFLOW
 from spec_to_test.grill.report import (
     GrillReport,
@@ -84,12 +101,32 @@ from spec_to_test.grill.text import (
     render_question,
     value_text,
 )
+from spec_to_test.grill.trace import (
+    audit_file_name,
+    audit_json,
+    audit_rows,
+    decision_records,
+    origin_text,
+    retire_reason_text,
+    state_counts,
+    trace_markdown,
+)
 from spec_to_test.grill.validation import is_placeholder
 from spec_to_test.grill.workflow import Action, GrillError, allowed_actions
 from spec_to_test.i18n import clarification_question, t
 from spec_to_test.input_parser import MAX_TEXT_CHARS, InputError
-from spec_to_test.models import Finding, Requirement, Severity, Source, TestType, Workspace
+from spec_to_test.models import (
+    MAX_REASON_LENGTH,
+    ClarificationStatus,
+    Finding,
+    Requirement,
+    Severity,
+    Source,
+    TestType,
+    Workspace,
+)
 from spec_to_test.quality import QualityScore, score_all
+from spec_to_test.storage import persistence_enabled
 
 WF = DETERMINISTIC_WORKFLOW
 STATE = "grill_session"
@@ -101,6 +138,9 @@ WORKSPACE = "workspace"  # the analysis page's workspace (see app.py)
 AI_RUNS = "grill_ai_runs"  # part of the consent checkbox key, so consent resets after every request
 AI_ASKED = "grill_ai_asked"  # interview state the AI interviewer was last asked about (asked once per state)
 AI_TESTS = "grill_ai_test_ideas"  # session ID -> AI test case ideas for the final report
+OWNER = "grill_owner"  # (project id, document hash) the open interview belongs to
+RESTORED = "grill_restored_projects"  # projects whose last interview was already reopened in this session
+IMPORT = "grill_import_file"
 OTHER = "__other__"
 
 LEVEL_ICONS = {FindingLevel.BLOCKING: "⛔", FindingLevel.WARNING: "⚠️", FindingLevel.SUGGESTION: "💡"}
@@ -129,8 +169,46 @@ CHOICE_FIELDS: dict[str, tuple[list[str], str]] = {
 # State
 # ---------------------------------------------------------------------------
 
+def _store() -> InterviewStore:
+    return open_interview_store(st.session_state)
+
+
+def _owner() -> tuple[str, str]:
+    owner = st.session_state.get(OWNER)
+    if isinstance(owner, tuple | list) and len(owner) == 2:
+        return str(owner[0]), str(owner[1])
+    workspace = st.session_state.get(WORKSPACE)
+    return active_project_id(), workspace.document_hash if isinstance(workspace, Workspace) else ""
+
+
+def _record(session: GrillSession) -> SavedInterview:
+    project_id, document = _owner()
+    return SavedInterview(
+        project_id=project_id, document_hash=document, session=session,
+        unparsed=list(st.session_state.get(UNPARSED) or []), ai_test_ideas=_ai_tests(session),
+    )
+
+
 def _save(session: GrillSession) -> None:
+    """Keep the session in this browser session and save it as an interview of its project."""
     st.session_state[STATE] = session.model_dump(mode="json")
+    record = _record(session)
+    st.session_state[OWNER] = (record.project_id, record.document_hash)
+    try:
+        store = _store()
+        store.save(record)
+        store.set_last_active(record.project_id, session.id)
+    except (OSError, ValueError):
+        _error("grill.ui.save_failed")
+
+
+def _open_record(record: SavedInterview) -> None:
+    """Make a saved interview the open one, with what the page kept beside it."""
+    st.session_state[STATE] = record.session.model_dump(mode="json")
+    st.session_state[OWNER] = (record.project_id, record.document_hash)
+    st.session_state[UNPARSED] = list(record.unparsed)
+    st.session_state[AI_TESTS] = {record.session.id: [c.model_dump(mode="json") for c in record.ai_test_ideas]}
+    st.session_state.pop(AI_ASKED, None)
 
 
 def _current() -> GrillSession | None:
@@ -179,7 +257,9 @@ def _table(rows: list[dict[str, str]]) -> None:
 # Callbacks
 # ---------------------------------------------------------------------------
 
-def _on_start(kind: str, mode: str, artifact: str, use_analyzed: bool, context: list[Requirement]) -> None:
+def _on_start(
+    kind: str, mode: str, artifact: str, use_analyzed: bool, context: list[Requirement], settled: list[str] | None = None,
+) -> None:
     artifact_type = ArtifactType(artifact)
     unparsed: list[str] = []
     text = ""
@@ -204,16 +284,63 @@ def _on_start(kind: str, mode: str, artifact: str, use_analyzed: bool, context: 
         GrillMode(mode),
         artifact_type if GrillKind(kind) == GrillKind.REVIEW else None,
         context_requirements=None if artifact_type == ArtifactType.REQUIREMENTS else context,
+        # Findings resolved in the analyzed document are not asked about again.
+        settled_question_ids=settled if artifact_type == ArtifactType.REQUIREMENTS and use_analyzed else None,
     )
-    _save(WF.submit_input(session, draft, text))
+    st.session_state.pop(OWNER, None)  # a new interview belongs to the open project and document
     st.session_state[UNPARSED] = unparsed
+    _save(WF.submit_input(session, draft, text))
+
+
+def _clear_open() -> None:
+    for key in (STATE, UNPARSED, AI_ASKED, AI_TESTS, OWNER):
+        st.session_state.pop(key, None)
 
 
 def _on_new_session() -> None:
-    st.session_state.pop(STATE, None)
-    st.session_state.pop(UNPARSED, None)
-    st.session_state.pop(AI_ASKED, None)
-    st.session_state.pop(AI_TESTS, None)
+    """Close the open interview (it stays saved) and show the start screen."""
+    project_id = _owner()[0]
+    _clear_open()
+    try:
+        _store().set_last_active(project_id, "")
+    except (OSError, ValueError):
+        pass
+
+
+def _on_resume(session_id: str) -> None:
+    record = _store().load(active_project_id(), session_id)
+    if record is None:
+        _error("grill.error.interview_invalid")
+        return
+    _open_record(record)
+    try:
+        _store().set_last_active(record.project_id, session_id)
+    except (OSError, ValueError):
+        pass
+    _success("grill.ui.resumed")
+
+
+def _on_delete_interview(session_id: str) -> None:
+    try:
+        _store().delete(active_project_id(), session_id)
+    except (OSError, ValueError):
+        _error("grill.ui.save_failed")
+        return
+    _success("grill.ui.interview_deleted")
+
+
+def _on_import() -> None:
+    uploaded = st.session_state.get(IMPORT)
+    if uploaded is None:
+        return
+    try:
+        record = import_json(uploaded.getvalue(), active_project_id())
+    except PersistenceError as exc:
+        _error(f"grill.error.{exc.code}")
+        return
+    _open_record(record)
+    _save(record.session)
+    _success("grill.ui.imported")
 
 
 def _on_answer(revision: int, status: str, choice_key: str, text_key: str) -> None:
@@ -271,13 +398,13 @@ def _on_add_to_workspace(revision: int, lang: str, persist: Persist) -> None:
     _success(f"grill.ui.added_{session.artifact.value}", id=item_id)
 
 
-def _on_resolve(revision: int, persist: Persist, choice_keys: dict[str, str]) -> None:
+def _on_resolve(revision: int, persist: Persist, choice_keys: dict[str, str], reason_key: str = "") -> None:
     if (session := _finalized(revision)) is None:
         return
     chosen = [qid for qid, key in choice_keys.items() if st.session_state.get(key)]
     before = st.session_state.get(WORKSPACE)
     try:
-        workspace = resolve_findings(session, before, chosen)
+        workspace = resolve_findings(session, before, chosen, reason=str(st.session_state.get(reason_key) or ""))
     except IntegrationError as exc:
         _error(f"grill.error.{exc.code}")
         return
@@ -291,20 +418,71 @@ def _on_resolve(revision: int, persist: Persist, choice_keys: dict[str, str]) ->
 # Page
 # ---------------------------------------------------------------------------
 
+def _restore_last(project_id: str) -> None:
+    """After a reload (a new browser session), reopen the project's last unfinished interview once."""
+    restored = st.session_state.setdefault(RESTORED, [])
+    if project_id in restored:
+        return
+    restored.append(project_id)
+    try:
+        store = _store()
+        session_id = store.last_active(project_id)
+        record = store.load(project_id, session_id) if session_id else None
+    except (OSError, ValueError):
+        return
+    if record is not None and not record.session.is_terminal:
+        _open_record(record)
+        _notice("grill.ui.restored", time=_time(record.session.updated_at))
+
+
+def _sync_findings(session: GrillSession, workspace: Workspace) -> GrillSession:
+    """Reflect findings resolved or reopened in the analyzed document in the open interview.
+
+    Only for a requirements interview on this very document (same document and
+    the same requirement texts); finished interviews are records and stay as they are.
+    """
+    if session.is_terminal or not isinstance(session.draft, RequirementsDraft):
+        return session
+    if _owner()[1] != workspace.document_hash:
+        return session
+    known = {r.id: r.text for r in workspace.requirements}
+    if [(r.id, r.text) for r in session.draft.requirements] != [(r.id, known.get(r.id)) for r in session.draft.requirements]:
+        return session
+    settled = sorted({rule_question_id(f) for f in workspace.findings if f.status == ClarificationStatus.RESOLVED})
+    try:
+        synced = WF.sync_settled(session, settled)
+    except GrillError:
+        return session
+    if synced.revision == session.revision:
+        return session
+    before = set(session.settled_question_ids)
+    _save(synced)
+    _notice("grill.ui.findings_synced", resolved=len(set(settled) - before), reopened=len(before - set(settled)))
+    return synced
+
+
 def render_grill(
     lang: str, workspace: Workspace | None, ai_config: AIConfig | None = None, persist: Persist | None = None
 ) -> None:
+    project_id = active_project_id()
+    if st.session_state.get(STATE) is not None and _owner()[0] != project_id:
+        _clear_open()  # another project's interview: it stays saved there
+    if st.session_state.get(STATE) is None:
+        _restore_last(project_id)
     raw = st.session_state.get(STATE)
     session = load_session(raw)
     if raw is not None and session is None:  # stale or broken state: start over, say so
         _on_new_session()
         _error("grill.ui.restore_failed")
+    if session is not None and workspace is not None:
+        session = _sync_findings(session, workspace)
     if error := st.session_state.pop(ERROR, None):
         key, params = error
         st.error(t(key, lang, **params), icon=":material/error:")
     if notice := st.session_state.pop(NOTICE, None):
         key, params = notice
-        st.info(t(key, lang, **params), icon=":material/smart_toy:")
+        icon = {"grill.ui.restored": ":material/info:", "grill.ui.findings_synced": ":material/sync:"}.get(key)
+        st.info(t(key, lang, **params), icon=icon or ":material/smart_toy:")
     if success := st.session_state.pop(SUCCESS, None):
         key, params = success
         st.success(t(key, lang, **params), icon=":material/check_circle:")
@@ -322,10 +500,19 @@ def _mode_note(lang: str, ai_config: AIConfig | None) -> None:
         st.info(t("grill.ui.mode_ai_available", lang, model=_md(ai_config.model)), icon=":material/rule:")
 
 
+def _time(stamp: str) -> str:
+    return stamp[:16].replace("T", " ") if stamp else "—"
+
+
 def _start_screen(lang: str, workspace: Workspace | None, ai_config: AIConfig | None = None) -> None:
     context = list(workspace.requirements) if workspace else []
+    settled = sorted({
+        rule_question_id(f) for f in (workspace.findings if workspace else [])
+        if f.status == ClarificationStatus.RESOLVED
+    })
     center, right = st.columns(CENTER_RIGHT, gap="large")
     with right:
+        _saved_interviews(lang)
         _mode_note(lang, ai_config)
         if workspace is not None and workspace.requirements:
             theme_ui.quality_card(
@@ -381,10 +568,64 @@ def _start_screen(lang: str, workspace: Workspace | None, ai_config: AIConfig | 
                 )
                 st.caption(t("grill.ui.draft_hint", lang))
 
+        if use_analyzed and settled:
+            st.caption(t("grill.ui.settled_note", lang, count=len(settled)))
         st.button(
             t("grill.ui.start", lang), type="primary", icon=":material/play_arrow:", key="grill_start",
-            on_click=_on_start, args=(kind.value, mode.value, artifact.value, use_analyzed, context),
+            on_click=_on_start, args=(kind.value, mode.value, artifact.value, use_analyzed, context, settled),
         )
+
+
+def _interview_line(lang: str, summary: InterviewSummary) -> None:
+    step_tone = "success" if summary.step == GrillStep.FINALIZED.value else (
+        "neutral" if summary.finished else "accent")
+    theme_ui.badges(
+        theme_ui.badge(t(f"grill.kind.{summary.kind.value}", lang), "info"),
+        theme_ui.badge(t(f"grill.step.{summary.step}", lang), step_tone),
+        theme_ui.badge(t("grill.ui.saved_progress", lang, done=summary.answered, total=summary.total), "neutral"),
+        theme_ui.badge(t("grill.ui.saved_open", lang, count=summary.unresolved), "warning") if summary.unresolved else "",
+    )
+    st.markdown(f"**{_md(summary.title or t('grill.ui.untitled', lang))}**")
+    st.caption(t("grill.ui.saved_when", lang, time=_time(summary.updated_at)))
+
+
+def _saved_interviews(lang: str) -> None:
+    """Interviews of the open project: resume one, delete one, or load one from a file."""
+    try:
+        summaries = _store().interviews(active_project_id())
+    except (OSError, ValueError):
+        summaries = []
+    unfinished = [s for s in summaries if not s.finished]
+    finished = [s for s in summaries if s.finished]
+    with theme_ui.card("grill_saved"):
+        theme_ui.section(
+            t("grill.ui.saved_heading", lang, count=len(unfinished)), ":material/bookmark:",
+            t("grill.ui.saved_disk" if persistence_enabled() else "grill.ui.saved_session", lang),
+        )
+        if not unfinished:
+            st.caption(t("grill.ui.saved_none", lang))
+        for summary in unfinished:
+            with st.container(border=True, key=f"grill_saved_{summary.session_id}"):
+                _interview_line(lang, summary)
+                with st.container(horizontal=True):
+                    st.button(t("grill.ui.resume_interview", lang), key=f"grill_resume_{summary.session_id}",
+                              icon=":material/play_arrow:", type="primary", on_click=_on_resume,
+                              args=(summary.session_id,), help=t("grill.ui.resume_help", lang))
+                    with st.popover(t("grill.ui.delete_interview", lang), icon=":material/delete:"):
+                        st.caption(t("grill.ui.delete_confirm", lang))
+                        st.button(t("grill.ui.delete_yes", lang), key=f"grill_delete_{summary.session_id}",
+                                  on_click=_on_delete_interview, args=(summary.session_id,))
+        if finished:
+            with st.expander(t("grill.ui.finished_heading", lang, count=len(finished)), icon=":material/history:"):
+                for summary in finished:
+                    _interview_line(lang, summary)
+                    st.button(t("grill.ui.open_interview", lang), key=f"grill_resume_{summary.session_id}",
+                              icon=":material/visibility:", on_click=_on_resume, args=(summary.session_id,))
+        st.file_uploader(
+            t("grill.ui.import_label", lang), type=["json"], key=IMPORT, help=t("grill.ui.import_help", lang),
+        )
+        st.button(t("grill.ui.import_button", lang), key="grill_import", icon=":material/upload:",
+                  disabled=st.session_state.get(IMPORT) is None, on_click=_on_import)
 
 
 def _states_legend(lang: str) -> None:
@@ -472,6 +713,7 @@ def _progress_card(lang: str, session: GrillSession, ai_config: AIConfig | None)
             st.caption(t("grill.ui.mode_deterministic", lang))
         else:
             st.caption(t("grill.ui.mode_ai_available", lang, model=_md(ai_config.model)))
+        _save_controls(lang, session)
         done, total = session.progress
         if not total:
             return
@@ -484,6 +726,18 @@ def _progress_card(lang: str, session: GrillSession, ai_config: AIConfig | None)
             with col.container(key=f"kpi_{name}"):
                 st.metric(t(f"ui.grill.count_{name}", lang), value)
         st.caption(t("ui.grill.open_count", lang, count=counts.open) + " · " + t("ui.grill.count_assumptions_help", lang))
+
+
+def _save_controls(lang: str, session: GrillSession) -> None:
+    """Where the interview is saved, and a file to continue it elsewhere or after a reload."""
+    with st.container(horizontal=True, vertical_alignment="center", key="grill_save_controls"):
+        where = "grill.ui.saved_on_disk" if persistence_enabled() else "grill.ui.saved_in_session"
+        st.markdown(theme_ui.badge(t(where, lang, time=_time(session.updated_at)), "success", ":material/cloud_done:"))
+        st.download_button(
+            t("grill.ui.export_progress", lang), export_json(_record(session)),
+            file_name=f"grill-interview-{session.id[:8]}.json", mime="application/json",
+            icon=":material/save_alt:", key="grill_export", help=t("grill.ui.export_help", lang),
+        )
 
 
 # --- Interview ----------------------------------------------------------------
@@ -671,6 +925,7 @@ def _answers_panel(lang: str, session: GrillSession, actions: set[Action]) -> No
     """Questions handled so far, with their answers and states; an answer can be reopened."""
     handled = [q for q in session.questions if q.id in session.answers]
     if not handled:
+        _retired_list(lang, session)
         return
     with theme_ui.card("grill_previous"):
         theme_ui.section(t("ui.grill.previous", lang, count=len(handled)), ":material/history:")
@@ -694,6 +949,19 @@ def _answers_panel(lang: str, session: GrillSession, actions: set[Action]) -> No
             cols[1].button(
                 t("grill.ui.edit_answer", lang), key="grill_edit_answer", icon=":material/edit:", width="stretch",
                 on_click=_on_edit_answer, args=(session.revision, select_key),
+            )
+        _retired_list(lang, session)
+
+
+def _retired_list(lang: str, session: GrillSession) -> None:
+    """Open questions that left the queue (resolved in the document, answered by another answer, ...)."""
+    if not session.retired:
+        return
+    with st.expander(t("grill.ui.retired_heading", lang, count=len(session.retired)), icon=":material/playlist_remove:"):
+        for item in session.retired:
+            detail = f"{item.reason.value}:{item.covered_by}" if item.covered_by else item.reason.value
+            st.markdown(
+                f"- {_md(render_question(item.question, lang)[0])} — _{_md(retire_reason_text(session, detail, lang))}_"
             )
 
 
@@ -868,7 +1136,8 @@ def _use_panel(lang: str, session: GrillSession, workspace: Workspace | None, pe
         st.markdown(f"##### {t('grill.ui.use_heading', lang)}")
         report = build_report(session, lang, _ai_tests(session))
         st.download_button(
-            t("grill.ui.download_markdown", lang), result_markdown(session, lang) + "\n" + report_markdown(report, lang),
+            t("grill.ui.download_markdown", lang),
+            result_markdown(session, lang) + "\n" + report_markdown(report, lang) + "\n" + trace_markdown(session, lang),
             file_name=markdown_file_name(session), mime="text/markdown", icon=":material/download:",
             key="grill_download", help=t("grill.report.download_tooltip", lang),
         )
@@ -903,11 +1172,15 @@ def _resolve_panel(lang: str, session: GrillSession, workspace: Workspace | None
         keys[option.question_id] = _key(session, "resolve", option.question_id)
         label = f"{', '.join(option.requirement_ids)} — {option.clarification}"
         st.checkbox(_md(label), value=False, key=keys[option.question_id])
+    reason_key = _key(session, "resolve_reason")
+    st.text_input(t("findings.reason_label", lang), key=reason_key, max_chars=MAX_REASON_LENGTH,
+                  placeholder=t("findings.reason_placeholder", lang))
     st.button(
         t("grill.ui.resolve_button", lang), key="grill_resolve", icon=":material/task_alt:",
         disabled=not any(st.session_state.get(k) for k in keys.values()),
-        on_click=_on_resolve, args=(session.revision, persist, keys),
+        on_click=_on_resolve, args=(session.revision, persist, keys, reason_key),
     )
+    st.caption(t("grill.ui.resolve_undo_hint", lang))
 
 
 # --- Optional AI ------------------------------------------------------------------------
@@ -1104,18 +1377,23 @@ def _ai_test_ideas(lang: str, session: GrillSession, config: AIConfig) -> None:
     else:
         # One list per Grill session, replaced by the next request.
         st.session_state[AI_TESTS] = {session.id: [case.model_dump(mode="json") for case in found]}
+        _save(session)  # keep the ideas with the saved interview
         _notice("grill.report.ai_tests_added" if found else "grill.report.ai_tests_none", count=len(found))
     st.rerun()
 
 
 def _footer(lang: str, session: GrillSession, actions: set[Action]) -> None:
-    cols = st.columns(2)
+    cols = st.columns(3)
     if Action.REVIEW in actions:
         cols[0].button(
             t("grill.ui.review", lang), key="grill_review_button", icon=":material/fact_check:",
             width="stretch", on_click=_run, args=(WF.review, session.revision),
         )
-    with cols[1].popover(t("grill.ui.cancel", lang), icon=":material/close:", width="stretch"):
+    cols[1].button(
+        t("grill.ui.close_interview", lang), key="grill_close", icon=":material/bookmark_added:", width="stretch",
+        on_click=_on_new_session, help=t("grill.ui.close_help", lang),
+    )
+    with cols[2].popover(t("grill.ui.cancel", lang), icon=":material/close:", width="stretch"):
         st.caption(t("grill.ui.cancel_confirm", lang))
         st.button(
             t("grill.ui.cancel_yes", lang), key="grill_cancel", on_click=_run, args=(WF.cancel, session.revision),
@@ -1132,9 +1410,10 @@ def _insights_panel(lang: str, session: GrillSession, workspace: Workspace | Non
     question = session.current_question if session.step == GrillStep.ASK_QUESTION else None
     focus = insights.focus_requirement(session, question)
     groups = insights.group_findings(findings)
-    tab_analysis, tab_findings, tab_report = st.tabs(
-        [t("ui.grill.tab_analysis", lang), t("ui.grill.tab_findings", lang), t("ui.grill.tab_report", lang)]
-    )
+    tab_analysis, tab_findings, tab_report, tab_history = st.tabs([
+        t("ui.grill.tab_analysis", lang), t("ui.grill.tab_findings", lang), t("ui.grill.tab_report", lang),
+        t("grill.trace.tab", lang),
+    ])
     with tab_analysis:
         theme_ui.quality_card(
             lang, list(score_all(requirements, findings).values()), "grill_quality", t("ui.grill.quality_note", lang),
@@ -1157,6 +1436,72 @@ def _insights_panel(lang: str, session: GrillSession, workspace: Workspace | Non
         _findings_lists(lang, session, groups, conflicts)
     with tab_report:
         _live_report(lang, session)
+    with tab_history:
+        _history_panel(lang, session)
+
+
+def _history_panel(lang: str, session: GrillSession) -> None:
+    """Where every decision came from, its state, and every change made to it.
+
+    Drawn as a compact list (the panel is narrow); the downloads hold the full table.
+    """
+    records = decision_records(session, lang)
+    counts = state_counts(records)
+    with theme_ui.card("grill_trace"):
+        theme_ui.section(t("grill.trace.heading", lang), ":material/account_tree:", t("grill.trace.note", lang))
+        theme_ui.badges(*(
+            theme_ui.badge(f"{t(f'grill.state.{state.value}', lang)}: {counts[state]}", STATE_TONES[state])
+            for state in ClarificationState
+        ))
+        if not records:
+            st.caption(t("grill.trace.none", lang))
+        for n, record in enumerate(records):
+            changes = len(record.history) - 1
+            answer = f"{t('grill.ui.column_answer', lang)}: {record.value}" if record.value else ""
+            source = origin_text(record, lang) + (f" — {record.basis}" if record.basis else "")
+            theme_ui.list_item(
+                f"trace_{n}",
+                [
+                    theme_ui.badge(t(f"grill.state.{record.state.value}", lang), STATE_TONES[record.state]),
+                    theme_ui.badge(t("grill.trace.superseded", lang), "neutral") if record.superseded else "",
+                    *(theme_ui.badge(rid, "info") for rid in record.requirement_ids),
+                    theme_ui.badge(t("grill.trace.changed_n", lang, count=changes), "accent") if changes > 0 else "",
+                ],
+                record.question,
+                "\n".join(x for x in (answer, f"{t('grill.trace.col_source', lang)}: {source}") if x),
+            )
+        changed = [r for r in records if len(r.history) > 1]
+        if changed:
+            options = {r.question_id: r for r in changed}
+            picked = st.selectbox(
+                t("grill.trace.pick_history", lang), list(options), key=_key(session, "trace_pick"),
+                format_func=lambda qid: options[qid].question,
+            )
+            for n, rev in enumerate(options[picked].history if picked else []):
+                theme_ui.list_item(
+                    f"trace_rev_{n}",
+                    [theme_ui.badge(_time(rev.at), "neutral"),
+                     theme_ui.badge(t(f"grill.answer_status.{rev.status.value}", lang), "info")],
+                    rev.value or "—",
+                )
+    with theme_ui.card("grill_audit"):
+        theme_ui.section(t("grill.audit.heading", lang, count=len(session.events)), ":material/history:",
+                         t("grill.audit.note", lang))
+        rows = audit_rows(session, lang)
+        time_col, action_col, detail_col = (t(f"grill.audit.col_{c}", lang) for c in ("time", "action", "detail"))
+        for n, row in enumerate(rows[:12]):
+            theme_ui.list_item(f"audit_{n}", [theme_ui.badge(row[time_col], "neutral"),
+                                              theme_ui.badge(row[action_col], "accent")], row[detail_col])
+        if len(rows) > 12:
+            with st.expander(t("grill.audit.all", lang, count=len(rows))):
+                _table(rows)
+        if not rows:
+            st.caption(t("grill.trace.none", lang))
+        st.download_button(
+            t("grill.audit.download", lang), audit_json(session, lang), file_name=audit_file_name(session),
+            mime="application/json", icon=":material/download:", key="grill_audit_download",
+            help=t("grill.audit.download_help", lang),
+        )
 
 
 def _assumptions_card(lang: str, session: GrillSession, limit: int | None = None) -> None:
@@ -1170,14 +1515,12 @@ def _assumptions_card(lang: str, session: GrillSession, limit: int | None = None
             return
         items = [(render_question(q, lang)[0], value, q.requirement_ids) for q, value in assumed]
         items += [("", value, []) for value in draft_assumptions]
-        for prompt, value, ids in items[:limit]:
-            st.markdown(
-                theme_ui.badge(t("grill.state.assumption", lang), "warning")
-                + "".join(" " + theme_ui.badge(rid, "info") for rid in ids)
-                + f" {_md(value)}"
+        for n, (prompt, value, ids) in enumerate(items[:limit]):
+            theme_ui.list_item(
+                f"assumption_{limit or 'all'}_{n}",
+                [theme_ui.badge(t("grill.state.assumption", lang), "warning"), *(theme_ui.badge(rid, "info") for rid in ids)],
+                value, prompt,
             )
-            if prompt:
-                st.caption(_md(prompt))
         if limit is not None and len(items) > limit:
             st.caption(t("ui.grill.more_in_report", lang, count=len(items) - limit))
 
@@ -1190,13 +1533,16 @@ def _unresolved_card(lang: str, session: GrillSession, limit: int | None = None)
         if not waiting:
             st.caption(t("grill.ui.no_issues", lang))
             return
-        for question in waiting[:limit]:
+        for n, question in enumerate(waiting[:limit]):
             state = states[question.id]
-            st.markdown(
-                theme_ui.badge(t(f"grill.importance.{question.priority}", lang), PRIORITY_TONES[question.priority])
-                + " " + theme_ui.badge(t(f"grill.state.{state.value}", lang), STATE_TONES[state])
-                + "".join(" " + theme_ui.badge(rid, "info") for rid in question.requirement_ids)
-                + f" {_md(render_question(question, lang)[0])}"
+            theme_ui.list_item(
+                f"unresolved_{limit or 'all'}_{n}",
+                [
+                    theme_ui.badge(t(f"grill.importance.{question.priority}", lang), PRIORITY_TONES[question.priority]),
+                    theme_ui.badge(t(f"grill.state.{state.value}", lang), STATE_TONES[state]),
+                    *(theme_ui.badge(rid, "info") for rid in question.requirement_ids),
+                ],
+                render_question(question, lang)[0],
             )
         if limit is not None and len(waiting) > limit:
             st.caption(t("ui.grill.more_in_report", lang, count=len(waiting) - limit))

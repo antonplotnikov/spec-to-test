@@ -1,0 +1,99 @@
+{
+ "name": "en_answered_elsewhere",
+ "description": "One answer settles two questions: the clarification of 'too many attempts' gives the number, so the missing-boundary question for the same requirement must not be asked again.",
+ "language": "en",
+ "requirements": "REQ-1: After too many failed login attempts, the account is locked.\nREQ-2: The user can unlock the account by email.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "ambiguous_wording",
+     "missing_boundary"
+    ],
+    "keywords": [
+     "attempts",
+     "many"
+    ],
+    "note": "how many failed attempts"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe"
+    ],
+    "note": "what the user receives to unlock"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [],
+    "keywords": [
+     "how long"
+    ],
+    "note": "how long the lock lasts"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": "already answered: 5 failed attempts"
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.ambiguous_wording.REQ-1": {
+   "status": "answered",
+   "value": "The account is locked after 5 failed attempts within 15 minutes."
+  },
+  "rule.missing_expected_result.REQ-2": {
+   "status": "answered",
+   "value": "An email with a one-time unlock link is sent to the registered address."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "how long",
+   "status": "answered",
+   "value": "The lock lasts 30 minutes."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": []
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1"
+      ],
+      "question": "How long does the account stay locked?",
+      "reason": "Lock duration tests need it.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,89 @@
+{
+ "name": "en_reopen_mid_interview",
+ "description": "Reactive queue: the vague-wording finding was resolved before the interview and is reopened after the first answer (it must be asked); the error-handling finding is resolved in the document after the second answer (it must not be asked any more).",
+ "language": "en",
+ "requirements": "REQ-1: The user can request a password reset by entering their email address.\nREQ-2: The reset page should load fast.\nREQ-3: The new password must be at least 8 characters long.\nREQ-4: The new password must be at least 12 characters long.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-3",
+     "REQ-4"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "8",
+     "12"
+    ],
+    "note": "minimum length 8 or 12"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe"
+    ],
+    "note": "what the user sees after requesting a reset"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "fast"
+    ],
+    "note": "reopened during the interview: vague 'fast'"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-3",
+    "REQ-4"
+   ]
+  ],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [
+  "rule.ambiguous_wording.REQ-2"
+ ],
+ "steps": [
+  {
+   "after": 1,
+   "reopen": [
+    "rule.ambiguous_wording.REQ-2"
+   ]
+  },
+  {
+   "after": 2,
+   "resolve": [
+    "rule.missing_error_handling.REQ-1"
+   ]
+  }
+ ],
+ "answers": {
+  "rule.contradiction.REQ-3+REQ-4": {
+   "status": "answered",
+   "value": "REQ-4: The new password must be at least 12 characters long."
+  },
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "A message says that a reset link was sent."
+  },
+  "rule.ambiguous_wording.REQ-2": {
+   "status": "answered",
+   "value": "The page is interactive within 2 seconds."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

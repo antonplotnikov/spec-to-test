@@ -30,11 +30,20 @@ def new_app() -> AppTest:
     return at
 
 
-def grill(at: AppTest | None = None) -> AppTest:
+def grill(at: AppTest | None = None, fresh: bool | None = None) -> AppTest:
+    """Open the Grill page. In "local" storage mode a new browser session reopens the last
+    unfinished interview; `fresh` (default: for a new app) closes it, keeping it saved."""
+    fresh = at is None if fresh is None else fresh
     at = at or new_app()
     at.sidebar.radio(key="app_mode").set_value("grill").run()
     assert not at.exception
+    if fresh and any(b.key == "grill_close" for b in at.button):
+        at.button(key="grill_close").click().run()
     return at
+
+
+def downloads(at: AppTest) -> list[str]:
+    return [b.key for b in at.get("download_button")]
 
 
 def session_of(at: AppTest):
@@ -244,11 +253,13 @@ def test_double_click_from_an_outdated_page_is_rejected():
         DETERMINISTIC_WORKFLOW.answer(session_of(at), "again", expected_revision=revision)
 
 
-def test_browser_sessions_do_not_share_grill_state():
+def test_browser_sessions_do_not_share_grill_state(monkeypatch):
+    monkeypatch.delenv("SPEC_TO_TEST_STORAGE")  # the default "session" mode of shared deployments
     first = start(grill(), "bug_report", mode="interview")
-    second = grill()
+    second = grill(fresh=False)
     assert "grill_session" in first.session_state
     assert "grill_session" not in second.session_state
+    assert not any(b.key.startswith("grill_resume_") for b in second.button)  # nothing listed either
 
 
 def test_user_text_is_escaped_in_markdown():
@@ -293,7 +304,7 @@ def test_confirmed_test_case_is_added_to_the_analyzed_workspace(example_text):
     at = analyzed(example_text)
     before = len(at.session_state["workspace"].test_cases)
     at = confirm(start(at, "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT))
-    assert len(at.get("download_button")) == 1
+    assert downloads(at).count("grill_download") == 1
     click(at, "grill_add")
     workspace = at.session_state["workspace"]
     case = workspace.test_cases[-1]
@@ -334,7 +345,7 @@ def test_changing_the_document_mid_session_does_not_move_the_result(example_text
     assert t("grill.ui.context_changed") in [w.value for w in at.warning]
     assert at.button(key="grill_add").disabled
     assert t("grill.error.context_changed") in [c.value for c in at.caption]
-    assert len(at.get("download_button")) == 1  # the confirmed result is still available
+    assert downloads(at).count("grill_download") == 1  # the confirmed result is still available
     assert at.session_state["workspace"] == other  # nothing was moved into the new document
     assert not any(tc.source.value == "user" for tc in other.test_cases)
     click(at, "grill_new")
@@ -362,7 +373,7 @@ def test_session_started_without_a_document_warns_as_soon_as_one_is_analyzed(exa
     assert t("grill.ui.context_unknown") in [w.value for w in at.warning]
     assert at.button(key="grill_add").disabled
     assert t("grill.error.context_unknown") in [c.value for c in at.caption]
-    assert len(at.get("download_button")) == 1  # Markdown stays available
+    assert downloads(at).count("grill_download") == 1  # Markdown stays available
 
 
 def test_interview_answers_survive_a_document_change_and_the_result_stays_out(example_text):
@@ -399,7 +410,7 @@ def test_interview_answers_survive_a_document_change_and_the_result_stays_out(ex
     assert session_of(at).draft.title == "Reset link is sent"
     assert at.button(key="grill_add").disabled
     assert t("grill.error.context_changed") in [c.value for c in at.caption]
-    assert len(at.get("download_button")) == 1
+    assert downloads(at).count("grill_download") == 1
     assert not any(tc.source.value == "user" for tc in other.test_cases)
 
 
@@ -437,7 +448,7 @@ def test_requirements_grill_on_pasted_text_still_resolves_findings(example_text)
 
 def test_result_without_a_document_can_only_be_downloaded():
     at = confirm(start(grill(), "review", artifact="test_case", text_key="grill_draft_text", text=TC_DRAFT))
-    assert len(at.get("download_button")) == 1
+    assert downloads(at).count("grill_download") == 1
     assert at.button(key="grill_add").disabled
     assert t("grill.error.no_workspace") in [c.value for c in at.caption]
     assert "workspace" not in at.session_state

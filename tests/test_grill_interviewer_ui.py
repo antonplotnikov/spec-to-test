@@ -176,8 +176,8 @@ def test_final_report_without_ai():
                 "grill.report.unknowns", "grill.report.tests"):
         assert any(t(key) in h for h in headings), key
     assert not any(b.key == "grill_ai_tests" for b in at.button)
-    [download] = at.get("download_button")  # one download: result + final report
-    assert download.key == "grill_download"
+    # One download holds the result and the final report (the others save progress and the audit log).
+    assert [b.key for b in at.get("download_button")] == ["grill_export", "grill_download", "grill_audit_download"]
 
 
 def ai_test_case() -> SuggestedTestCase:

@@ -1,0 +1,146 @@
+{
+ "name": "uk_answer_conflict_multistep",
+ "description": "Багатокрокове інтерв'ю: відповідь каже 12 символів замість 8 — потрібне питання про суперечність; розмите уточнення «простою» — потрібне уточнення. «Форма входу має бути зручною» — не про помилки введення.",
+ "language": "uk",
+ "requirements": "REQ-1: Користувач вводить пароль довжиною щонайменше 8 символів.\nREQ-2: Посилання для скидання пароля діє 2 години.\nREQ-3: Форма входу має бути зручною.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некоректн"
+    ],
+    "note": "закороткий пароль"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "12"
+    ],
+    "note": "відповідь: 12 символів, вимога: 8"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "побачити"
+    ],
+    "note": "результат зміни пароля"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "зручн"
+    ],
+    "note": "розмите: зручна"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "clarity"
+    ],
+    "keywords": [
+     "простою"
+    ],
+    "note": "уточнення досі розмите"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [],
+    "keywords": [
+     "після закінчення"
+    ],
+    "note": "відкриття посилання після 2 годин"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": "зручність форми — не введення даних"
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_error_handling.REQ-1": {
+   "status": "answered",
+   "value": "Показується помилка; пароль має містити щонайменше 12 символів."
+  },
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "Пароль збережено, користувач бачить повідомлення про успіх."
+  },
+  "rule.ambiguous_wording.REQ-3": {
+   "status": "answered",
+   "value": "Форма має бути простою."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "ваша відповідь каже",
+   "status": "answered",
+   "value": "REQ-1: Користувач вводить пароль довжиною щонайменше 8 символів."
+  },
+  {
+   "contains": "усе ще містить",
+   "status": "unknown"
+  },
+  {
+   "contains": "після закінчення",
+   "status": "answered",
+   "value": "Сторінка пропонує надіслати нове посилання."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": []
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "Що бачить користувач, відкривши посилання після закінчення 2 годин?",
+      "reason": "Негативний тест для REQ-2.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ]
+ }
+}
