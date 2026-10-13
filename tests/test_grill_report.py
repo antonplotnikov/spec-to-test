@@ -46,9 +46,9 @@ def finalize(session: GrillSession) -> GrillSession:
 def requirements_session(final: bool = True) -> GrillSession:
     """Built-in questions: confirmed, skipped, unknown; one AI question answered as an assumption."""
     session = WF.submit_input(WF.start(GrillKind.REQUIREMENTS), RequirementsDraft(requirements=REQS))
-    session = WF.answer(session, CONFIRMED)
-    session = WF.skip(session)
-    session = WF.answer(session, "", AnswerStatus.UNKNOWN)
+    session = WF.answer(session, "", AnswerStatus.UNKNOWN)  # REQ-3 expected result (high, asked first)
+    session = WF.answer(session, CONFIRMED)  # REQ-1 wording
+    session = WF.skip(session)  # REQ-3 wording
     session = WF.add_questions(session, [Question(
         id="ai.req.max", prompt_text="Is there a maximum password length?", requirement_ids=["REQ-2"],
         origin=Source.AI, importance="high",
@@ -211,11 +211,12 @@ def test_markdown_has_every_section_in_order():
     text = report_markdown(build_report(session, ai_tests=ai))
     headings = [line for line in text.splitlines() if line.startswith("## ")]
     assert headings == [
-        "## Clarified requirements", "## Confirmed facts", "## Assumptions (not confirmed)",
-        "## Unknowns and open questions", "## Review findings accepted as unresolved", "## Suggested test cases",
+        "## Clarified requirements", "## Confirmed decisions", "## Assumptions (not confirmed)",
+        "## Unresolved questions", "## Contradictions", "## Review findings accepted as unresolved",
+        "## Suggested test scenarios",
     ]
-    confirmed = text.split("## Confirmed facts")[1].split("## Assumptions")[0]
-    assumptions = text.split("## Assumptions (not confirmed)")[1].split("## Unknowns")[0]
+    confirmed = text.split("## Confirmed decisions")[1].split("## Assumptions")[0]
+    assumptions = text.split("## Assumptions (not confirmed)")[1].split("## Unresolved")[0]
     assert CONFIRMED in confirmed and ASSUMED not in confirmed
     assert ASSUMED in assumptions and CONFIRMED not in assumptions
     assert "Boundary values · Requirement · AI suggestion" in text

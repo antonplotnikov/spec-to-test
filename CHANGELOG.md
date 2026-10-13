@@ -7,6 +7,33 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Grill Mode, unified adaptive interview: built-in and AI questions share one
+  queue ranked by priority (high / medium / low; every built-in question now
+  has one), re-ranked after each answer; contradictions are asked first within
+  their priority. New deterministic follow-ups: a clarification that is still
+  vague asks for a testable value, one that sets a new input limit asks what
+  happens beyond it (not for time targets, not when the behavior is already
+  stated), one level deep, dismissed by skipping.
+- Grill Mode conflicts (`grill/conflicts.py`): an answer whose limit
+  contradicts its requirement or another answer (rule-engine limit parsing)
+  becomes a high-priority, essential question offering the statements
+  verbatim; it is resolved only by the user's answer ("unknown" leaves it
+  open, with a review warning `answer_conflict`). Every question has a derived
+  state — CONFIRMED, ASSUMPTION, UNKNOWN, CONFLICT or OPEN — shown with the
+  progress bar, in the answer history and in a new **Unresolved issues** panel.
+  Each question shows its priority, requirement IDs and testing impact.
+- Grill final report: **Contradictions** section (decision or unresolved);
+  contested and overruled answers are kept out of the confirmed decisions and
+  never resolve workspace findings. Sections renamed to "Confirmed decisions",
+  "Unresolved questions" and "Suggested test scenarios".
+- AI interviewer quality controls: the model receives the planned queue,
+  states and open conflicts; it may be consulted after every answer (once per
+  answer state, never chained by its own questions) and its question joins the
+  ranked queue (`GrillWorkflow.merge_questions`). Questions are dropped when
+  they repeat or reword any known question, ask about a confirmed or unknown
+  field, name an unknown requirement, exceed 400 characters, or state a number
+  that is not in the input (disputed values excluded). AI test case ideas are
+  dropped when their expected result states such a number.
 - LLM providers: Claude (Anthropic), OpenAI and local Ollama models behind one
   structured-output call (`spec_to_test.llm`). `AI_PROVIDER` picks the default
   (`anthropic`/`claude`, `openai`, `ollama`); every provider with credentials
@@ -88,6 +115,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   removed.
 
 ### Changed
+- Grill interviews ask the most important open question first, so the order
+  differs from earlier versions (for example a missing expected result before
+  vague wording; without a document, the feature under test before an
+  unverifiable requirement ID). Stored sessions still load: questions without
+  a priority count as high if essential, otherwise medium.
 - AI configuration moved to `spec_to_test.llm`; `spec_to_test.ai_analysis`
   re-exports the old names (`AIConfig`, `AIError`, `load_config`,
   `request_structured`, ...), so existing imports keep working. AI error

@@ -761,7 +761,11 @@ GRILL_TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Обработано вопросов: {done} из {total}",
     },
     # --- Interview ---------------------------------------------------------
-    "grill.ui.why": {"en": "Why it matters: {reason}", "uk": "Чому це важливо: {reason}", "ru": "Почему это важно: {reason}"},
+    "grill.ui.why": {
+        "en": "Why it matters for testing: {reason}",
+        "uk": "Чому це важливо для тестування: {reason}",
+        "ru": "Почему это важно для тестирования: {reason}",
+    },
     "grill.ui.linked": {"en": "Requirement {id}: {text}", "uk": "Вимога {id}: {text}", "ru": "Требование {id}: {text}"},
     "grill.ui.essential": {
         "en": "Essential question: answer it, keep your answer as an assumption, or mark it as unknown.",
@@ -1168,14 +1172,14 @@ GRILL_TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Этот текст слишком длинный. Сократите его (ответ или поле могут быть не длиннее целого документа).",
     },
     # --- AI interviewer ----------------------------------------------------------
-    "grill.ui.importance": {"en": "Importance: {level}", "uk": "Важливість: {level}", "ru": "Важность: {level}"},
+    "grill.ui.importance": {"en": "Priority: {level}", "uk": "Пріоритет: {level}", "ru": "Приоритет: {level}"},
     "grill.importance.high": {"en": "high", "uk": "висока", "ru": "высокая"},
     "grill.importance.medium": {"en": "medium", "uk": "середня", "ru": "средняя"},
     "grill.importance.low": {"en": "low", "uk": "низька", "ru": "низкая"},
     "grill.ui.ai_interviewer": {
-        "en": "AI interviewer: after the built-in questions, let {provider} ({model}) ask follow-up questions one at a time. I agree that this draft, my answers and the linked requirement(s) are sent to {provider} after each answer in this Grill session.",
-        "uk": "ШІ-інтерв'юер: після вбудованих питань {provider} ({model}) ставить уточнювальні питання по одному. Я погоджуюся, що цю чернетку, мої відповіді та пов'язані вимоги буде надіслано до {provider} після кожної відповіді в цій сесії Grill.",
-        "ru": "ИИ-интервьюер: после встроенных вопросов {provider} ({model}) задаёт уточняющие вопросы по одному. Я согласен, что этот черновик, мои ответы и связанные требования будут отправляться в {provider} после каждого ответа в этой сессии Grill.",
+        "en": "AI interviewer: after each answer, {provider} ({model}) may add one question to the same queue as the built-in questions; the most important open question is always asked next. I agree that this draft, my answers and the linked requirement(s) are sent to {provider} after each answer in this Grill session.",
+        "uk": "ШІ-інтерв'юер: після кожної відповіді {provider} ({model}) може додати одне питання до тієї ж черги, що й вбудовані питання; наступним завжди ставиться найважливіше відкрите питання. Я погоджуюся, що цю чернетку, мої відповіді та пов'язані вимоги буде надіслано до {provider} після кожної відповіді в цій сесії Grill.",
+        "ru": "ИИ-интервьюер: после каждого ответа {provider} ({model}) может добавить один вопрос в ту же очередь, что и встроенные вопросы; следующим всегда задаётся самый важный открытый вопрос. Я согласен, что этот черновик, мои ответы и связанные требования будут отправляться в {provider} после каждого ответа в этой сессии Grill.",
     },
     "grill.ui.ai_interviewer_help": {
         "en": "The AI sees your earlier answers and whether you confirmed, assumed, did not know or skipped them. It never fills in the draft: only your answers do. Untick to stop; the built-in questions keep working.",
@@ -1206,20 +1210,20 @@ GRILL_TRANSLATIONS: dict[str, dict[str, str]] = {
     # --- Final report ------------------------------------------------------------
     "grill.report.title": {"en": "Final report", "uk": "Підсумковий звіт", "ru": "Итоговый отчёт"},
     "grill.report.note": {
-        "en": "Confirmed facts, assumptions and unknowns are kept apart. Nothing here was invented: open points stay open until someone answers them.",
-        "uk": "Підтверджені факти, припущення й невідоме подано окремо. Тут нічого не вигадано: відкриті питання лишаються відкритими, доки хтось на них не відповість.",
-        "ru": "Подтверждённые факты, допущения и неизвестное приведены отдельно. Здесь ничего не придумано: открытые вопросы остаются открытыми, пока кто-то на них не ответит.",
+        "en": "Confirmed decisions, assumptions, unresolved questions and contradictions are kept apart. Nothing here was invented: open points stay open until someone answers them.",
+        "uk": "Підтверджені рішення, припущення, невирішені питання й суперечності подано окремо. Тут нічого не вигадано: відкриті питання лишаються відкритими, доки хтось на них не відповість.",
+        "ru": "Подтверждённые решения, допущения, нерешённые вопросы и противоречия приведены отдельно. Здесь ничего не придумано: открытые вопросы остаются открытыми, пока кто-то на них не ответит.",
     },
     "grill.report.clarified": {"en": "Clarified requirements", "uk": "Уточнені вимоги", "ru": "Уточнённые требования"},
     "grill.report.col_confirmed": {"en": "Confirmed clarifications", "uk": "Підтверджені уточнення", "ru": "Подтверждённые уточнения"},
     "grill.report.col_assumed": {"en": "Assumptions", "uk": "Припущення", "ru": "Допущения"},
     "grill.report.col_open": {"en": "Open questions", "uk": "Відкриті питання", "ru": "Открытые вопросы"},
-    "grill.report.confirmed": {"en": "Confirmed facts", "uk": "Підтверджені факти", "ru": "Подтверждённые факты"},
+    "grill.report.confirmed": {"en": "Confirmed decisions", "uk": "Підтверджені рішення", "ru": "Подтверждённые решения"},
     "grill.report.assumptions": {"en": "Assumptions (not confirmed)", "uk": "Припущення (не підтверджено)", "ru": "Допущения (не подтверждены)"},
-    "grill.report.unknowns": {"en": "Unknowns and open questions", "uk": "Невідоме та відкриті питання", "ru": "Неизвестное и открытые вопросы"},
+    "grill.report.unknowns": {"en": "Unresolved questions", "uk": "Невирішені питання", "ru": "Нерешённые вопросы"},
     "grill.report.col_statement": {"en": "Statement", "uk": "Твердження", "ru": "Утверждение"},
     "grill.report.none": {"en": "None.", "uk": "Немає.", "ru": "Нет."},
-    "grill.report.tests": {"en": "Suggested test cases", "uk": "Запропоновані тест-кейси", "ru": "Предлагаемые тест-кейсы"},
+    "grill.report.tests": {"en": "Suggested test scenarios", "uk": "Запропоновані тестові сценарії", "ru": "Предлагаемые тестовые сценарии"},
     "grill.report.no_tests": {
         "en": "No test cases can be suggested: the result is not linked to a requirement.",
         "uk": "Тест-кейси запропонувати неможливо: результат не пов'язано з вимогою.",
@@ -1256,4 +1260,83 @@ GRILL_TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "ШІ не запропонував тест-кейсів, що спираються на вимоги або ваші відповіді.",
         "ru": "ИИ не предложил тест-кейсов, опирающихся на требования или ваши ответы.",
     },
+    # --- Unified interview: states, adaptive questions, contradictions --------------
+    "grill.error.interview_closed": {
+        "en": "The interview was stopped. Continue it before new questions are added.",
+        "uk": "Інтерв'ю зупинено. Продовжте його, перш ніж додавати нові питання.",
+        "ru": "Интервью остановлено. Продолжите его, прежде чем добавлять новые вопросы.",
+    },
+    "grill.state.confirmed": {"en": "Confirmed", "uk": "Підтверджено", "ru": "Подтверждено"},
+    "grill.state.assumption": {"en": "Assumption", "uk": "Припущення", "ru": "Допущение"},
+    "grill.state.unknown": {"en": "Unknown", "uk": "Невідомо", "ru": "Неизвестно"},
+    "grill.state.conflict": {"en": "Conflict", "uk": "Суперечність", "ru": "Противоречие"},
+    "grill.state.open": {"en": "Open", "uk": "Відкрите", "ru": "Открыт"},
+    "grill.ui.current_state": {"en": "Current answer: {state}", "uk": "Поточна відповідь: {state}", "ru": "Текущий ответ: {state}"},
+    "grill.ui.conflict_question": {
+        "en": "Contradiction: these statements cannot all be true. Choose the correct one, write the correct rule, or mark it unknown — nothing is decided for you.",
+        "uk": "Суперечність: ці твердження не можуть бути істинними одночасно. Оберіть правильне, напишіть правильне правило або позначте як невідоме — за вас нічого не вирішується.",
+        "ru": "Противоречие: эти утверждения не могут быть верны одновременно. Выберите правильное, напишите правильное правило или отметьте как неизвестное — за вас ничего не решается.",
+    },
+    "grill.ui.issues_heading": {
+        "en": "Unresolved issues ({count})",
+        "uk": "Невирішені питання ({count})",
+        "ru": "Нерешённые вопросы ({count})",
+    },
+    "grill.ui.no_issues": {
+        "en": "Nothing is open: every question is answered and every contradiction is resolved.",
+        "uk": "Нічого не відкрито: на всі питання є відповіді, усі суперечності вирішено.",
+        "ru": "Ничего не открыто: на все вопросы есть ответы, все противоречия разрешены.",
+    },
+    "grill.ui.column_priority": {"en": "Priority", "uk": "Пріоритет", "ru": "Приоритет"},
+    "grill.ui.column_state": {"en": "State", "uk": "Стан", "ru": "Состояние"},
+    "grill.q.conflict.requirement": {
+        "en": "Your answer says “{first}”, but {reqs} says “{second}”. Which is correct?",
+        "uk": "Ваша відповідь каже «{first}», а {reqs} — «{second}». Що правильно?",
+        "ru": "Ваш ответ говорит «{first}», а {reqs} — «{second}». Что верно?",
+    },
+    "grill.q.conflict.answers": {
+        "en": "Two answers about {reqs} disagree: “{first}” and “{second}”. Which is correct?",
+        "uk": "Дві відповіді щодо {reqs} розходяться: «{first}» і «{second}». Що правильно?",
+        "ru": "Два ответа о {reqs} расходятся: «{first}» и «{second}». Что верно?",
+    },
+    "grill.why.conflict": {
+        "en": "A test cannot pass against two different rules; until one is chosen, its expected result is undefined.",
+        "uk": "Тест не може пройти за двома різними правилами; доки одне не обрано, очікуваний результат не визначено.",
+        "ru": "Тест не может пройти по двум разным правилам; пока одно не выбрано, ожидаемый результат не определён.",
+    },
+    "grill.q.followup.vague": {
+        "en": "Your answer “{answer}” still uses {terms}. What exact, testable value or behavior is meant?",
+        "uk": "Ваша відповідь «{answer}» усе ще містить {terms}. Яке точне значення або поведінку, що можна перевірити, мається на увазі?",
+        "ru": "Ваш ответ «{answer}» всё ещё содержит {terms}. Какое точное значение или поведение, которое можно проверить, имеется в виду?",
+    },
+    "grill.why.followup.vague": {
+        "en": "A vague clarification moves the ambiguity instead of removing it: pass and fail still depend on opinion.",
+        "uk": "Розмите уточнення лише переносить неоднозначність: результат тесту все ще залежить від думки.",
+        "ru": "Размытое уточнение лишь переносит неоднозначность: результат теста всё ещё зависит от мнения.",
+    },
+    "grill.q.followup.limit": {
+        "en": "Your answer sets the limit “{phrase}”. What should happen when a value is outside it?",
+        "uk": "Ваша відповідь встановлює межу «{phrase}». Що має статися, коли значення виходить за неї?",
+        "ru": "Ваш ответ задаёт границу «{phrase}». Что должно происходить, когда значение выходит за неё?",
+    },
+    "grill.why.followup.limit": {
+        "en": "Boundary and negative tests need the expected behavior just beyond the limit (error message, rejection, truncation).",
+        "uk": "Граничним і негативним тестам потрібна очікувана поведінка одразу за межею (повідомлення про помилку, відхилення, обрізання).",
+        "ru": "Граничным и негативным тестам нужно ожидаемое поведение сразу за границей (сообщение об ошибке, отклонение, обрезка).",
+    },
+    "grill.check.answer_conflict": {
+        "en": "Clarifications contradict each other or a requirement: “{first}” vs “{second}”.",
+        "uk": "Уточнення суперечать одне одному або вимозі: «{first}» проти «{second}».",
+        "ru": "Уточнения противоречат друг другу или требованию: «{first}» против «{second}».",
+    },
+    "grill.fix.answer_conflict": {
+        "en": "Answer the contradiction question with the correct rule, or accept it as unresolved.",
+        "uk": "Відповідайте на питання про суперечність правильним правилом або залиште її невирішеною.",
+        "ru": "Ответьте на вопрос о противоречии правильным правилом или оставьте его нерешённым.",
+    },
+    "grill.report.contradictions": {"en": "Contradictions", "uk": "Суперечності", "ru": "Противоречия"},
+    "grill.report.col_conflicting": {"en": "Conflicting statements", "uk": "Суперечливі твердження", "ru": "Противоречащие утверждения"},
+    "grill.report.col_decision": {"en": "Decision", "uk": "Рішення", "ru": "Решение"},
+    "grill.report.resolved": {"en": "Resolved: {decision}", "uk": "Вирішено: {decision}", "ru": "Решено: {decision}"},
+    "grill.report.unresolved": {"en": "Unresolved", "uk": "Не вирішено", "ru": "Не решено"},
 }

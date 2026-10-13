@@ -148,7 +148,7 @@ def test_test_case_interview_validates_answers_and_supports_back():
     at.radio(key="grill_kind").set_value("test_case").run()
     assert any(t("grill.ui.context_missing") == c.value for c in at.caption)  # no document analyzed
     at = start(at, "test_case", mode="interview")
-    click(at, "grill_skip")  # optional requirement ID
+    # No document: the essential feature question comes first, the free-text ID (low priority) later.
     assert session_of(at).current_question_id == "tc.feature"
     click(at, "grill_answer")  # empty answer
     assert at.error[0].value == t("grill.error.empty_answer")
@@ -162,7 +162,6 @@ def test_test_case_interview_validates_answers_and_supports_back():
 
 def test_test_case_interview_reaches_draft_and_edits_mark_user_values():
     at = start(grill(), "test_case", mode="interview")
-    click(at, "grill_skip")
     answer_text(at, "Password reset")
     answer_text(at, "Reset link is sent")
     click(at, "grill_to_draft")
@@ -186,7 +185,7 @@ def test_bug_draft_review_shows_unparsed_lines_and_asks_only_for_gaps():
     assert "bug.summary" not in [q.id for q in session.questions]
     assert any(t("grill.ui.unparsed") in w.value for w in at.warning)
     assert at.code[0].value == "Note to self: check logs"
-    assert session.current_question_id == "bug.app_version"
+    assert session.current_question_id == "bug.expected_result"  # high priority before the version
 
 
 def test_qa_review_blocks_confirmation_until_blocking_issues_are_fixed():
@@ -376,9 +375,9 @@ def test_interview_answers_survive_a_document_change_and_the_result_stays_out(ex
     assert session.step == GrillStep.ASK_QUESTION
     assert {qid: a.value for qid, a in session.answers.items()} == answered  # nothing was lost
     assert t("grill.ui.context_changed") in [w.value for w in at.warning]
-    for question_id, value in (
-        ("tc.objective", "Check the reset mail"), ("tc.test_type", "positive"),
-        ("tc.steps", "Request a reset\nOpen the mailbox"), ("tc.expected_result", "A link arrives"),
+    for question_id, value in (  # priority order: the optional objective comes last
+        ("tc.test_type", "positive"), ("tc.steps", "Request a reset\nOpen the mailbox"),
+        ("tc.expected_result", "A link arrives"), ("tc.objective", "Check the reset mail"),
     ):
         question = session_of(at).current_question
         while question is not None and question.id != question_id:  # optional questions are skipped
@@ -389,7 +388,10 @@ def test_interview_answers_survive_a_document_change_and_the_result_stays_out(ex
             choose(at, value)
         else:
             answer_text(at, value)
-    assert session_of(at).step == GrillStep.SHOW_DRAFT  # the last answer opens the draft
+    while (question := session_of(at).current_question) is not None and session_of(at).step == GrillStep.ASK_QUESTION:
+        assert not question.essential  # only optional questions are left
+        click(at, "grill_skip")
+    assert session_of(at).step == GrillStep.SHOW_DRAFT  # the last question handled opens the draft
     at = confirm(at)
     other = at.session_state["workspace"]
     assert session_of(at).draft.title == "Reset link is sent"
@@ -418,6 +420,8 @@ def test_requirements_grill_on_pasted_text_still_resolves_findings(example_text)
     at.text_area(key="grill_requirements_text").input(example_text).run()  # typed in, so no context snapshot
     at = click(at, "grill_start")
     assert session_of(at).context_requirements == []
+    assert session_of(at).current_question_id.startswith("rule.contradiction.")  # contradictions come first
+    click(at, "grill_unknown")
     answer_text(at, "A reset email is sent and a confirmation message is shown")
     at = confirm(at)
     assert t("grill.ui.context_changed") not in [w.value for w in at.warning]
@@ -441,6 +445,8 @@ def test_requirements_grill_resolves_only_ticked_findings(example_text):
     at = analyzed(example_text)
     at.radio(key="grill_kind").set_value("requirements").run()
     at = click(at, "grill_start")
+    assert session_of(at).current_question_id == "rule.contradiction.REQ-4+REQ-7"  # contradictions come first
+    click(at, "grill_unknown")
     assert session_of(at).current_question_id == "rule.missing_expected_result.REQ-1"
     answer_text(at, "A reset email is sent and a confirmation message is shown")
     at = confirm(at)

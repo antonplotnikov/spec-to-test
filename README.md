@@ -235,11 +235,24 @@ Switch **Mode → Grill Mode** in the sidebar. Pick a workflow:
 
 How it works:
 
-1. **Questions, one at a time.** Each question says why it matters. Answer it,
-   keep your answer as an *assumption*, say *I don't know*, or skip it
-   (essential questions cannot be skipped). You can go back and change any
-   answer; follow-up questions appear only when they apply (for example,
-   boundary values for a boundary test).
+1. **Questions, one at a time, most important first.** Every question has a
+   priority (high / medium / low), names the requirement(s) it is about, and
+   says why it matters for testing. Answer it, keep your answer as an
+   *assumption*, say *I don't know*, or skip it (essential questions cannot be
+   skipped). You can go back and change any answer. The queue adapts after
+   every answer:
+   - an answer that contradicts its requirement or another answer (for
+     example "at least 10 characters" vs "at least 8") is flagged as a
+     **conflict** and asked about next — choose the correct statement, write
+     the correct rule, or mark it unknown; nothing is decided for you;
+   - a clarification that is still vague ("fast enough") asks for a testable
+     value; one that sets a new input limit asks what happens beyond it;
+   - follow-ups such as boundary values appear only when they apply.
+
+   Each question has a state — ✅ confirmed, 🟡 assumption, ❓ unknown,
+   ⚔️ conflict or ⏳ open — shown under the progress bar, in the answer
+   history, and in **Unresolved issues**, which lists everything still open
+   by priority. Grill Mode works the same with no API key.
 2. **Draft.** Edit any field directly. Every value is labeled with its origin:
    *from the source*, *confirmed by you*, *assumption*, *AI suggestion*, or
    *unknown*. Unknown values stay empty — the app never guesses them.
@@ -284,17 +297,23 @@ Lines the parser does not recognize are shown to you, never dropped silently.
 
 **AI interviewer (optional).** When AI is on, tick **AI interviewer** at the
 top of a Grill session (that tick is also your consent for this session only).
-After the built-in questions, the model asks follow-up questions **one at a
-time**, each with *why it matters* and an importance (high / medium / low):
+It is part of the same interview, not a separate phase: after each answer the
+model may add **one** question, with *why it matters* and a priority, to the
+same queue as the built-in questions, and the most important open question is
+always asked next (a contradiction before anything else of its priority).
 
-- It sees every earlier question and your reply, with its status — *answered*
-  (a confirmed fact), *assumption*, *unknown* or *skipped* — and builds on
+- It sees the requirements, every question (asked and planned) with its
+  priority, state and your reply, and the unresolved conflicts, and builds on
   them (an error path, a limit or a state your answer implies).
-- It must not repeat a question; repeats and close rewordings are also
-  filtered out in code, and fields you marked *unknown* are not asked again.
+- Its output is checked in code before it is used: repeats and close
+  rewordings of any known question are dropped, as are questions about a
+  field you confirmed or marked *unknown*, questions pointing at requirements
+  that do not exist, and questions that state a number found nowhere in your
+  input (a presumed answer). Values in an open or lost contradiction do not
+  count as input.
 - It never fills in the draft and never suggests answers: only your reply
   does, and you can still answer, assume, say *I don't know*, or skip.
-- It stops when it says nothing important is left (or after 12 questions);
+- It is asked once per answer (never in a loop) and stops after 12 questions;
   **Ask the AI for the next question** asks again. If the provider fails,
   you see the error once and the interview simply continues without AI.
 
@@ -304,12 +323,15 @@ optional, AI findings can warn but never block, and output that cannot be
 traced (unknown fields, invented requirement IDs, quotes not found in your
 text) is discarded.
 
-**Final report.** Every confirmed session ends with a report that keeps three
-kinds of statements apart and never fills a gap: **confirmed facts** (the
-source text, your draft, answers you confirmed), **assumptions** (not
-confirmed), and **unknowns and open questions** (unknown, skipped or
-unanswered). It lists each clarified requirement verbatim with its
-clarifications, and **suggested test cases**: rule-based ones from the linked
+**Final report.** Every confirmed session ends with a report that keeps the
+kinds of statements apart and never fills a gap: **clarified requirements**
+(verbatim, with their clarifications), **confirmed decisions** (the source
+text, your draft, answers you confirmed), **assumptions** (not confirmed),
+**unresolved questions** (unknown, skipped or unanswered), and
+**contradictions** — each with your decision, or marked unresolved. An answer
+that is still contested, or that lost a contradiction, is listed there and
+never as a decision (and never resolves a finding in the workspace). Then
+come **suggested test scenarios**: rule-based ones from the linked
 requirements, plus — on request, with consent — AI ideas. An AI test case is
 kept only if its expected result quotes a requirement or one of your answers;
 the app (not the model) labels its basis as *requirement*, *confirmed answer*
@@ -444,7 +466,8 @@ src/spec_to_test/
 └── grill/                   Grill Mode domain logic (no Streamlit, no network)
     ├── models.py            Session, drafts, questions, answers, findings, provenance
     ├── workflow.py          Explicit steps and validated transitions
-    ├── planner.py           Deterministic question banks
+    ├── planner.py           Deterministic question banks, priorities, adaptive follow-ups
+    ├── conflicts.py         Contradictions in answers, answer states (confirmed … conflict)
     ├── validation.py        Deterministic review checks
     ├── inputs.py            Labeled-draft parser
     ├── integration.py       Confirmed results → workspace, resolved findings, Markdown

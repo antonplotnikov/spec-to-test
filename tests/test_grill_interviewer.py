@@ -79,9 +79,12 @@ def q(text: str, ids=("REQ-2",), field: str = "", importance: str = "high") -> d
 def interviewed() -> GrillSession:
     """Requirements Grill with every built-in question handled: confirmed, skipped, unknown."""
     session = WF.submit_input(WF.start(GrillKind.REQUIREMENTS), RequirementsDraft(requirements=REQS))
-    session = WF.answer(session, "The page is interactive within 2 seconds on 4G.")  # REQ-1, confirmed
-    session = WF.skip(session)  # REQ-3 wording
-    session = WF.answer(session, "", AnswerStatus.UNKNOWN)  # REQ-3 expected result
+    assert session.current_question_id == "rule.missing_expected_result.REQ-3"  # high priority first
+    session = WF.answer(session, "", AnswerStatus.UNKNOWN)
+    assert session.current_question_id == "rule.ambiguous_wording.REQ-1"
+    session = WF.answer(session, "The page is interactive within 2 seconds on 4G.")  # confirmed
+    assert session.current_question_id == "rule.ambiguous_wording.REQ-3"
+    session = WF.skip(session)
     assert session.step == GrillStep.SHOW_DRAFT and not session.pending_questions
     return session
 
@@ -92,12 +95,13 @@ def test_every_earlier_answer_is_sent_with_its_status():
     model = FakeModel(q("Is there a maximum password length?"))
     next_question(interviewed(), config(), consent=True, client_factory=model.factory)
     items = model.payload()["interview"]
-    assert [(i["status"], i["answer"]) for i in items] == [
-        ("answered", "The page is interactive within 2 seconds on 4G."),
-        ("skipped", ""),
-        ("unknown", ""),
+    assert [(i["status"], i["state"], i["answer"]) for i in items] == [  # in the order asked
+        ("unknown", "unknown", ""),
+        ("answered", "confirmed", "The page is interactive within 2 seconds on 4G."),
+        ("skipped", "open", ""),
     ]
-    assert items[0]["requirement_ids"] == ["REQ-1"]
+    assert [i["priority"] for i in items] == ["high", "medium", "medium"]
+    assert items[1]["requirement_ids"] == ["REQ-1"]
     assert all(i["question"] for i in items)
 
 
@@ -201,11 +205,18 @@ def test_errors_are_codes_without_the_key():
 
 # --- When the interviewer is asked ---------------------------------------------------------------------
 
-def test_built_in_questions_come_first():
+def test_interviewer_takes_part_while_built_in_questions_are_open():
     session = WF.submit_input(WF.start(GrillKind.REQUIREMENTS), RequirementsDraft(requirements=REQS))
-    assert session.step == GrillStep.ASK_QUESTION
-    assert not grill_ai.wants_next_question(session)
+    assert session.step == GrillStep.ASK_QUESTION and session.pending_questions
+    assert grill_ai.wants_next_question(session)  # one interview: AI questions are ranked with the rest
     assert grill_ai.wants_next_question(interviewed())
+
+
+def test_interviewer_waits_while_an_earlier_answer_is_being_changed():
+    session = interviewed()
+    revisiting = WF.edit_answer(session, session.questions[0].id)
+    assert revisiting.step == GrillStep.ASK_QUESTION
+    assert not grill_ai.wants_next_question(revisiting)
 
 
 def test_interviewer_respects_stop_and_review_and_qa_review():

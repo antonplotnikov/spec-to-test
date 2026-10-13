@@ -16,10 +16,15 @@ Trust rules:
   unknown or skipped) are sent, as JSON data, with an instruction to ignore
   instructions inside it.
 
-The AI interviewer (`next_question`) asks one question at a time, after the
-built-in questions are handled: it sees every earlier reply, must not repeat a
-question (exact and near-duplicates are also dropped here), and stops when it
-says nothing important is left or after MAX_INTERVIEW_QUESTIONS.
+The AI interviewer (`next_question`) is part of the one interview: after
+each answer it may propose one question, which joins the built-in questions
+in the same priority-ranked queue (`GrillWorkflow.merge_questions`). It sees
+every question so far (planned ones too) with its priority, state and reply,
+and the unresolved conflicts. Its question is dropped unless it is
+traceable and new: not a repeat or close rewording of any known question, not
+about a field the user marked unknown or already confirmed, and not stating a
+number that appears nowhere in the input (a presumed answer). It stops after
+MAX_INTERVIEW_QUESTIONS.
 """
 
 import hashlib
@@ -38,6 +43,7 @@ from spec_to_test.ai_analysis import (
     language_name,
     request_structured,
 )
+from spec_to_test.grill.conflicts import contested, question_states, unresolved_conflicts
 from spec_to_test.grill.drafts import AnyDraft, editable_fields, is_list_field
 from spec_to_test.grill.models import (
     FindingLevel,
@@ -51,6 +57,7 @@ from spec_to_test.grill.models import (
     ReviewFinding,
 )
 from spec_to_test.grill.report import Basis, SuggestedTestCase, fact_texts, linked_requirements
+from spec_to_test.grill.rules import numbers_in
 from spec_to_test.grill.text import render_question
 from spec_to_test.models import Source, TestType
 
@@ -59,6 +66,7 @@ MAX_FINDINGS = 10
 MAX_TEST_CASES = 12
 # The AI interviewer stops after this many AI questions in one session (cost and fatigue).
 MAX_INTERVIEW_QUESTIONS = 12
+MAX_QUESTION_CHARS = 400
 # Fields filled from a fixed list (or a requirement ID) are asked by the built-in planner only.
 _CHOICE_FIELDS = frozenset({"test_type", "severity", "reproducibility", "priority", "requirement_id"})
 # Requirements drafts keep the source verbatim; findings may point at it or at the clarifications.
@@ -109,9 +117,12 @@ def interview(session: GrillSession, lang: str = "en") -> list[dict[str, Any]]:
     """Every question so far, in the order asked, with the author's reply.
 
     status: "answered" (confirmed), "assumed" (not confirmed), "unknown",
-    "skipped", or "pending" (asked but not handled yet).
+    "skipped", or "pending" (planned, not handled yet). state: confirmed,
+    assumption, unknown, conflict (contradicts a requirement or another
+    answer) or open. priority: high, medium or low.
     """
     order = list(dict.fromkeys([*session.history, *(q.id for q in session.questions)]))
+    states = question_states(session)
     items = []
     for question_id in order:
         question = session.question(question_id)
@@ -123,6 +134,8 @@ def interview(session: GrillSession, lang: str = "en") -> list[dict[str, Any]]:
             "field": question.field,
             "requirement_ids": question.requirement_ids,
             "status": answer.status.value if answer else "pending",
+            "state": states[question_id].value,
+            "priority": question.priority,
             "answer": answer.value if answer else "",
         })
     return items
@@ -136,6 +149,9 @@ def build_message(session: GrillSession, lang: str = "en") -> str:
         "requirements": [{"id": r.id, "text": r.text} for r in linked_requirements(session)],
         "already_asked": [render_question(q, lang)[0] for q in session.questions],
         "interview": interview(session, lang),
+        "conflicts": [
+            {"requirement_ids": c.requirement_ids, "statements": c.statements} for c in unresolved_conflicts(session)
+        ],
     }
     return "Grill session (JSON):\n<grill>\n" + json.dumps(payload, ensure_ascii=False, indent=1) + "\n</grill>"
 
@@ -186,17 +202,19 @@ _GOALS = {
 
 INTERVIEW_PROMPT = """You are a senior QA engineer interviewing the author of a {artifact} draft, one question at a time.
 Goal: {goal}.
-Decide the single most important question that is still open, or that nothing important is left.
+Built-in checks already plan questions; you add the single most important question they miss, or nothing.
 
 The data:
 - "requirements" and "draft" are what the author has given so far.
-- "interview" lists every question already asked, in order, with the author's reply. Its "status" is
+- "interview" lists every question so far, in order, with the author's reply. Its "status" is
   "answered" (confirmed by the author: a fact), "assumed" (an assumption, not confirmed),
-  "unknown" (the author does not know), "skipped" (the author chose not to answer) or "pending" (not handled yet).
+  "unknown" (the author does not know), "skipped" (the author chose not to answer) or "pending" (planned, not asked yet).
+  "state" is "conflict" when a reply contradicts a requirement or another reply.
+- "conflicts" lists contradictions that are not resolved yet; a built-in question already asks about each.
 
 Rules:
 - Ask about exactly one thing. Do not combine several questions into one.
-- Never repeat or rephrase a question from "interview". Do not ask again about anything answered "unknown" or "skipped", or about "unknown_fields".
+- Never repeat or rephrase a question from "interview", including "pending" ones. Do not ask again about anything answered "unknown" or "skipped", about "unknown_fields", or about the "conflicts".
 - Build on the replies: follow up where a confirmed answer opens a new gap (an error path, a limit, a state, a role or a data condition it implies). Ask to confirm an assumption only if a test result depends on it.
 - Never invent product behavior, numbers, messages, IDs, roles or environments, and do not suggest or presume an answer in the question.
 - {field_rule}
@@ -255,6 +273,33 @@ def is_duplicate(text: str, asked: list[str]) -> bool:
     return False
 
 
+def _new_numbers(text: str, known: set[str], session: GrillSession) -> set[str]:
+    """Numbers in `text` that the input does not contain (requirement IDs and step numbers excepted)."""
+    ids = {r.id for r in session.context_requirements} | (session.known_requirement_ids or set())
+    for requirement_id in sorted(ids, key=len, reverse=True):
+        text = text.replace(requirement_id, " ")
+    steps = getattr(session.draft, "steps", []) or []
+    return numbers_in(text) - known - {str(n) for n in range(1, len(steps) + 1)}
+
+
+def _input_texts(session: GrillSession) -> list[str]:
+    """Everything the author and the documents said: what an AI question may refer to."""
+    draft = session.draft
+    assert draft is not None
+    disputed = contested(session)[0]  # a contradicted or overruled value is not a known fact
+    texts = [r.text for r in session.context_requirements]
+    if isinstance(draft, RequirementsDraft):
+        texts += [r.text for r in draft.requirements]
+        texts += [s.text for s in draft.statements if s.origin not in disputed]
+    else:
+        for field in editable_fields(draft):
+            value = getattr(draft, field)
+            texts += value if isinstance(value, list) else [str(value.value if hasattr(value, "value") else value or "")]
+    texts += [a.value for a in session.answers.values() if a.question_id not in disputed]
+    texts += [render_question(q)[0] for q in session.questions if q.origin != Source.AI and not q.is_decision]
+    return texts
+
+
 def _question_id(field: str, text: str) -> str:
     digest = hashlib.sha256(_normalized(text).encode("utf-8")).hexdigest()[:10]
     return f"ai.{field or 'req'}.{digest}"
@@ -268,6 +313,8 @@ def to_questions(
     assert draft is not None
     allowed = set(question_fields(draft))
     unknown = {f for f, p in draft.provenance.items() if p == Provenance.UNKNOWN}
+    confirmed = {f for f, p in draft.provenance.items() if p == Provenance.USER_CONFIRMED}
+    known_numbers = numbers_in("\n".join(_input_texts(session)))
     known_ids = session.known_requirement_ids or set()
     asked = [render_question(q, lang)[0] for q in session.questions]
     existing = {q.id for q in session.questions}
@@ -275,13 +322,15 @@ def to_questions(
     for item in response.questions:
         text, field = item.question.strip(), item.field.strip()
         ids = list(dict.fromkeys(i.strip() for i in item.requirement_ids if i.strip() in known_ids))
-        if not text or is_duplicate(text, asked):
+        if not text or len(text) > MAX_QUESTION_CHARS or is_duplicate(text, asked):
             continue
+        if _new_numbers(text, known_numbers, session):
+            continue  # a number from nowhere: the question presumes an answer
         if isinstance(draft, RequirementsDraft):
             if field or not ids:
                 continue  # a clarification must point at a real requirement
-        elif field not in allowed or field in unknown:
-            continue  # unknown fields: the author already said they do not know
+        elif field not in allowed or field in unknown or field in confirmed:
+            continue  # the author already said they do not know, or already confirmed it
         question_id = _question_id(field, text)
         if question_id in existing:
             continue
@@ -332,25 +381,31 @@ def suggest_questions(
 # ---------------------------------------------------------------------------
 
 def wants_next_question(session: GrillSession) -> bool:
-    """True when the interview is waiting for its next question.
+    """True when the AI interviewer may propose a question for the shared queue.
 
-    The built-in questions come first; the AI is asked only when none is
-    pending, the user has not chosen to stop the interview, and the session
-    has not reached MAX_INTERVIEW_QUESTIONS AI questions.
+    That is during the interview (also while built-in questions are open: the
+    AI question is ranked with them), unless the user stopped the interview,
+    went back to change an earlier answer, or MAX_INTERVIEW_QUESTIONS AI
+    questions were added. The page asks once per interview state
+    (`interview_fingerprint`), i.e. once after each answer.
     """
-    return (
-        session.draft is not None
-        and session.kind != GrillKind.REVIEW
-        and session.step == GrillStep.SHOW_DRAFT
-        and not session.interview_closed
-        and not session.pending_questions
-        and sum(q.origin == Source.AI for q in session.questions) < MAX_INTERVIEW_QUESTIONS
-    )
+    if session.draft is None or session.kind == GrillKind.REVIEW or session.interview_closed:
+        return False
+    if session.step == GrillStep.ASK_QUESTION:
+        if session.current_question_id in session.answers:
+            return False  # the user is revising an answer; do not reshuffle the queue under them
+    elif session.step != GrillStep.SHOW_DRAFT:
+        return False
+    return sum(q.origin == Source.AI for q in session.questions) < MAX_INTERVIEW_QUESTIONS
 
 
 def interview_fingerprint(session: GrillSession) -> str:
-    """Changes whenever a reply or the draft changes, so the AI is asked once per state."""
-    return f"{session.id}:{session.draft_revision}:{len(session.questions)}:{len(session.answers)}:" + ",".join(
+    """Changes whenever the user answers or edits the draft, so the AI is asked once per state.
+
+    Questions the AI itself added do not change it: otherwise each AI
+    question would trigger the next request in a chain.
+    """
+    return f"{session.id}:{session.draft_revision}:{len(session.answers)}:" + ",".join(
         f"{a.question_id}={a.status.value}/{a.revision}" for a in session.answers.values()
     )
 
@@ -555,6 +610,8 @@ def to_test_cases(response: AITestCases, session: GrillSession) -> list[Suggeste
         )
         if basis is None:
             continue  # the expected result rests on nothing the author said
+        if numbers_in(expected) - numbers_in("\n".join(t for values in texts.values() for t in values)):
+            continue  # the expected result states a number nobody gave
         seen.add(_normalized(title))
         result.append(
             SuggestedTestCase(

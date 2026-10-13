@@ -1,11 +1,14 @@
 """Final report of a Grill session: what is known, what is assumed, what is open, what to test.
 
-The report keeps three kinds of statements apart and never merges them:
-- confirmed facts: the source requirements, what the author wrote in their
-  own draft, and replies the author confirmed;
+The report keeps four kinds of statements apart and never merges them:
+- confirmed decisions: the source requirements, what the author wrote in
+  their own draft, and replies the author confirmed;
 - assumptions: replies the author accepted without confirming them, and
   values suggested by AI that nobody confirmed;
-- unknowns: questions answered "unknown", skipped, or never answered.
+- unresolved questions: answered "unknown", skipped, or never answered;
+- contradictions (`grill.conflicts`): resolved ones with their decision,
+  open ones as open. A reply that is contested by an open contradiction, or
+  that lost a resolved one, is listed there and not as a decision.
 
 Suggested test cases come from the built-in rule-based generator (always) and,
 on request, from an AI model (`grill.ai.suggest_test_cases`). Each one names
@@ -21,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from spec_to_test.exports import _md_table
 from spec_to_test.formatting import escape_markdown
+from spec_to_test.grill.conflicts import ConflictKind, contested, detect_conflicts
 from spec_to_test.grill.drafts import editable_fields, field_is_empty
 from spec_to_test.grill.integration import IntegrationError
 from spec_to_test.grill.models import (
@@ -78,6 +82,14 @@ class SuggestedTestCase(BaseModel):
     origin: Source
 
 
+class ContradictionItem(BaseModel):
+    kind: ConflictKind
+    requirement_ids: list[str]
+    statements: list[str]  # verbatim
+    resolved: bool
+    resolution: str = ""  # the author's decision, verbatim ("" while open)
+
+
 class GrillReport(BaseModel):
     artifact: ArtifactType
     clarified_requirements: list[ClarifiedRequirement]
@@ -86,6 +98,7 @@ class GrillReport(BaseModel):
     unknowns: list[ReportItem]
     suggested_tests: list[SuggestedTestCase]
     accepted_findings: list[str] = Field(default_factory=list)
+    contradictions: list[ContradictionItem] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -106,9 +119,10 @@ def _field_items(session: GrillSession, lang: str, sources: tuple[Provenance, ..
     draft = session.draft
     assert draft is not None and not isinstance(draft, RequirementsDraft)
     links = [draft.requirement_id] if draft.requirement_id else []
+    excluded = contested(session)[1]
     items = []
     for field in editable_fields(draft):
-        if field == "assumptions" or field_is_empty(draft, field):
+        if field == "assumptions" or field_is_empty(draft, field) or field in excluded:
             continue
         # A value without a recorded origin was in the author's own input.
         source = draft.provenance.get(field, Provenance.SOURCE)
@@ -123,9 +137,10 @@ def _field_items(session: GrillSession, lang: str, sources: tuple[Provenance, ..
 def _statement_items(session: GrillSession, lang: str, sources: tuple[Provenance, ...]) -> list[ReportItem]:
     draft = session.draft
     assert isinstance(draft, RequirementsDraft)
+    excluded = contested(session)[0]
     items = []
     for statement in draft.statements:
-        if statement.provenance in sources:
+        if statement.provenance in sources and statement.origin not in excluded:
             question = session.question(statement.origin)
             items.append(ReportItem(
                 text=statement.text, origin=statement.provenance.value,
@@ -193,7 +208,10 @@ def fact_texts(session: GrillSession) -> dict[Basis, list[str]]:
         texts[Basis.CONFIRMED].append(item.text)
     for item in assumption_items(session):
         texts[Basis.ASSUMPTION].append(item.text)
+    excluded = contested(session)[0]
     for answer in session.answers.values():
+        if answer.question_id in excluded:
+            continue
         if answer.status == AnswerStatus.ANSWERED:
             texts[Basis.CONFIRMED].append(answer.value)
         elif answer.status == AnswerStatus.ASSUMED:
@@ -252,6 +270,13 @@ def build_report(
     accepted = []
     if session.accepted_unresolved:
         accepted = [render_finding(f, lang)[0] for f in session.warning_findings]
+    contradictions = [
+        ContradictionItem(
+            kind=c.kind, requirement_ids=c.requirement_ids, statements=c.statements,
+            resolved=c.resolved, resolution=c.resolution,
+        )
+        for c in detect_conflicts(session)
+    ]
     return GrillReport(
         artifact=session.artifact,
         clarified_requirements=clarified,
@@ -260,6 +285,7 @@ def build_report(
         unknowns=unknowns,
         suggested_tests=[*rule_based_tests(session, lang), *(ai_tests or [])],
         accepted_findings=accepted,
+        contradictions=contradictions,
     )
 
 
@@ -280,6 +306,13 @@ def case_label(case: SuggestedTestCase, lang: str = "en") -> str:
         t(f"source.{case.origin.value}", lang),
     ])
 
+
+
+def contradiction_status(item: ContradictionItem, lang: str = "en") -> str:
+    """The decision, or that the contradiction is still open."""
+    if item.resolved:
+        return t("grill.report.resolved", lang, decision=item.resolution)
+    return t("grill.report.unresolved", lang)
 
 
 def _md_items(items: list[str]) -> list[str]:
@@ -317,6 +350,17 @@ def report_markdown(report: GrillReport, lang: str = "en") -> str:
         else:
             out.append(t("grill.report.none", lang))
         out.append("")
+    out += [f"## {t('grill.report.contradictions', lang)}", ""]
+    if report.contradictions:
+        out += _md_table(
+            [t("grill.report.col_conflicting", lang), t("grill.ui.column_requirements", lang),
+             t("grill.report.col_decision", lang)],
+            [[" ⟷ ".join(c.statements), ", ".join(c.requirement_ids) or "—", contradiction_status(c, lang)]
+             for c in report.contradictions],
+        )
+    else:
+        out.append(t("grill.report.none", lang))
+    out.append("")
     if report.accepted_findings:
         out += [f"## {t('grill.export.accepted_findings', lang)}", "", *_md_items(report.accepted_findings), ""]
     out += [f"## {t('grill.report.tests', lang)}", ""]

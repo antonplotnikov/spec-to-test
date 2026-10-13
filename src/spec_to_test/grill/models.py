@@ -174,7 +174,8 @@ class Question(BaseModel):
     essential: bool = True
     requirement_ids: list[str] = Field(default_factory=list)
     origin: Source = Source.RULE
-    # How much a test depends on the answer (AI interviewer questions); "" = not rated.
+    # Priority: how much testing depends on the answer. "" (older sessions) = high
+    # for essential questions, otherwise medium.
     importance: Literal["", "high", "medium", "low"] = ""
 
     @model_validator(mode="after")
@@ -184,6 +185,40 @@ class Question(BaseModel):
         if not self.allow_free_text and not self.choices:
             raise ValueError("a question without free text needs choices")
         return self
+
+    @property
+    def priority(self) -> str:
+        return self.importance or ("high" if self.essential else "medium")
+
+    @property
+    def rank(self) -> int:
+        """0 = asked first."""
+        return PRIORITY_RANK[self.priority]
+
+    @property
+    def is_decision(self) -> bool:
+        """Chooses between contradicting statements; asked before anything else of its priority."""
+        return self.id.startswith(DECISION_PREFIXES)
+
+
+PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+# Questions that choose between contradicting statements (see grill.conflicts).
+DECISION_PREFIXES = ("conflict.", "rule.contradiction.")
+
+
+class ClarificationState(StrEnum):
+    """What the interview knows about one question (derived, never stored).
+
+    Answers keep their recorded AnswerStatus; CONFLICT is added on top when a
+    confirmed or assumed answer disagrees with a requirement or another answer
+    and the disagreement has not been resolved.
+    """
+
+    CONFIRMED = "confirmed"
+    ASSUMPTION = "assumption"
+    UNKNOWN = "unknown"
+    CONFLICT = "conflict"
+    OPEN = "open"  # not answered yet, or skipped
 
 
 class AnswerStatus(StrEnum):
@@ -326,6 +361,15 @@ class GrillSession(BaseModel):
     def pending_questions(self) -> list[Question]:
         """Questions that have not been answered, marked unknown, or skipped."""
         return [q for q in self.questions if q.id not in self.answers]
+
+    @property
+    def next_pending(self) -> Question | None:
+        """The open question to ask next: highest priority first; within a priority,
+        contradictions first (nothing should build on a disputed statement), then queue order."""
+        pending = self.pending_questions
+        if not pending:
+            return None
+        return min(enumerate(pending), key=lambda item: (item[1].rank, not item[1].is_decision, item[0]))[1]
 
     @property
     def unresolved_questions(self) -> list[Question]:

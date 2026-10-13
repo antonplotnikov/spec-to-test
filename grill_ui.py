@@ -29,6 +29,7 @@ import streamlit as st
 from spec_to_test.ai_analysis import AIConfig, AIError
 from spec_to_test.formatting import escape_markdown
 from spec_to_test.grill import ai as grill_ai
+from spec_to_test.grill.conflicts import detect_conflicts, question_states
 from spec_to_test.grill.drafts import DraftError, draft_from_text, editable_fields, is_list_field
 from spec_to_test.grill.inputs import parse_draft, requirements_draft
 from spec_to_test.grill.integration import (
@@ -47,6 +48,7 @@ from spec_to_test.grill.models import (
     AnswerStatus,
     ArtifactType,
     BugReportDraft,
+    ClarificationState,
     FindingLevel,
     GrillKind,
     GrillMode,
@@ -66,6 +68,7 @@ from spec_to_test.grill.report import (
     SuggestedTestCase,
     build_report,
     case_label,
+    contradiction_status,
     origin_label,
     report_markdown,
 )
@@ -97,6 +100,11 @@ AI_TESTS = "grill_ai_test_ideas"  # session ID -> AI test case ideas for the fin
 OTHER = "__other__"
 
 LEVEL_ICONS = {FindingLevel.BLOCKING: "⛔", FindingLevel.WARNING: "⚠️", FindingLevel.SUGGESTION: "💡"}
+STATE_ICONS = {
+    ClarificationState.CONFIRMED: "✅", ClarificationState.ASSUMPTION: "🟡", ClarificationState.UNKNOWN: "❓",
+    ClarificationState.CONFLICT: "⚔️", ClarificationState.OPEN: "⏳",
+}
+PRIORITY_ICONS = {"high": "🔴", "medium": "🟠", "low": "⚪"}
 SHORT_TEXT_FIELDS = {"title", "feature", "summary", "environment", "app_version", "requirement_id"}
 CHOICE_FIELDS: dict[str, tuple[list[str], str]] = {
     "test_type": ([v.value for v in TestType], "test_type"),
@@ -374,6 +382,12 @@ def _session_screen(
     done, total = session.progress
     if total:
         st.progress(done / total, text=t("grill.ui.progress", lang, done=done, total=total))
+        counts = {state: 0 for state in ClarificationState}
+        for state in question_states(session).values():
+            counts[state] += 1
+        st.caption(" · ".join(
+            f"{STATE_ICONS[state]} {t(f'grill.state.{state.value}', lang)}: {counts[state]}" for state in ClarificationState
+        ))
     if (unparsed := st.session_state.get(UNPARSED)) and not session.is_terminal:
         st.warning(t("grill.ui.unparsed", lang), icon=":material/help:")
         st.code("\n".join(unparsed), language=None)  # shown literally, never interpreted
@@ -410,6 +424,7 @@ def _session_screen(
         return
     if ai_config is not None and Action.ADD_QUESTIONS in actions:
         _ai_panel(lang, session, ai_config)
+    _issues_panel(lang, session)
     _answers_panel(lang, session, actions)
     _footer(lang, session, actions)
 
@@ -427,9 +442,13 @@ def _question_panel(lang: str, session: GrillSession, actions: set[Action]) -> N
             st.caption(_md(t("grill.ui.why", lang, reason=reason)))
         if question.origin == Source.AI:
             st.caption(t("grill.ui.ai_question", lang))
-        if question.importance:
-            st.caption(t("grill.ui.importance", lang, level=t(f"grill.importance.{question.importance}", lang)))
+        st.caption(t("grill.ui.importance", lang, level=t(f"grill.importance.{question.priority}", lang)))
         _linked_requirements(lang, session, question)
+        if question.id.startswith("conflict.") or question.id.startswith("rule.contradiction."):
+            st.warning(t("grill.ui.conflict_question", lang), icon=":material/compare_arrows:")
+        if question.id in session.answers:
+            state = question_states(session)[question.id]
+            st.caption(t("grill.ui.current_state", lang, state=f"{STATE_ICONS[state]} {t(f'grill.state.{state.value}', lang)}"))
         if question.essential:
             st.caption(t("grill.ui.essential", lang))
 
@@ -504,19 +523,47 @@ def _linked_requirements(lang: str, session: GrillSession, question: Question) -
             st.caption(_md(t("grill.ui.linked", lang, id=req_id, text=texts[req_id])))
 
 
+def _issues_panel(lang: str, session: GrillSession) -> None:
+    """Everything still open, highest priority first: unanswered, unknown or skipped
+    questions, and contradictions (each has its own question, shown as a conflict)."""
+    states = question_states(session)
+    conflict_ids = {c.id for c in detect_conflicts(session) if not c.resolved}
+    open_questions = sorted(
+        (q for q in session.questions if states[q.id] in (ClarificationState.OPEN, ClarificationState.UNKNOWN)),
+        key=lambda q: q.rank,
+    )
+    with st.expander(t("grill.ui.issues_heading", lang, count=len(open_questions)), icon=":material/pending_actions:"):
+        if not open_questions:
+            st.caption(t("grill.ui.no_issues", lang))
+            return
+        rows = []
+        for question in open_questions:
+            state = ClarificationState.CONFLICT if question.id in conflict_ids else states[question.id]
+            rows.append({
+                t("grill.ui.column_priority", lang): f"{PRIORITY_ICONS[question.priority]} {t(f'grill.importance.{question.priority}', lang)}",
+                t("grill.ui.column_question", lang): render_question(question, lang)[0],
+                t("grill.ui.column_requirements", lang): ", ".join(question.requirement_ids) or "—",
+                t("grill.ui.column_state", lang): f"{STATE_ICONS[state]} {t(f'grill.state.{state.value}', lang)}",
+            })
+        _table(rows)
+
+
 def _answers_panel(lang: str, session: GrillSession, actions: set[Action]) -> None:
     handled = [q for q in session.questions if q.id in session.answers]
     if not handled:
         return
     with st.expander(t("grill.ui.answers_heading", lang), icon=":material/history:"):
         rows = []
+        states = question_states(session)
         for question in session.questions:
             answer = session.answers.get(question.id)
+            state = states[question.id]
             rows.append({
                 t("grill.ui.column_question", lang): render_question(question, lang)[0],
                 t("grill.ui.column_answer", lang): answer.value if answer else "",
                 t("grill.ui.column_status", lang): t(f"grill.answer_status.{answer.status.value}", lang)
                 if answer else t("grill.ui.pending", lang),
+                t("grill.ui.column_state", lang): f"{STATE_ICONS[state]} {t(f'grill.state.{state.value}', lang)}",
             })
         _table(rows)
         if Action.EDIT_ANSWER in actions:
@@ -812,19 +859,25 @@ def _ai_interviewer(lang: str, session: GrillSession, config: AIConfig, actions:
         if Action.ADD_QUESTIONS in actions and session.step != GrillStep.ASK_QUESTION:
             st.caption(t("grill.ui.ai_interviewer_idle", lang))
             if st.button(t("grill.ui.ai_next", lang), key="grill_ai_next", icon=":material/forum:"):
-                _ask_next(lang, session, config)
+                _ask_next(lang, session, config, explicit=True)
                 st.rerun()
 
 
-def _ask_next(lang: str, session: GrillSession, config: AIConfig) -> None:
+def _ask_next(lang: str, session: GrillSession, config: AIConfig, *, explicit: bool = False) -> None:
+    """Ask the interviewer for one question. Automatic requests join the ranked queue;
+    an explicit request (the button) asks the new question at once."""
     st.session_state[AI_ASKED] = grill_ai.interview_fingerprint(session)
     try:
         with st.spinner(t("grill.ui.ai_thinking", lang)):
             question = grill_ai.next_question(session, config, True, lang)
         if question is None:
-            _notice("grill.ui.ai_interview_done")
+            if explicit or session.step == GrillStep.SHOW_DRAFT:  # only say so when the interview would end
+                _notice("grill.ui.ai_interview_done")
             return
-        _save(WF.add_questions(session, [question], expected_revision=session.revision))
+        if explicit:
+            _save(WF.add_questions(session, [question], expected_revision=session.revision))
+        else:
+            _save(WF.merge_questions(session, [question], expected_revision=session.revision))
     except AIError as exc:
         _error(f"ai.error.{exc.code}")
         _notice("grill.ui.ai_fallback")
@@ -870,6 +923,18 @@ def _report_panel(lang: str, session: GrillSession, ai_config: AIConfig | None) 
                 }
                 for i in items
             ])
+        st.markdown(f"**⚔️ {t('grill.report.contradictions', lang)}** ({len(report.contradictions)})")
+        if report.contradictions:
+            _table([
+                {
+                    t("grill.report.col_conflicting", lang): " ⟷ ".join(c.statements),
+                    t("grill.ui.column_requirements", lang): ", ".join(c.requirement_ids) or "—",
+                    t("grill.report.col_decision", lang): contradiction_status(c, lang),
+                }
+                for c in report.contradictions
+            ])
+        else:
+            st.caption(t("grill.report.none", lang))
         _suggested_tests(lang, report)
         if ai_config is not None:
             _ai_test_ideas(lang, session, ai_config)

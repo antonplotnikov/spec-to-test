@@ -16,6 +16,7 @@ point out a problem; it never rewrites the draft.
 
 import re
 
+from spec_to_test.grill.conflicts import CONFLICT_PREFIX, FOLLOWUP_PREFIX, ConflictKind, unresolved_conflicts
 from spec_to_test.grill.drafts import AnyDraft, field_is_empty
 from spec_to_test.grill.models import (
     AnswerStatus,
@@ -59,6 +60,8 @@ CHECK_CODES = (
     # Rule engine findings on source requirements
     "req_ambiguous_wording", "req_missing_expected_result", "req_missing_boundary",
     "req_missing_error_handling", "req_contradiction",
+    # Contradictions found in the answers (grill.conflicts)
+    "answer_conflict",
 )
 
 _PLACEHOLDER = re.compile(
@@ -433,12 +436,12 @@ def check_open_clarifications(session: GrillSession) -> list[ReviewFinding]:
         rule_ids = {qid for qid, _ in requirement_findings(session.draft.requirements)}
     findings = []
     for question in session.unresolved_questions:
-        if question.field or question.id in rule_ids:
-            continue
+        if question.field or question.id in rule_ids or question.id.startswith(CONFLICT_PREFIX):
+            continue  # conflicts are reported by check_conflicts
         answer = session.answers.get(question.id)
         status = answer.status if answer else None
-        if question.origin == Source.AI and status == AnswerStatus.SKIPPED:
-            continue  # skipping an AI question dismisses it
+        if status == AnswerStatus.SKIPPED and (question.origin == Source.AI or question.id.startswith(FOLLOWUP_PREFIX)):
+            continue  # skipping an AI question or a follow-up dismisses it
         code = "question_unknown" if status == AnswerStatus.UNKNOWN else "question_open"
         findings.append(
             _finding(
@@ -449,8 +452,24 @@ def check_open_clarifications(session: GrillSession) -> list[ReviewFinding]:
     return findings
 
 
+def check_conflicts(session: GrillSession) -> list[ReviewFinding]:
+    """Clarifications that contradict a requirement or each other, not yet resolved.
+
+    Conflicts in draft fields are reported by the limit checks, and
+    contradictions between source requirements by the rule-engine checks.
+    """
+    return [
+        _finding(
+            FindingLevel.WARNING, ReviewCategory.CONTRADICTION, "answer_conflict", "statements",
+            conflict.requirement_ids, first=conflict.phrases[0], second=conflict.phrases[1],
+        )
+        for conflict in unresolved_conflicts(session)
+        if conflict.kind != ConflictKind.SOURCE and not conflict.field
+    ]
+
+
 def deterministic_review(session: GrillSession) -> list[ReviewFinding]:
-    """Default reviewer: field checks plus open clarification questions."""
+    """Default reviewer: field checks, open clarification questions and unresolved conflicts."""
     if session.draft is None:
         return []
     draft = session.draft
@@ -458,6 +477,7 @@ def deterministic_review(session: GrillSession) -> list[ReviewFinding]:
     source = next((r for r in session.context_requirements if r.id == requirement_id), None)
     findings = check_draft(draft, session.known_requirement_ids, source)
     findings += check_open_clarifications(session)
+    findings += check_conflicts(session)
     return sort_findings(findings)
 
 

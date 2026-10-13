@@ -104,9 +104,14 @@ def test_essential_findings_cannot_be_skipped_but_others_can():
     with pytest.raises(GrillError, match="essential_question"):
         WF.skip(session)
     session = WF.answer(session, session.current_question.choices[0].value)
+    # High priority first: a missing expected result outranks vague wording.
+    assert session.current_question_id == "rule.missing_expected_result.REQ-4"
+    with pytest.raises(GrillError, match="essential_question"):
+        WF.skip(session)
+    session = WF.answer(session, "", AnswerStatus.UNKNOWN)
     assert session.current_question_id == "rule.ambiguous_wording.REQ-3"
     session = WF.skip(session)
-    assert session.current_question_id == "rule.missing_expected_result.REQ-4"
+    assert "rule.ambiguous_wording.REQ-3" in session.answers
 
 
 def test_answers_become_traceable_statements_and_resolve_findings():
@@ -181,16 +186,17 @@ def test_feature_is_asked_only_when_there_is_no_requirement_to_link():
 
 def test_without_a_document_the_requirement_id_is_free_text_and_optional():
     session = tc_session(context=None)
-    question = session.current_question
+    question = next(q for q in session.questions if q.id == "tc.requirement_id")
     assert question.prompt_key == "grill.q.tc.requirement_id_free"
     assert question.allow_free_text and not question.choices and not question.essential
+    # An ID that cannot be checked against a document is low priority: the feature comes first.
+    assert question.priority == "low" and session.current_question_id == "tc.feature"
 
 
 def test_test_data_question_depends_on_the_test_type():
     session = WF.answer(WF.answer(tc_session(), "REQ-1"), "Short password is rejected")
     assert "tc.test_data" not in ids(session)  # the type is not known yet
-    session = WF.skip(session)  # objective
-    assert session.current_question_id == "tc.test_type"
+    assert session.current_question_id == "tc.test_type"  # the optional objective (low) waits
     negative = WF.answer(session, TestType.NEGATIVE.value)
     by_id = {q.id: q for q in negative.questions}
     assert by_id["tc.test_data"].prompt_key == "grill.q.tc.test_data_negative"
