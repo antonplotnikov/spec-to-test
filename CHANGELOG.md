@@ -6,6 +6,44 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Autonomous QA — from a URL to bug reports
+
+#### Added
+- **Autonomous QA mode** on the QA Agent page (`qa_auto_ui.py`): enter an
+  authorized URL and click *Start Autonomous QA*. The agent explores the site
+  read-only (Playwright; GET only, no typing, clicking or submitting; destructive
+  and sign-out links not opened; off-host redirects stopped), records every fact
+  as evidence (`EV-…`), drafts requirements (`WEB-…`) labelled **Observed /
+  Inferred / Unknown** with confidence, evidence and clarification questions,
+  and generates positive, negative, validation and boundary test cases from them.
+- **Review and approval**: approve, reject, defer or edit requirements and answer
+  their questions (an answer makes an expectation testable and confirmed);
+  approve cases (form-submitting cases need their own confirmation and a per-run
+  permission). **Send to workspace** creates one document per session, so the
+  approved requirements and cases appear in Requirements Analysis, Grill Mode,
+  Test Cases, RTM, Dashboard and the manual QA plan, without duplicates on re-send.
+- **Runs, triage and bug reports**: runs use the existing QA Agent service
+  (destructive actions never allowed); results get a meaning — Defect,
+  Uncertain expectation, Timeout, Environment, Security block; bug reports only
+  for defects and uncertain expectations, with the website evidence attached and
+  no root-cause claims. Interrupted discoveries and runs can be resumed.
+- **Final report** with the traceability chain Website evidence → Requirement →
+  Test case → Execution result → Bug report (Markdown, ZIP, session JSON).
+- Optional **AI interpretation** of the evidence: validated candidates only
+  (must cite existing evidence, always Inferred, confidence ≤ 60%, no automatic
+  tests); page content is passed as untrusted data.
+- Settings `QA_DISCOVERY_MAX_PAGES`, `QA_DISCOVERY_MAX_DEPTH`,
+  `QA_DISCOVERY_TIMEOUT`, `QA_DISCOVERY_MAX_ELEMENTS`. Docs: `docs/AUTONOMOUS_QA.md`.
+
+#### Changed
+- QA plan cases may carry a `risk` (form submission); such cases run only when
+  the run allows form submissions (new checkbox on Run and Retest). Existing
+  plans and approvals are unaffected (the fingerprint only includes a set risk).
+- Bug reports have an optional `classification`, shown in Markdown and CSV.
+- The Demo Shop home page links to the dashboard, account page, `/broken` and
+  `/go-elsewhere`, and the contact form's Name field has `maxlength=40`, so
+  discovery finds them.
+
 ### QA Agent — plan, run and report browser tests
 
 #### Added

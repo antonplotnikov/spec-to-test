@@ -1,5 +1,10 @@
 """QA Agent page: plan, run, history and report of browser tests against an authorized web app.
 
+Two modes: "Manual plan" (the tabs below, built from the open document's test
+cases) and "Autonomous QA" (qa_auto_ui: discovery of a website, drafted
+requirements and tests, approval, run, bug reports). The manual mode is the
+default and needs an open document; the autonomous mode does not.
+
 Rendering only; the work is in spec_to_test.qa_agent. The plan of the open
 document is saved after every edit (RunStore, which follows the storage mode).
 A run needs approved cases, an operator allowlist and the person's explicit
@@ -7,6 +12,7 @@ authorization, which resets after every run. While a run executes, the page
 shows its progress; the browser itself works in a separate thread.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import streamlit as st
@@ -226,8 +232,33 @@ def _on_ai_suggest(store: RunStore, workspace: Workspace, case_id: str, ai_confi
 # Page
 # ---------------------------------------------------------------------------
 
-def render_qa_agent(lang: str, workspace: Workspace, ai_config: AIConfig | None) -> None:
+MODES = ("manual", "auto")
+
+
+def render_qa_agent(
+    lang: str,
+    workspace: Workspace | None,
+    ai_config: AIConfig | None,
+    docs: Any = None,
+    no_document: Callable[[], object] | None = None,
+) -> None:
+    """`docs` (qa_auto_ui.Documents) lets Autonomous QA save its workspace document;
+    `no_document` draws the empty state of the manual mode when no document is open."""
+    mode = st.segmented_control(t("qaagent.mode", lang), MODES, key="qa_mode", default="manual",
+                                format_func=lambda m: t(f"qaagent.mode.{m}", lang), label_visibility="collapsed")
+    if mode == "auto" and docs is not None:
+        import qa_auto_ui  # here, not at the top: qa_auto_ui reuses helpers of this module
+
+        _show_message(lang)
+        settings = load_qa_settings()
+        _setup(lang, settings)
+        qa_auto_ui.render_autonomous(lang, ai_config, settings, _store(), docs)
+        return
     st.caption(t("qaagent.explainer", lang))
+    if workspace is None:
+        if no_document is not None:
+            no_document()
+        return
     _show_message(lang)
     settings = load_qa_settings()
     store = _store()
@@ -382,7 +413,7 @@ def _host_of(url: str) -> str:
 
 def _execute(
     lang: str, cases: list[PlanCase], url: str, store: RunStore, settings: QASettings, workspace: Workspace,
-    allow_destructive: bool, parent_run_id: str = "",
+    allow_destructive: bool, parent_run_id: str = "", allow_forms: bool = False,
 ) -> None:
     st.session_state[COUNTER] = st.session_state.get(COUNTER, 0) + 1  # authorization is asked again next time
     bar = st.progress(0.0, text=t("qaagent.run.starting", lang))
@@ -394,7 +425,7 @@ def _execute(
     try:
         run = qa_service.run_cases(
             cases, url, settings, store, authorized=True, allow_destructive=allow_destructive,
-            document_hash=workspace.document_hash, document_title=workspace.title, parent_run_id=parent_run_id,
+            allow_forms=allow_forms, document_hash=workspace.document_hash, document_title=workspace.title, parent_run_id=parent_run_id,
             on_progress=progress,
         )
     except qa_service.QAError as error:
@@ -432,9 +463,18 @@ def _run_tab(lang: str, workspace: Workspace, plan: TestPlan, store: RunStore, s
                              key=f"qa_authorize_{counter}", disabled=not ready)
     destructive = st.checkbox(t("qaagent.run.destructive", lang), key=f"qa_destructive_{counter}", disabled=not ready,
                               help=t("qaagent.run.destructive_help", lang))
+    allow_forms = _allow_forms(lang, [c for c in approved if c.risk], f"qa_forms_{counter}", not ready)
     if st.button(t("qaagent.run.start", lang, count=len(approved)), key="qa_run", type="primary",
                  icon=":material/play_arrow:", disabled=not (ready and authorized)):
-        _execute(lang, plan.cases, url, store, settings, workspace, destructive)
+        _execute(lang, plan.cases, url, store, settings, workspace, destructive, allow_forms=allow_forms)
+
+
+def _allow_forms(lang: str, risky: list[PlanCase], key: str, disabled: bool = False) -> bool:
+    """The run-level permission for cases that submit forms (shown only when there are any)."""
+    if not risky:
+        return False
+    return st.checkbox(t("qaauto.run.allow_forms", lang, count=len(risky)), key=key, disabled=disabled,
+                       help=t("qaauto.run.allow_forms_help", lang))
 
 
 # --- History tab ------------------------------------------------------------
@@ -590,9 +630,11 @@ def _retest(lang: str, workspace: Workspace, plan: TestPlan, store: RunStore, se
     )
     destructive = st.checkbox(t("qaagent.run.destructive", lang), key=f"qa_retest_destructive_{counter}",
                               help=t("qaagent.run.destructive_help", lang))
+    allow_forms = _allow_forms(lang, [c for c in cases if c.risk], f"qa_retest_forms_{counter}")
     if st.button(t("qaagent.history.retest", lang, count=len(cases)), key="qa_retest", icon=":material/replay:",
                  disabled=not authorized):
-        _execute(lang, cases, run.target_url, store, settings, workspace, destructive, parent_run_id=run.id)
+        _execute(lang, cases, run.target_url, store, settings, workspace, destructive, parent_run_id=run.id,
+                 allow_forms=allow_forms)
 
 
 # --- Report tab -------------------------------------------------------------
