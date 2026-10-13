@@ -73,7 +73,7 @@ def no_network(monkeypatch):
 
 def goto(at, page: str):
     """Open a page from the sidebar navigation ("home", "analysis", "grill", "tests",
-    "rtm", "dashboard", "export" or "settings")."""
+    "qa_agent", "rtm", "dashboard", "export" or "settings")."""
     at.sidebar.radio(key="app_mode").set_value(page).run()
     return at
 

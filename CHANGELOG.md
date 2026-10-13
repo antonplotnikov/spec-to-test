@@ -6,6 +6,41 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### QA Agent — plan, run and report browser tests
+
+#### Added
+- **QA Agent page** (`qa_agent_ui.py`, `spec_to_test.qa_agent`): an editable
+  test plan built from the document's test cases and linked to requirement
+  and test case IDs; per-case approval (a fingerprint, so any edit revokes it);
+  execution of approved cases with Python Playwright in headless Chromium;
+  Passed / Failed / Blocked / Not run results with screenshots, errors,
+  observed page text and console errors; bug reports for failed cases; saved
+  run history with retest of failed and blocked cases; QA report with
+  requirement coverage (Markdown, ZIP with screenshots, JSON, CSV).
+- **Step language** (`goto`, `fill`, `click`, `select`, `check`, `press`,
+  `expect_text`, `expect_url`, …) interpreted by a fixed executor — no code
+  is generated or evaluated. Concrete English test steps convert
+  automatically; a case with any unreadable step gets no steps (never guessed).
+- **Safety**: reuses the Automation allowlist, SSRF checks, DNS pinning,
+  redaction and destructive-word list; additionally blocks loopback bypass of
+  the dead proxy, aborts off-allowlist requests, checks every main-frame
+  navigation including redirects, checks each clicked element's text for
+  destructive words, withholds screenshots that would show a secret, and
+  enforces per-step, per-navigation and per-run timeouts, case/step limits and
+  one run at a time (`QA_*` settings).
+- Optional **AI step proposals** for a case (consent per request; the model
+  sees no secret values or page content; one invalid step rejects the whole
+  proposal; approval still required).
+- **CLI**: `python -m spec_to_test.qa_agent --plan … --authorized --approve-all`.
+- **Demo Shop** (`examples/qa_demo/`): local stdlib web app with a deliberate
+  bug, requirements and a plan that produces real Passed, Failed and Blocked
+  results.
+- `requirements-qa.txt`, `docs/QA_AGENT.md`, tests (`tests/test_qa_agent_*.py`),
+  including real-browser tests and a CI job that installs Chromium.
+
+#### Changed
+- Navigation has a new **QA Agent** page between Test Cases and RTM.
+
 ### Grill Mode v2.1 — reactive questions, smarter rules, broader evaluation
 
 #### Added

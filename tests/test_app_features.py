@@ -9,7 +9,7 @@ from spec_to_test.storage import load_latest
 
 APP_PATH = str(PROJECT_ROOT / "app.py")
 PAGES = [
-    "Home", "Requirements Analysis", "Grill Mode", "Test Cases", "Traceability (RTM)",
+    "Home", "Requirements Analysis", "Grill Mode", "Test Cases", "QA Agent", "Traceability (RTM)",
     "Dashboard", "Export", "Settings",
 ]
 ANALYSIS_TABS = ["Requirements", "Findings", "Test design", "Bug reports", "AI analysis"]

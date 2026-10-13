@@ -65,7 +65,7 @@ def visible_text(at: AppTest) -> list[str]:
     return texts
 
 
-PAGES = ("home", "analysis", "grill", "tests", "rtm", "dashboard", "export", "settings")
+PAGES = ("home", "analysis", "grill", "tests", "qa_agent", "rtm", "dashboard", "export", "settings")
 
 
 def every_page_text(at: AppTest) -> list[str]:
