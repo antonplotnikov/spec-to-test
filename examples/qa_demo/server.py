@@ -10,6 +10,11 @@ Agent refuses to click unless destructive actions are allowed, and
 /go-elsewhere redirects (and /leak makes a page script call) to another local
 port, which the egress policy blocks. /broken answers HTTP 500.
 
+The home page links to all of these, so Autonomous QA discovery finds them:
+the dashboard (sign-in required), the account page (destructive form, never
+submitted), order history (/broken, a server error) and partner offers (the
+off-site redirect, stopped). The contact form's Name field has maxlength=40.
+
 The sign-in password is DEMO_PASSWORD (default "demo-pass-123"). Give the QA
 Agent the same value as AUTOMATION_SECRET_DEMO_PASSWORD so it is typed from the
 environment and never stored in the plan.
@@ -53,7 +58,7 @@ def login_form(error: str = "") -> bytes:
 def contact_form() -> bytes:
     return page("Contact · Demo Shop", """<h1>Contact us</h1>
 <form method="post" action="/contact">
-<label for="name">Name</label><input id="name" name="name">
+<label for="name">Name</label><input id="name" name="name" maxlength="40">
 <label for="email">Email</label><input id="email" name="email" type="text">
 <label for="message">Message</label><textarea id="message" name="message"></textarea>
 <button type="submit">Send</button></form>""")
@@ -96,7 +101,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         path = urlsplit(self.path).path
         if path == "/":
-            self._send(page("Demo Shop", "<h1>Demo Shop</h1><p>Welcome to the demo store.</p>"))
+            self._send(page("Demo Shop", "<h1>Demo Shop</h1><p>Welcome to the demo store.</p>"
+                            '<ul><li><a href="/dashboard">Your dashboard</a></li>'
+                            '<li><a href="/account">Account settings</a></li>'
+                            '<li><a href="/broken">Order history</a></li>'
+                            '<li><a href="/go-elsewhere">Partner offers</a></li></ul>'))
         elif path == "/login":
             self._send(login_form())
         elif path == "/dashboard":
