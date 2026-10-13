@@ -35,7 +35,8 @@ SETTING_KEYS = (
     "AI_PROVIDER", "AI_MODEL", "AI_LOCK_SETTINGS", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
     "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL",
 )
-SETTING_PREFIX = "AUTOMATION_"
+# Automation and QA Agent settings (allowlist, secrets, limits).
+SETTING_PREFIXES = ("AUTOMATION_", "QA_")
 SETTINGS_TEMPLATE = """# Spec-to-Test settings for this Mac. Only your macOS user can read this file.
 # Remove the "# " in front of a line to use it, then restart Spec-to-Test.
 
@@ -58,6 +59,16 @@ SETTINGS_TEMPLATE = """# Spec-to-Test settings for this Mac. Only your macOS use
 # AUTOMATION_ALLOW_PRIVATE_NETWORK=true
 # Credentials a test may type, referenced by name (here: STAGING_PASSWORD):
 # AUTOMATION_SECRET_STAGING_PASSWORD=
+
+# QA Agent uses the same AUTOMATION_ allowlist, private-network switch and secrets.
+# Try it with the local Demo Shop (python examples/qa_demo/server.py):
+# AUTOMATION_ALLOWED_HOSTS=127.0.0.1:8765
+# AUTOMATION_ALLOW_PRIVATE_NETWORK=true
+# AUTOMATION_SECRET_DEMO_PASSWORD=demo-pass-123
+# Optional QA Agent limits (defaults shown):
+# QA_MAX_CASES=25
+# QA_STEP_TIMEOUT_MS=10000
+# QA_RUN_TIMEOUT=600
 """
 PREFERRED_PORT = 8501
 START_TIMEOUT_S = 90
@@ -108,7 +119,7 @@ def read_settings(path: Path) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = (part.strip() for part in line.split("=", 1))
-        if key in SETTING_KEYS or key.startswith(SETTING_PREFIX):
+        if key in SETTING_KEYS or key.startswith(SETTING_PREFIXES):
             settings[key] = value.strip("'\"")
     return settings
 
