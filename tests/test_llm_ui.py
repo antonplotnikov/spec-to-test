@@ -17,6 +17,7 @@ OPENAI_KEY = "oa-key-456"
 
 @pytest.fixture
 def two_providers(monkeypatch):
+    monkeypatch.setattr(llm_ui, "sdk_installed", lambda provider: True)  # CI has no provider SDKs
     monkeypatch.setenv("AI_PROVIDER", "anthropic")
     monkeypatch.setenv("ANTHROPIC_API_KEY", CLAUDE_KEY)
     monkeypatch.setenv("OPENAI_API_KEY", OPENAI_KEY)
