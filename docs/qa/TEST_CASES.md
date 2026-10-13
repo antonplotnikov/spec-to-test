@@ -214,7 +214,7 @@ multi-line steps are preserved.
 ### TC-023 Requirements Grill: clarify and confirm
 **Preconditions:** `examples/password_reset.md` analyzed; sidebar **Mode → Grill Mode**.
 1. Choose **Clarify requirements**; keep "Use the 9 requirements from the analyzed document" ticked; click **Start**.
-2. Answer the first question; click **Keep as assumption** for the next one; click **Go to the draft**.
+2. Answer the first question; click **Mark as assumption** for the next one; click **Go to the draft**.
 3. Click **Run review**, tick the acceptance of the warnings, click **Continue to confirmation**, then **Confirm and finalize**.
 
 **Expected:** each question shows why it matters and the linked requirement
@@ -224,7 +224,7 @@ text; the draft shows the 9 requirements unchanged plus clarifications labeled
 
 ### TC-024 Test Case Grill interview with back and edit
 1. Choose **Test case → Start from scratch (interview)**, click **Start**.
-2. Click **Save answer** with an empty answer; then answer two questions.
+2. Click **Submit answer** with an empty answer; then answer two questions.
 3. Click **Back**, change the answer; open **Your answers** and **Change** another one.
 
 **Expected:** empty answer → translated error; the previous answer is shown for

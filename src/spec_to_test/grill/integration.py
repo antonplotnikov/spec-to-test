@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from spec_to_test.bug_reports import next_defect_id
 from spec_to_test.exports import _md_table
 from spec_to_test.formatting import escape_markdown
+from spec_to_test.grill.conflicts import contested
 from spec_to_test.grill.drafts import AnyDraft, editable_fields, field_is_empty
 from spec_to_test.grill.models import (
     BugReportDraft,
@@ -258,15 +259,19 @@ def resolve_blocker(session: GrillSession, workspace: Workspace | None) -> str |
 def resolutions(session: GrillSession, workspace: Workspace | None) -> list[Resolution]:
     """Clarifications the user confirmed that answer an open finding in the workspace.
 
-    Assumptions never resolve anything: they are not confirmed.
+    Assumptions never resolve anything: they are not confirmed. Neither does
+    a clarification that is contradicted or was overruled (grill.conflicts).
     """
     if resolve_blocker(session, workspace) is not None:
         return []
     assert isinstance(session.draft, RequirementsDraft) and workspace is not None
+    disputed = contested(session)[0]
     result = []
     for statement in session.draft.statements:
         if statement.provenance != Provenance.USER_CONFIRMED or not statement.origin.startswith(RULE_QUESTION_PREFIX):
             continue
+        if statement.origin in disputed:
+            continue  # contradicted, or overruled by a later decision
         keys = tuple(
             f.key for f in workspace.findings
             if f.status == ClarificationStatus.NEEDS_CLARIFICATION and rule_question_id(f) == statement.origin

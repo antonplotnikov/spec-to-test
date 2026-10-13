@@ -9,6 +9,7 @@ from test_app_features import button, new_app, table_with_column
 from test_grill_ui import OTHER_DOC, TC_DRAFT, click, confirm, start
 from test_grill_ui import analyzed as analyzed_in_grill
 
+from conftest import goto, home
 from spec_to_test import storage
 from spec_to_test.storage import load_latest, save_workspace
 
@@ -30,8 +31,8 @@ def no_disk_access(monkeypatch):
 
 
 def analyze(at, text):
-    at.text_area[0].input(text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(text).run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception, at.exception
     return at
 
@@ -83,7 +84,7 @@ def test_two_sessions_do_not_share_work(default_storage, no_disk_access, example
     assert not any("Restored" in info.value for info in b.info)
 
     other_titles = {tc.title for tc in b.session_state["workspace"].test_cases}
-    form = next(ti for ti in b.text_input if ti.label == "Title")
+    form = next(ti for ti in goto(b, "tests").text_input if ti.label == "Title")
     form.input("Only in B")
     next(x for x in b.button if x.label == "Save").click().run()
     assert not b.exception
@@ -94,7 +95,7 @@ def test_two_sessions_do_not_share_work(default_storage, no_disk_access, example
 
 def test_rerun_and_screen_switch_keep_the_session_state(default_storage, no_disk_access, example_text):
     at = analyze(new_app(), example_text)
-    next(ti for ti in at.text_input if ti.label == "Title").input("Edited in session")
+    next(ti for ti in goto(at, "tests").text_input if ti.label == "Title").input("Edited in session")
     next(x for x in at.button if x.label == "Save").click().run()
     workspace = at.session_state["workspace"]
 
@@ -108,7 +109,7 @@ def test_rerun_and_screen_switch_keep_the_session_state(default_storage, no_disk
     assert at.session_state["workspace"] == workspace
     assert table_with_column(at, "Quality score") is not None
 
-    at.sidebar.selectbox[0].select("uk").run()  # language change reruns too
+    at.selectbox(key="language").select("uk").run()  # language change reruns too
     assert at.session_state["workspace"] == workspace
 
 
@@ -117,7 +118,7 @@ def test_reanalyzing_the_same_document_keeps_session_edits(default_storage, no_d
     button(at, "bug_generate").click().run()
     count = len(bugs(at))
     assert count
-    at.button[0].click().run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception
     assert len(bugs(at)) == count
     notes = [info.value for info in at.info]
@@ -166,7 +167,7 @@ def test_local_reanalyze_keeps_newer_edits_from_another_tab(monkeypatch, example
     saved = load_latest()
     assert saved is not None and saved.defects
 
-    b.button[0].click().run()  # B analyzes the same document again
+    home(b).button(key="analyze").click().run()  # B analyzes the same document again
     assert not b.exception
     assert bugs(b) == saved.defects  # B now shows A's bug report
     assert load_latest() == saved  # and did not erase it on disk
@@ -193,7 +194,7 @@ def test_reanalyze_message_says_where_the_work_came_from(monkeypatch, example_te
     count = len(bugs(at))
     assert count
 
-    at.button[0].click().run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception
     assert len(bugs(at)) == count
     notes = [info.value for info in at.info]

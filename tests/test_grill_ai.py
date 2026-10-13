@@ -169,13 +169,14 @@ def test_untraceable_or_repeated_questions_are_dropped():
         ask(field="test_type"),  # choice fields belong to the built-in planner
         ask(field="requirement_id"),
         ask(text="   "),
-        ask(ids=["REQ-99"], text="Which REQ-99 rule applies?"),  # invented ID is removed, question kept
+        ask(ids=["REQ-99"], text="Which rule applies to expired links?"),  # invented ID is removed, question kept
+        ask(text="Which REQ-99 rule applies?"),  # names a requirement that does not exist: dropped
         ask(),
         ask(text="which message does the user see when the link has  EXPIRED?"),  # same question again
     )
     result = grill_ai.to_questions(response, session)
     assert [q.prompt_text for q in result] == [
-        "Which REQ-99 rule applies?", "Which message does the user see when the link has expired?",
+        "Which rule applies to expired links?", "Which message does the user see when the link has expired?",
     ]
     assert result[0].requirement_ids == []
 
@@ -207,7 +208,8 @@ def test_requirement_questions_must_point_at_a_real_requirement():
 
 
 def test_at_most_five_questions_are_kept():
-    response = questions(*[ask(text=f"Question number {i}?") for i in range(9)])
+    topics = ["colour", "font", "timeout", "locale", "browser", "role", "currency", "timezone", "keyboard"]
+    response = questions(*[ask(text=f"Which {topic} is used?") for topic in topics])
     assert len(grill_ai.to_questions(response, tc_session())) == grill_ai.MAX_QUESTIONS
 
 

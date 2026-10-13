@@ -3,7 +3,7 @@
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from conftest import PROJECT_ROOT
+from conftest import PROJECT_ROOT, home
 from spec_to_test.grill.models import GrillStep, load_session
 from spec_to_test.grill.planner import DETERMINISTIC_WORKFLOW
 from spec_to_test.grill.workflow import GrillError
@@ -73,16 +73,16 @@ def start(at: AppTest, kind: str, mode: str | None = None, artifact: str | None 
 
 # --- Navigation and compatibility ------------------------------------------------------
 
-def test_app_still_starts_in_analysis_mode():
+def test_app_starts_on_home():
     at = new_app()
-    assert at.sidebar.radio(key="app_mode").value == "analysis"
-    assert at.button[0].label == "Analyze"
-    assert at.sidebar.selectbox[0].label == t("sidebar.language")
+    assert at.sidebar.radio(key="app_mode").value == "home"
+    assert at.button(key="analyze").label == "Analyze"
+    assert at.selectbox(key="language").label == t("sidebar.language")
 
 
 def test_grill_mode_shows_workflow_choice_and_deterministic_label():
     at = grill()
-    assert at.subheader[0].value == "Grill Mode"
+    assert at.title[0].value == "Grill Mode"
     assert any(t("grill.ui.mode_deterministic") in info.value for info in at.info)
     assert at.radio(key="grill_kind").options == [
         "Clarify requirements", "Test case", "Bug report", "QA review",
@@ -90,10 +90,10 @@ def test_grill_mode_shows_workflow_choice_and_deterministic_label():
     assert not any(b.label == "Analyze" for b in at.button)
 
 
-def test_switching_back_restores_the_analysis_page():
+def test_switching_back_restores_the_input_page():
     at = grill()
-    at.sidebar.radio(key="app_mode").set_value("analysis").run()
-    assert at.button[0].label == "Analyze" and not at.exception
+    at.sidebar.radio(key="app_mode").set_value("home").run()
+    assert at.button(key="analyze").label == "Analyze" and not at.exception
 
 
 # --- Requirements Grill ------------------------------------------------------------------
@@ -103,7 +103,8 @@ def test_requirements_grill_end_to_end_requires_explicit_confirmation():
     session = session_of(at)
     assert session.step == GrillStep.ASK_QUESTION
     assert any("Why it matters" in c.value for c in at.caption)
-    assert any("REQ-1: The password must be at least 8 characters." in c.value for c in at.caption)
+    assert any("> The password must be at least 8 characters." in m.value for m in at.markdown)  # current requirement
+    assert any("REQ-2: The password must be at least 10 characters." in c.value for c in at.caption)  # also linked
     assert at.button(key="grill_skip").disabled  # contradictions are essential
 
     choose(at, "REQ-1: The password must be at least 8 characters.")
@@ -129,8 +130,8 @@ def test_requirements_grill_end_to_end_requires_explicit_confirmation():
 
 def test_requirements_grill_can_use_the_analyzed_document(example_text):
     at = new_app()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     at = grill(at)
     at.radio(key="grill_kind").set_value("review").run()
     at.radio(key="grill_artifact").set_value("requirements").run()
@@ -148,7 +149,7 @@ def test_test_case_interview_validates_answers_and_supports_back():
     at.radio(key="grill_kind").set_value("test_case").run()
     assert any(t("grill.ui.context_missing") == c.value for c in at.caption)  # no document analyzed
     at = start(at, "test_case", mode="interview")
-    click(at, "grill_skip")  # optional requirement ID
+    # No document: the essential feature question comes first, the free-text ID (low priority) later.
     assert session_of(at).current_question_id == "tc.feature"
     click(at, "grill_answer")  # empty answer
     assert at.error[0].value == t("grill.error.empty_answer")
@@ -162,7 +163,6 @@ def test_test_case_interview_validates_answers_and_supports_back():
 
 def test_test_case_interview_reaches_draft_and_edits_mark_user_values():
     at = start(grill(), "test_case", mode="interview")
-    click(at, "grill_skip")
     answer_text(at, "Password reset")
     answer_text(at, "Reset link is sent")
     click(at, "grill_to_draft")
@@ -186,7 +186,7 @@ def test_bug_draft_review_shows_unparsed_lines_and_asks_only_for_gaps():
     assert "bug.summary" not in [q.id for q in session.questions]
     assert any(t("grill.ui.unparsed") in w.value for w in at.warning)
     assert at.code[0].value == "Note to self: check logs"
-    assert session.current_question_id == "bug.app_version"
+    assert session.current_question_id == "bug.expected_result"  # high priority before the version
 
 
 def test_qa_review_blocks_confirmation_until_blocking_issues_are_fixed():
@@ -200,7 +200,7 @@ def test_qa_review_blocks_confirmation_until_blocking_issues_are_fixed():
 
 def test_input_errors_are_translated():
     at = grill()
-    at.sidebar.selectbox[0].select("uk").run()
+    at.selectbox(key="language").select("uk").run()
     start(at, "requirements")
     assert at.error[0].value == t("error.empty_input", "uk")
     assert "grill_session" not in at.session_state
@@ -212,7 +212,7 @@ def test_session_survives_reruns_and_language_switches():
     at = start(grill(), "bug_report", mode="interview")
     before = session_of(at)
     at.run()
-    at.sidebar.selectbox[0].select("ru").run()
+    at.selectbox(key="language").select("ru").run()
     assert session_of(at) == before
     assert any(b.label == t("grill.ui.answer", "ru") for b in at.button)
 
@@ -254,8 +254,9 @@ def test_browser_sessions_do_not_share_grill_state():
 def test_user_text_is_escaped_in_markdown():
     at = start(grill(), "requirements", text_key="grill_requirements_text",
                text="REQ-1: The [page](http://evil.example) should load fast.")
-    captions = [c.value for c in at.caption]
-    assert any(r"\[page\](http://evil.example)" in c or r"\[page\]\(http://evil.example\)" in c for c in captions)
+    texts = [c.value for c in at.caption] + [m.value for m in at.markdown]
+    assert any(r"\[page\](http://evil.example)" in c or r"\[page\]\(http://evil.example\)" in c for c in texts)
+    assert not any("[page](http://evil.example)" in c for c in texts)
 
 
 # --- Using the finalized result ------------------------------------------------------------
@@ -271,8 +272,8 @@ Expected result: A reset link arrives in the mailbox"""
 
 def analyzed(example_text: str) -> AppTest:
     at = new_app()
-    at.text_area[0].input(example_text).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(example_text).run()
+    home(at).button(key="analyze").click().run()
     return grill(at)
 
 
@@ -314,8 +315,8 @@ REQ-2: The system must send a reset email within 5 minutes."""
 def analyze_other_document(at: AppTest, document: str = OTHER_DOC) -> AppTest:
     """Leave Grill, analyze another document in Analysis mode and come back."""
     at.sidebar.radio(key="app_mode").set_value("analysis").run()
-    at.text_area[0].input(document).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(document).run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception
     return grill(at)
 
@@ -376,9 +377,9 @@ def test_interview_answers_survive_a_document_change_and_the_result_stays_out(ex
     assert session.step == GrillStep.ASK_QUESTION
     assert {qid: a.value for qid, a in session.answers.items()} == answered  # nothing was lost
     assert t("grill.ui.context_changed") in [w.value for w in at.warning]
-    for question_id, value in (
-        ("tc.objective", "Check the reset mail"), ("tc.test_type", "positive"),
-        ("tc.steps", "Request a reset\nOpen the mailbox"), ("tc.expected_result", "A link arrives"),
+    for question_id, value in (  # priority order: the optional objective comes last
+        ("tc.test_type", "positive"), ("tc.steps", "Request a reset\nOpen the mailbox"),
+        ("tc.expected_result", "A link arrives"), ("tc.objective", "Check the reset mail"),
     ):
         question = session_of(at).current_question
         while question is not None and question.id != question_id:  # optional questions are skipped
@@ -389,7 +390,10 @@ def test_interview_answers_survive_a_document_change_and_the_result_stays_out(ex
             choose(at, value)
         else:
             answer_text(at, value)
-    assert session_of(at).step == GrillStep.SHOW_DRAFT  # the last answer opens the draft
+    while (question := session_of(at).current_question) is not None and session_of(at).step == GrillStep.ASK_QUESTION:
+        assert not question.essential  # only optional questions are left
+        click(at, "grill_skip")
+    assert session_of(at).step == GrillStep.SHOW_DRAFT  # the last question handled opens the draft
     at = confirm(at)
     other = at.session_state["workspace"]
     assert session_of(at).draft.title == "Reset link is sent"
@@ -418,6 +422,8 @@ def test_requirements_grill_on_pasted_text_still_resolves_findings(example_text)
     at.text_area(key="grill_requirements_text").input(example_text).run()  # typed in, so no context snapshot
     at = click(at, "grill_start")
     assert session_of(at).context_requirements == []
+    assert session_of(at).current_question_id.startswith("rule.contradiction.")  # contradictions come first
+    click(at, "grill_unknown")
     answer_text(at, "A reset email is sent and a confirmation message is shown")
     at = confirm(at)
     assert t("grill.ui.context_changed") not in [w.value for w in at.warning]
@@ -441,6 +447,8 @@ def test_requirements_grill_resolves_only_ticked_findings(example_text):
     at = analyzed(example_text)
     at.radio(key="grill_kind").set_value("requirements").run()
     at = click(at, "grill_start")
+    assert session_of(at).current_question_id == "rule.contradiction.REQ-4+REQ-7"  # contradictions come first
+    click(at, "grill_unknown")
     assert session_of(at).current_question_id == "rule.missing_expected_result.REQ-1"
     answer_text(at, "A reset email is sent and a confirmation message is shown")
     at = confirm(at)
@@ -461,7 +469,7 @@ def test_requirements_grill_resolves_only_ticked_findings(example_text):
 def walk(lang: str) -> list[AppTest]:
     """Visit every Grill screen in one language."""
     at = grill()
-    at.sidebar.selectbox[0].select(lang).run()
+    at.selectbox(key="language").select(lang).run()
     screens = [at]
     start(at, "requirements", text_key="grill_requirements_text", text=REQS)
     screens.append(at)
@@ -475,7 +483,7 @@ def walk(lang: str) -> list[AppTest]:
     click(at, "grill_confirm_button")
     screens.append(at)  # the finalized result with its download and hand-over options
     other = start(grill(), "test_case", mode="review_draft", text_key="grill_draft_text", text="Title: X")
-    other.sidebar.selectbox[0].select(lang).run()
+    other.selectbox(key="language").select(lang).run()
     click(other, "grill_to_draft")
     click(other, "grill_review_button")
     screens.append(other)

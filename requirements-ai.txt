@@ -1,3 +1,5 @@
-# Optional: enables the AI analysis tab. The app works without it.
+# Optional: enables the AI features (AI analysis, Grill AI interviewer, Automation).
+# The app works without it. Install the SDK for the provider you use; Ollama needs neither.
 -r requirements.txt
 anthropic>=1.0,<2
+openai>=2.0,<4

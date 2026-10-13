@@ -46,7 +46,12 @@ def isolated_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("SPEC_TO_TEST_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "local")
     monkeypatch.setenv("AI_PROVIDER", "none")
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    # No provider settings from the developer's shell leak into a test.
+    for name in (
+        "AI_MODEL", "AI_LOCK_SETTINGS", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
+        "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture
@@ -62,3 +67,19 @@ def no_network(monkeypatch):
 
     monkeypatch.setattr(socket.socket, "connect", blocked)
     monkeypatch.setattr(socket, "create_connection", blocked)
+
+
+# --- Navigating the app in AppTest ---------------------------------------------
+
+def goto(at, page: str):
+    """Open a page from the sidebar navigation ("home", "analysis", "grill", "tests",
+    "rtm", "dashboard", "export" or "settings")."""
+    at.sidebar.radio(key="app_mode").set_value(page).run()
+    return at
+
+
+def home(at):
+    """Home holds the requirements input and the Analyze button."""
+    if not any(area.key == "requirements_text" for area in at.text_area):
+        goto(at, "home")
+    return at

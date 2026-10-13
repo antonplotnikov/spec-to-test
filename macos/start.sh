@@ -49,9 +49,10 @@ if ! "$VENV/bin/python" -c 'import streamlit, webview' >/dev/null 2>&1; then
     } >>"$LOG_FILE" 2>&1 || fail "Installing dependencies failed. See $LOG_FILE"
 fi
 
-# Optional AI features: install the SDK only when .env asks for it.
-if [[ -f "$ROOT/.env" ]] && grep -Eq '^[[:space:]]*AI_PROVIDER[[:space:]]*=[[:space:]]*"?anthropic' "$ROOT/.env" &&
-    ! "$VENV/bin/python" -c 'import anthropic' >/dev/null 2>&1; then
+# Optional AI features: install the SDKs only when .env asks for a provider that needs one
+# (Ollama is called over plain HTTP and needs none).
+if [[ -f "$ROOT/.env" ]] && grep -Eq '^[[:space:]]*AI_PROVIDER[[:space:]]*=[[:space:]]*"?(anthropic|claude|openai)' "$ROOT/.env" &&
+    ! "$VENV/bin/python" -c 'import anthropic, openai' >/dev/null 2>&1; then
     "$VENV/bin/python" -m pip install -r "$ROOT/requirements-ai.txt" >>"$LOG_FILE" 2>&1 || true
 fi
 

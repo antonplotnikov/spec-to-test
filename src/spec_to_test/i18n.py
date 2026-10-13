@@ -6,7 +6,9 @@ Use `t(key, lang, **params)` to get a translated string. Placeholders like
 
 from spec_to_test.automation.translations import AUTOMATION_TRANSLATIONS
 from spec_to_test.grill.translations import GRILL_TRANSLATIONS
+from spec_to_test.llm.translations import LLM_TRANSLATIONS
 from spec_to_test.models import Finding
+from spec_to_test.ui_translations import UI_TRANSLATIONS
 
 DEFAULT_LANGUAGE = "en"
 
@@ -278,9 +280,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     # QA features: dashboard, RTM, quality, test cases, design, bugs, AI
     # =====================================================================
     "sidebar.privacy_ai": {
-        "en": "AI is configured but stays off until you run it in the AI analysis tab and agree to send the requirements. Everything else runs locally.",
-        "uk": "ШІ налаштовано, але він не працює, доки ви не запустите його на вкладці «Аналіз ШІ» і не погодитеся надіслати вимоги. Усе інше працює локально.",
-        "ru": "ИИ настроен, но не работает, пока вы не запустите его на вкладке «Анализ ИИ» и не согласитесь отправить требования. Всё остальное работает локально.",
+        "en": "AI is configured but sends nothing until you start an AI action and agree to send the data it needs. Everything else runs locally. Turn AI off in “AI settings”.",
+        "uk": "ШІ налаштовано, але він нічого не надсилає, доки ви не запустите дію ШІ і не погодитеся надіслати потрібні їй дані. Усе інше працює локально. Вимкнути ШІ можна в «Налаштуваннях ШІ».",
+        "ru": "ИИ настроен, но ничего не отправляет, пока вы не запустите действие ИИ и не согласитесь отправить нужные ему данные. Всё остальное работает локально. Выключить ИИ можно в «Настройках ИИ».",
     },
     "sidebar.storage": {
         "en": "Your edits are saved automatically on this computer.",
@@ -725,9 +727,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Необязательно. Модель ИИ может искать неоднозначности, противоречия и пропущенные сценарии, которые правила могут пропустить. Результат ИИ — лишь предложение, он хранится отдельно от находок на основе правил и не влияет на оценки или покрытие.",
     },
     "ai.not_configured": {
-        "en": "AI is not configured, and the app works fully without it. To enable it, set AI_PROVIDER=anthropic and ANTHROPIC_API_KEY in a local .env file and install requirements-ai.txt (see README).",
-        "uk": "ШІ не налаштовано, і застосунок повністю працює без нього. Щоб увімкнути, вкажіть AI_PROVIDER=anthropic і ANTHROPIC_API_KEY у локальному файлі .env та встановіть requirements-ai.txt (див. README).",
-        "ru": "ИИ не настроен, и приложение полностью работает без него. Чтобы включить, укажите AI_PROVIDER=anthropic и ANTHROPIC_API_KEY в локальном файле .env и установите requirements-ai.txt (см. README).",
+        "en": "AI is not configured (or is turned off in AI settings), and the app works fully without it. To enable it, set AI_PROVIDER (anthropic, openai or ollama) and the provider's key (ANTHROPIC_API_KEY or OPENAI_API_KEY; Ollama needs none) in a local .env file, install requirements-ai.txt (see README), and keep “Use AI features” on in AI settings.",
+        "uk": "ШІ не налаштовано (або вимкнено в налаштуваннях ШІ), і застосунок повністю працює без нього. Щоб увімкнути, вкажіть AI_PROVIDER (anthropic, openai або ollama) і ключ провайдера (ANTHROPIC_API_KEY або OPENAI_API_KEY; Ollama ключа не потребує) у локальному файлі .env, встановіть requirements-ai.txt (див. README) і залиште «Використовувати функції ШІ» увімкненим у налаштуваннях ШІ.",
+        "ru": "ИИ не настроен (или выключен в настройках ИИ), и приложение полностью работает без него. Чтобы включить, укажите AI_PROVIDER (anthropic, openai или ollama) и ключ провайдера (ANTHROPIC_API_KEY или OPENAI_API_KEY; Ollama ключ не нужен) в локальном файле .env, установите requirements-ai.txt (см. README) и оставьте «Использовать функции ИИ» включённым в настройках ИИ.",
     },
     "ai.configured": {
         "en": "Provider: **{provider}** · Model: **{model}**",
@@ -769,9 +771,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Пакет ИИ не установлен. Выполните: pip install -r requirements-ai.txt",
     },
     "ai.error.auth": {
-        "en": "The AI provider rejected the API key. Check ANTHROPIC_API_KEY in your .env file.",
-        "uk": "Провайдер ШІ відхилив API-ключ. Перевірте ANTHROPIC_API_KEY у файлі .env.",
-        "ru": "Провайдер ИИ отклонил API-ключ. Проверьте ANTHROPIC_API_KEY в файле .env.",
+        "en": "The AI provider rejected the API key. Check ANTHROPIC_API_KEY or OPENAI_API_KEY in your settings.",
+        "uk": "Провайдер ШІ відхилив API-ключ. Перевірте ANTHROPIC_API_KEY або OPENAI_API_KEY у налаштуваннях.",
+        "ru": "Провайдер ИИ отклонил API-ключ. Проверьте ANTHROPIC_API_KEY или OPENAI_API_KEY в настройках.",
     },
     "ai.error.rate_limit": {
         "en": "The AI provider's rate limit was reached. Please try again later.",
@@ -779,9 +781,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Достигнут лимит запросов провайдера ИИ. Попробуйте позже.",
     },
     "ai.error.connection": {
-        "en": "Could not reach the AI provider. Check your internet connection.",
-        "uk": "Не вдалося з'єднатися з провайдером ШІ. Перевірте підключення до інтернету.",
-        "ru": "Не удалось связаться с провайдером ИИ. Проверьте подключение к интернету.",
+        "en": "Could not reach the AI provider. Check your internet connection (for Ollama: that the server is running).",
+        "uk": "Не вдалося з'єднатися з провайдером ШІ. Перевірте підключення до інтернету (для Ollama — що сервер запущено).",
+        "ru": "Не удалось связаться с провайдером ИИ. Проверьте подключение к интернету (для Ollama — что сервер запущен).",
     },
     "ai.error.api": {
         "en": "The AI request failed. Rule-based results are not affected.",
@@ -861,6 +863,121 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "report.summary": {"en": "Summary", "uk": "Підсумок", "ru": "Сводка"},
     "report.metric": {"en": "Metric", "uk": "Показник", "ru": "Показатель"},
     "report.value": {"en": "Value", "uk": "Значення", "ru": "Значение"},
+    # --- Projects ------------------------------------------------------------
+    "projects.heading": {"en": "Projects", "uk": "Проєкти", "ru": "Проекты"},
+    "projects.project": {"en": "Project", "uk": "Проєкт", "ru": "Проект"},
+    "projects.default_name": {"en": "My project", "uk": "Мій проєкт", "ru": "Мой проект"},
+    "projects.document": {
+        "en": "Requirements document",
+        "uk": "Документ із вимогами",
+        "ru": "Документ с требованиями",
+    },
+    "projects.document_help": {
+        "en": "Each document analyzed in this project is kept here with its own test cases, reviews and bug reports. Choose “New requirements” to add another one.",
+        "uk": "Кожен документ, проаналізований у цьому проєкті, зберігається тут зі своїми тест-кейсами, рев'ю та баг-репортами. Оберіть «Нові вимоги», щоб додати ще один.",
+        "ru": "Каждый документ, проанализированный в этом проекте, хранится здесь со своими тест-кейсами, ревью и баг-репортами. Выберите «Новые требования», чтобы добавить ещё один.",
+    },
+    "projects.new_document": {
+        "en": "➕ New requirements",
+        "uk": "➕ Нові вимоги",
+        "ru": "➕ Новые требования",
+    },
+    "projects.document_option": {
+        "en": "({count}) {title}",
+        "uk": "({count}) {title}",
+        "ru": "({count}) {title}",
+    },
+    "projects.untitled": {"en": "Document {id}", "uk": "Документ {id}", "ru": "Документ {id}"},
+    "projects.document_count": {
+        "en": "Documents in this project: {count}",
+        "uk": "Документів у проєкті: {count}",
+        "ru": "Документов в проекте: {count}",
+    },
+    "projects.new_heading": {"en": "New project", "uk": "Новий проєкт", "ru": "Новый проект"},
+    "projects.settings_heading": {
+        "en": "Project settings",
+        "uk": "Налаштування проєкту",
+        "ru": "Настройки проекта",
+    },
+    "projects.name": {"en": "Name", "uk": "Назва", "ru": "Название"},
+    "projects.name_placeholder": {
+        "en": "e.g. Mobile banking app",
+        "uk": "напр. Мобільний банкінг",
+        "ru": "напр. Мобильный банкинг",
+    },
+    "projects.description": {"en": "Description", "uk": "Опис", "ru": "Описание"},
+    "projects.create": {"en": "Create project", "uk": "Створити проєкт", "ru": "Создать проект"},
+    "projects.save": {"en": "Save", "uk": "Зберегти", "ru": "Сохранить"},
+    "projects.confirm_delete": {
+        "en": "I understand that deleting cannot be undone",
+        "uk": "Я розумію, що видалення не можна скасувати",
+        "ru": "Я понимаю, что удаление нельзя отменить",
+    },
+    "projects.delete_document": {
+        "en": "Delete this document",
+        "uk": "Видалити цей документ",
+        "ru": "Удалить этот документ",
+    },
+    "projects.delete_project": {
+        "en": "Delete project",
+        "uk": "Видалити проєкт",
+        "ru": "Удалить проект",
+    },
+    "projects.created": {
+        "en": "Project “{name}” created. Add its requirements below.",
+        "uk": "Проєкт «{name}» створено. Додайте його вимоги нижче.",
+        "ru": "Проект «{name}» создан. Добавьте его требования ниже.",
+    },
+    "projects.saved": {
+        "en": "Project “{name}” saved.",
+        "uk": "Проєкт «{name}» збережено.",
+        "ru": "Проект «{name}» сохранён.",
+    },
+    "projects.deleted": {
+        "en": "Project “{name}” deleted.",
+        "uk": "Проєкт «{name}» видалено.",
+        "ru": "Проект «{name}» удалён.",
+    },
+    "projects.document_deleted": {
+        "en": "Document deleted from the project.",
+        "uk": "Документ видалено з проєкту.",
+        "ru": "Документ удалён из проекта.",
+    },
+    "projects.error.name_required": {
+        "en": "Enter a project name.",
+        "uk": "Введіть назву проєкту.",
+        "ru": "Введите название проекта.",
+    },
+    "projects.error.name_too_long": {
+        "en": "The name is too long (at most 80 characters).",
+        "uk": "Назва задовга (максимум 80 символів).",
+        "ru": "Название слишком длинное (максимум 80 символов).",
+    },
+    "projects.error.name_taken": {
+        "en": "A project with this name already exists.",
+        "uk": "Проєкт із такою назвою вже існує.",
+        "ru": "Проект с таким названием уже существует.",
+    },
+    "projects.error.description_too_long": {
+        "en": "The description is too long (at most 500 characters).",
+        "uk": "Опис задовгий (максимум 500 символів).",
+        "ru": "Описание слишком длинное (максимум 500 символов).",
+    },
+    "projects.error.save_failed": {
+        "en": "Could not save the project.",
+        "uk": "Не вдалося зберегти проєкт.",
+        "ru": "Не удалось сохранить проект.",
+    },
+    "projects.error.delete_failed": {
+        "en": "Could not delete it. Please try again.",
+        "uk": "Не вдалося видалити. Спробуйте ще раз.",
+        "ru": "Не удалось удалить. Попробуйте ещё раз.",
+    },
+    "projects.input_heading": {
+        "en": "Project: {name}. **Analyze** adds the text below to this project as a document; each document keeps its own requirements, test cases and bug reports.",
+        "uk": "Проєкт: {name}. **Аналізувати** додає текст нижче до цього проєкту як документ; кожен документ має власні вимоги, тест-кейси та баг-репорти.",
+        "ru": "Проект: {name}. **Анализировать** добавляет текст ниже в этот проект как документ; у каждого документа свои требования, тест-кейсы и баг-репорты.",
+    },
 }
 
 # Grill Mode text lives in its own module; keys must not collide.
@@ -869,6 +986,12 @@ TRANSLATIONS.update(GRILL_TRANSLATIONS)
 # Automation tab text, same rule.
 assert not TRANSLATIONS.keys() & AUTOMATION_TRANSLATIONS.keys()
 TRANSLATIONS.update(AUTOMATION_TRANSLATIONS)
+# LLM settings text, same rule.
+assert not TRANSLATIONS.keys() & LLM_TRANSLATIONS.keys()
+TRANSLATIONS.update(LLM_TRANSLATIONS)
+# App shell and page layout text, same rule.
+assert not TRANSLATIONS.keys() & UI_TRANSLATIONS.keys()
+TRANSLATIONS.update(UI_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

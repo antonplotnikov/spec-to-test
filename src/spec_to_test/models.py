@@ -188,6 +188,9 @@ class Workspace(BaseModel):
     """Everything the user works on for one document. Persisted locally."""
 
     document_hash: str = ""
+    # Shown in the project's document list (file name or first line); older saves have "".
+    title: str = ""
+    created_at: str = ""
     requirements: list[Requirement] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     test_cases: list[TestCase] = Field(default_factory=list)
@@ -217,3 +220,23 @@ class Workspace(BaseModel):
             if f.requirement_id == requirement_id
             and f.status == ClarificationStatus.NEEDS_CLARIFICATION
         ]
+
+
+class Project(BaseModel):
+    """A named set of requirement documents, e.g. one per product or application."""
+
+    id: str = Field(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9]+$")
+    # "" only for the default project, which the UI names in the reader's language.
+    name: str = Field(default="", max_length=80)
+    description: str = Field(default="", max_length=500)
+    created_at: str = ""
+
+
+class DocumentSummary(BaseModel):
+    """What the project's document list shows, without loading the whole workspace."""
+
+    document_hash: str
+    title: str = ""
+    created_at: str = ""
+    requirements: int = 0
+    first_requirement: str = ""

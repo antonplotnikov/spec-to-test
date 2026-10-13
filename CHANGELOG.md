@@ -6,7 +6,106 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Redesigned interface: a dark navy sidebar with the project/document switcher,
+  page navigation (Home, Requirements Analysis, Grill Mode, Test Cases,
+  Traceability, Dashboard, Export, Settings), the AI status and the language;
+  a page header with title, AI status, a quick provider/model menu and a
+  Settings shortcut; white cards on a light workspace with blue-violet
+  accents. Design tokens live in `theme_ui.py` (mirrored in
+  `.streamlit/config.toml`, checked by `tests/test_theme.py`); all CSS is
+  scoped to Streamlit test IDs or keyed containers. The former tabs moved to
+  pages: Findings, Test design, Bug reports and AI analysis are tabs of
+  Requirements Analysis, Automation is a tab of Test Cases. Analyze opens
+  Requirements Analysis; a new or deleted document opens Home.
+- Grill Mode layout: the interview in the center (progress, counters for
+  confirmed / assumptions / unknowns / unresolved contradictions, the current
+  requirement with a full-requirement view, a question card with priority,
+  category, requirement IDs and rationale, answer actions, previous answers)
+  and an Analysis / Findings / Report panel on the right, computed from the
+  session (`grill/insights.py`). Buttons read **Submit answer**, **Mark as
+  assumption**, **Mark as unknown** and **Skip**. Findings show what the
+  interview decided without resolving them; assumptions are never shown as
+  confirmed.
+- AI settings moved from the sidebar to **Settings** and the header menu;
+  project rename/delete moved to **Settings → Projects**. The AI choice and
+  typed requirements are kept while their page is not shown. The status says
+  *connected* only after a successful connection test of the provider and
+  model in use.
+- Streamlit toolbar set to `minimal` (no developer "Deploy" button).
+
 ### Added
+- Quality dimensions (`quality.DIMENSIONS`, `dimension_scores`): Clarity,
+  Completeness, Testability and Consistency, each a fixed group of the
+  existing criteria, so they add up to the same points as the score.
+- Test case read view, export validation (how many test cases each file holds, a warning when it would be empty),
+  dashboard "Unresolved issues" and "Requirements by quality", RTM coverage
+  bars, empty states that lead to Home.
+- Projects: group requirement documents by product or application. The
+  sidebar picks the project and one of its documents, creates projects (name,
+  optional description), renames them and deletes a document or a whole
+  project after confirmation. Every document has its own workspace, so the same
+  text in two projects is separate work. In `local` storage projects live in
+  `projects/<id>/` of the data folder and the last project and document reopen
+  on the next start; in `session` storage they stay in the browser session and
+  nothing touches the disk. Work saved by earlier versions opens unchanged in
+  the default project ("My project").
+- Grill Mode, unified adaptive interview: built-in and AI questions share one
+  queue ranked by priority (high / medium / low; every built-in question now
+  has one), re-ranked after each answer; contradictions are asked first within
+  their priority. New deterministic follow-ups: a clarification that is still
+  vague asks for a testable value, one that sets a new input limit asks what
+  happens beyond it (not for time targets, not when the behavior is already
+  stated), one level deep, dismissed by skipping.
+- Grill Mode conflicts (`grill/conflicts.py`): an answer whose limit
+  contradicts its requirement or another answer (rule-engine limit parsing)
+  becomes a high-priority, essential question offering the statements
+  verbatim; it is resolved only by the user's answer ("unknown" leaves it
+  open, with a review warning `answer_conflict`). Every question has a derived
+  state — CONFIRMED, ASSUMPTION, UNKNOWN, CONFLICT or OPEN — shown with the
+  progress bar, in the answer history and in a new **Unresolved issues** panel.
+  Each question shows its priority, requirement IDs and testing impact.
+- Grill final report: **Contradictions** section (decision or unresolved);
+  contested and overruled answers are kept out of the confirmed decisions and
+  never resolve workspace findings. Sections renamed to "Confirmed decisions",
+  "Unresolved questions" and "Suggested test scenarios".
+- AI interviewer quality controls: the model receives the planned queue,
+  states and open conflicts; it may be consulted after every answer (once per
+  answer state, never chained by its own questions) and its question joins the
+  ranked queue (`GrillWorkflow.merge_questions`). Questions are dropped when
+  they repeat or reword any known question, ask about a confirmed or unknown
+  field, name an unknown requirement, exceed 400 characters, or state a number
+  that is not in the input (disputed values excluded). AI test case ideas are
+  dropped when their expected result states such a number.
+- LLM providers: Claude (Anthropic), OpenAI and local Ollama models behind one
+  structured-output call (`spec_to_test.llm`). `AI_PROVIDER` picks the default
+  (`anthropic`/`claude`, `openai`, `ollama`); every provider with credentials
+  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` + optional `OPENAI_BASE_URL`,
+  `OLLAMA_HOST`) can be chosen per browser session in the new sidebar
+  **AI settings**, with the model (`AI_MODEL`, `ANTHROPIC_MODEL`,
+  `OPENAI_MODEL`, `OLLAMA_MODEL`), a **Use AI features** switch (off = the
+  rule-based mode, nothing sent) and a **Test connection** button.
+  `AI_LOCK_SETTINGS=true` makes the settings read-only on shared deployments.
+  Keys are read only from the environment, Streamlit secrets or `.env`, never
+  shown or logged. Ollama is called over plain HTTP (no SDK). New error codes
+  `model_not_found` and `unsupported_provider`. `requirements-ai.txt` now also
+  installs `openai`. Automation keeps using Claude whichever provider is
+  selected.
+- Grill Mode AI interviewer: after the built-in questions, the model asks
+  follow-up questions one at a time, each with why it matters and an
+  importance. It receives every earlier question with the reply and its
+  status (answered / assumed / unknown / skipped), must not repeat itself
+  (exact and near-duplicate questions are also filtered in code), never asks
+  again about unknown fields, and stops when nothing important is left or
+  after 12 questions. Consent is one tick per Grill session; a provider
+  failure is shown once and the interview continues without AI.
+- Grill Mode final report (`grill/report.py`): clarified requirements
+  (verbatim, with confirmed and assumed clarifications and open questions),
+  confirmed facts, assumptions and unknowns kept apart, and suggested test
+  cases — rule-based from the linked requirements, plus optional AI ideas that
+  are kept only when their expected result quotes a requirement or the
+  author's answer (the basis label is decided in code). Included in the
+  existing Markdown download.
 - Automation tab: an Approved test case becomes a validated Playwright
   TypeScript test. Claude (opt-in per run) explores the staging UI through the
   Playwright MCP server and submits a structured script; Spec-to-Test renders
@@ -59,6 +158,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
   removed.
 
 ### Changed
+- Grill interviews ask the most important open question first, so the order
+  differs from earlier versions (for example a missing expected result before
+  vague wording; without a document, the feature under test before an
+  unverifiable requirement ID). Stored sessions still load: questions without
+  a priority count as high if essential, otherwise medium.
+- AI configuration moved to `spec_to_test.llm`; `spec_to_test.ai_analysis`
+  re-exports the old names (`AIConfig`, `AIError`, `load_config`,
+  `request_structured`, ...), so existing imports keep working. AI error
+  messages no longer assume Claude, and `NotFoundError` from an SDK now shows
+  "unknown model" instead of a generic failure. `docker-compose.yml` no longer
+  forces `AI_MODEL=claude-opus-5-5` (empty = the provider's default).
 - **Behavior change for local users:** work is no longer saved to
   `.spec_to_test_data/` unless you set `SPEC_TO_TEST_STORAGE=local`
   (for example `SPEC_TO_TEST_STORAGE=local streamlit run app.py`).

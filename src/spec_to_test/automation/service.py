@@ -135,8 +135,8 @@ class AutomationService:
     ) -> AutomationJob:
         if not consent:
             raise AutomationError("consent_required")
-        if ai_config is None:
-            raise AutomationError("ai_not_configured")
+        if ai_config is None or ai_config.provider != "anthropic":
+            raise AutomationError("ai_not_configured")  # the agent loop uses Claude's tool use
         if not self.config.enabled:
             raise AutomationError("not_configured")
         if test_case.review_status != ReviewStatus.APPROVED:

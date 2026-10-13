@@ -188,7 +188,7 @@ def _new_job_form(
         assert ai_config is not None  # checked by the caller
         consent_key = f"automation_consent_{st.session_state.get(RUNS, 0)}"
         consent = st.checkbox(
-            t("automation.consent", lang, provider=ai_config.provider, model=escape_markdown(ai_config.model)),
+            t("automation.consent", lang, provider=ai_config.provider_name, model=escape_markdown(ai_config.model)),
             key=consent_key,
         )
         busy = any(job.status in ACTIVE_STATUSES for job in service.jobs(_owner()))

@@ -15,7 +15,7 @@ from automation_fakes import (
     resolver,
     tool_use,
 )
-from conftest import PROJECT_ROOT
+from conftest import PROJECT_ROOT, goto, home
 from spec_to_test.ai_analysis import AIError
 from spec_to_test.automation import service as service_module
 from spec_to_test.automation.config import load_automation_config
@@ -35,10 +35,10 @@ REQUIREMENTS = (
 def analyzed_app() -> AppTest:
     at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
-    at.text_area[0].input(REQUIREMENTS).run()
-    at.button[0].click().run()
+    home(at).text_area(key="requirements_text").input(REQUIREMENTS).run()
+    home(at).button(key="analyze").click().run()
     assert not at.exception
-    return at
+    return goto(at, "tests")  # Automation is a tab of the Test Cases page
 
 
 def approve_first_test_case(at: AppTest) -> str:
@@ -164,7 +164,7 @@ def test_automation_tab_is_translated(automation_on, lang):
     agents.append(FakeAgent([tool_use("a", "submit_test_script", **good_script())]))
     runners.append(FakeRunner(passed_run()))
     run_job(at, svc)
-    at.sidebar.selectbox[0].select(lang).run()
+    at.selectbox(key="language").select(lang).run()
     assert not at.exception
     texts = visible_text(at)
     assert not raw_keys(texts), raw_keys(texts)
@@ -181,7 +181,7 @@ def test_ai_error_is_translated_in_the_status_and_activity_log(automation_on, la
     agents.append(FakeAgent(error=AIError("auth")))
     runners.append(FakeRunner())
     run_job(at, svc)
-    at.sidebar.selectbox[0].select(lang).run()
+    at.selectbox(key="language").select(lang).run()
     activity = [str(el.value) for el in at.get("text")]
     assert sum(t("ai.error.auth", lang) in line for line in activity) == 1  # the final event of the log
     texts = visible_text(at) + activity

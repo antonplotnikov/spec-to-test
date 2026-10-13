@@ -13,9 +13,15 @@
 Analysis, context updates and re-analysis are not separate resting steps:
 they run inside a transition (the planner is called again after each answer).
 
-Optional AI output enters only through two transitions, and only after the
+The next question is always the highest-priority open one (ties keep queue
+order), and the planner runs again after every answer, so the queue adapts.
+
+Optional AI output enters only through these transitions, and only after the
 caller (the page) has asked for consent and called the model:
-- add_questions: extra questions, never essential; kept until handled.
+- add_questions: extra questions, never essential; kept until handled; the
+  first one is asked at once (the user asked for them).
+- merge_questions: the AI interviewer's question joins the same ranked queue
+  as the built-in ones (one interview, no separate AI phase).
 - add_ai_findings: extra review findings, never blocking; replaced by the
   next review, so they always describe the draft that was reviewed.
 
@@ -72,6 +78,7 @@ class Action(StrEnum):
     CONFIRM = "confirm"
     CANCEL = "cancel"
     ADD_QUESTIONS = "add_questions"
+    MERGE_QUESTIONS = "merge_questions"
     ADD_AI_FINDINGS = "add_ai_findings"
 
 
@@ -93,6 +100,7 @@ ALLOWED: dict[Action, frozenset[GrillStep]] = {
     Action.CONFIRM: frozenset({GrillStep.AWAITING_CONFIRMATION}),
     Action.CANCEL: _ACTIVE,
     Action.ADD_QUESTIONS: frozenset({GrillStep.ASK_QUESTION, GrillStep.SHOW_DRAFT, GrillStep.REVIEW}),
+    Action.MERGE_QUESTIONS: frozenset({GrillStep.ASK_QUESTION, GrillStep.SHOW_DRAFT}),
     Action.ADD_AI_FINDINGS: frozenset({GrillStep.REVIEW}),
 }
 
@@ -301,19 +309,7 @@ class GrillWorkflow:
         """
         new = self._begin(session, Action.ADD_QUESTIONS, expected_revision)
         assert new.draft is not None
-        known = {q.id for q in new.questions}
-        added: list[Question] = []
-        for question in questions:
-            if question.origin != Source.AI:
-                raise GrillError("invalid_question")
-            if question.field and question.field not in editable_fields(new.draft):
-                raise GrillError("invalid_field")
-            if not question.field and not isinstance(new.draft, RequirementsDraft):
-                raise GrillError("invalid_field")
-            if question.id in known:
-                continue
-            known.add(question.id)
-            added.append(question.model_copy(update={"essential": False}, deep=True))
+        added = self._new_ai_questions(new, questions)
         if not added:
             raise GrillError("no_new_questions")
         new.questions = [*new.questions, *added]
@@ -324,6 +320,29 @@ class GrillWorkflow:
             new.history.append(added[0].id)
         new.step = GrillStep.ASK_QUESTION
         return self._finish(new)
+
+    def merge_questions(
+        self, session: GrillSession, questions: list[Question], *, expected_revision: int | None = None
+    ) -> GrillSession:
+        """Add AI interviewer questions to the queue and ask whatever ranks highest.
+
+        Unlike add_questions, the new question does not jump the queue: a
+        high-priority built-in question is still asked first. A question the
+        user went back to (already answered) stays on screen.
+        """
+        new = self._begin(session, Action.MERGE_QUESTIONS, expected_revision)
+        assert new.draft is not None
+        if new.interview_closed:
+            raise GrillError("interview_closed")
+        added = self._new_ai_questions(new, questions)
+        if not added:
+            raise GrillError("no_new_questions")
+        new.questions = [*new.questions, *added]
+        new.accepted_unresolved = False
+        current = new.current_question
+        if new.step == GrillStep.ASK_QUESTION and current is not None and current.id in new.answers:
+            return self._finish(new)  # the user is changing an earlier answer
+        return self._finish(self._select(new))
 
     def add_ai_findings(
         self, session: GrillSession, findings: list[ReviewFinding], *, expected_revision: int | None = None
@@ -343,6 +362,25 @@ class GrillWorkflow:
         return self._finish(new)
 
     # --- Internals ----------------------------------------------------------------
+
+    @staticmethod
+    def _new_ai_questions(session: GrillSession, questions: list[Question]) -> list[Question]:
+        """Validated copies of AI questions the session does not have yet (never essential)."""
+        assert session.draft is not None
+        known = {q.id for q in session.questions}
+        added: list[Question] = []
+        for question in questions:
+            if question.origin != Source.AI:
+                raise GrillError("invalid_question")
+            if question.field and question.field not in editable_fields(session.draft):
+                raise GrillError("invalid_field")
+            if not question.field and not isinstance(session.draft, RequirementsDraft):
+                raise GrillError("invalid_field")
+            if question.id in known:
+                continue
+            known.add(question.id)
+            added.append(question.model_copy(update={"essential": False}, deep=True))
+        return added
 
     @staticmethod
     def _begin(session: GrillSession, action: Action, expected_revision: int | None) -> GrillSession:
@@ -404,13 +442,16 @@ class GrillWorkflow:
         return session
 
     def _advance(self, session: GrillSession) -> GrillSession:
-        """Re-analyze, then ask the next open question or show the draft."""
-        session = self._replan(session)
-        pending = session.pending_questions
-        if pending and not session.interview_closed:
-            session.current_question_id = pending[0].id
-            if pending[0].id not in session.history:
-                session.history.append(pending[0].id)
+        """Re-analyze, then ask the highest-priority open question or show the draft."""
+        return self._select(self._replan(session))
+
+    @staticmethod
+    def _select(session: GrillSession) -> GrillSession:
+        upcoming = session.next_pending
+        if upcoming is not None and not session.interview_closed:
+            session.current_question_id = upcoming.id
+            if upcoming.id not in session.history:
+                session.history.append(upcoming.id)
             session.step = GrillStep.ASK_QUESTION
         else:
             session.step = GrillStep.SHOW_DRAFT
