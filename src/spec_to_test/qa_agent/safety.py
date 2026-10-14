@@ -13,6 +13,13 @@ QA_NAV_TIMEOUT_MS     one page load (default 20000, 2000-120000)
 QA_RUN_TIMEOUT        seconds for a whole run (default 600, 30-3600)
 QA_MAX_RUNS_KEPT      saved runs per project before the oldest are removed (default 50)
 
+Autonomous QA discovery (read-only crawling of the target site):
+
+QA_DISCOVERY_MAX_PAGES     pages opened per discovery (default 15, 1-100)
+QA_DISCOVERY_MAX_DEPTH     link depth from the start page (default 2, 0-5)
+QA_DISCOVERY_TIMEOUT       seconds for a whole discovery (default 180, 20-1800)
+QA_DISCOVERY_MAX_ELEMENTS  links, fields or headings read per page (default 150, 10-1000)
+
 `preflight` decides, without a browser, whether a case may run at all.
 """
 
@@ -35,6 +42,10 @@ class QALimits(BaseModel):
     nav_timeout_ms: int = 20_000
     run_timeout_s: int = 600
     max_runs_kept: int = 50
+    discovery_max_pages: int = 15
+    discovery_max_depth: int = 2
+    discovery_timeout_s: int = 180
+    discovery_max_elements: int = 150
 
 
 def _int(env: dict[str, str], key: str, default: int, low: int, high: int) -> int:
@@ -54,6 +65,10 @@ def load_limits(environ: dict[str, str] | None = None) -> QALimits:
         nav_timeout_ms=_int(env, "QA_NAV_TIMEOUT_MS", 20_000, 2000, 120_000),
         run_timeout_s=_int(env, "QA_RUN_TIMEOUT", 600, 30, 3600),
         max_runs_kept=_int(env, "QA_MAX_RUNS_KEPT", 50, 1, 1000),
+        discovery_max_pages=_int(env, "QA_DISCOVERY_MAX_PAGES", 15, 1, 100),
+        discovery_max_depth=_int(env, "QA_DISCOVERY_MAX_DEPTH", 2, 0, 5),
+        discovery_timeout_s=_int(env, "QA_DISCOVERY_TIMEOUT", 180, 20, 1800),
+        discovery_max_elements=_int(env, "QA_DISCOVERY_MAX_ELEMENTS", 150, 10, 1000),
     )
 
 
@@ -99,7 +114,8 @@ def destructive_in(case: PlanCase) -> str | None:
 
 
 def preflight(
-    case: PlanCase, policy: EgressPolicy, secrets: dict[str, str], limits: QALimits, allow_destructive: bool
+    case: PlanCase, policy: EgressPolicy, secrets: dict[str, str], limits: QALimits, allow_destructive: bool,
+    allow_forms: bool = False,
 ) -> Verdict | None:
     """None when the case may run; otherwise NOT RUN or BLOCKED with the reason."""
     if not case.steps:
@@ -124,6 +140,8 @@ def preflight(
             return Verdict(RunStatus.BLOCKED, "secret_missing", {"name": name})
     if not allow_destructive and (term := destructive_in(case)):
         return Verdict(RunStatus.BLOCKED, "destructive", {"term": term})
+    if case.risk and not allow_forms:
+        return Verdict(RunStatus.BLOCKED, "risk", {"risk": case.risk})
     return None
 
 

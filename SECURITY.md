@@ -60,4 +60,14 @@ profile. You should receive a reply within 7 days.
   from stored text, masked in screenshots, and a screenshot that would show a
   secret is not taken. Timeouts, case/step limits and one run at a time
   bound resource use. See [docs/QA_AGENT.md](docs/QA_AGENT.md).
+- Autonomous QA: discovery needs the same allowlist and an explicit
+  authorization, is read-only (GET/HEAD only; nothing typed, clicked or
+  submitted; destructive and sign-out links not opened), and uses the same
+  egress policy. Page content is treated as untrusted data (clipped, redacted,
+  displayed escaped; marked untrusted in the optional AI prompt, whose output
+  is validated data). Requirements and test plans need approval;
+  form-submitting cases need per-case approval and a per-run permission;
+  destructive actions are never allowed in autonomous runs. Field values,
+  cookies and storage are never read. Page, depth, time and element limits
+  bound discovery. See [docs/AUTONOMOUS_QA.md](docs/AUTONOMOUS_QA.md).
 - Dependencies are checked with `pip-audit` and `npm audit` in CI.

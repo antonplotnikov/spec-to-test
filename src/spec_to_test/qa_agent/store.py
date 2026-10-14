@@ -1,8 +1,9 @@
 """Where QA Agent plans and runs are kept.
 
 Follows the storage mode (spec_to_test.storage):
-- "local":   <data dir>/qa_agent/<project id>/plans/<document hash>.json and
-             <data dir>/qa_agent/<project id>/runs/<run id>/run.json (+ screenshots);
+- "local":   <data dir>/qa_agent/<project id>/plans/<document hash>.json,
+             <data dir>/qa_agent/<project id>/runs/<run id>/run.json (+ screenshots) and
+             <data dir>/qa_agent/<project id>/autonomous/<session id>.json (Autonomous QA);
 - "session": the same layout in a private temp folder (mode 0700) that only
              this browser session knows, so visitors of a shared deployment
              never see each other's runs.
@@ -20,6 +21,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from spec_to_test.qa_agent.auto_models import AutoSession
 from spec_to_test.qa_agent.models import QARun, RunState, TestPlan
 from spec_to_test.storage import _file_name, _write_atomic, data_dir, persistence_enabled
 
@@ -101,6 +103,41 @@ class RunStore:
         except OSError:
             return None
         return path if path.parent == base and path.is_file() else None
+
+    # --- Autonomous QA sessions ----------------------------------------------------------
+
+    def _session_path(self, session_id: str) -> Path:
+        return self.root / "autonomous" / f"{_run_id(session_id)}.json"
+
+    def save_session(self, session: AutoSession) -> None:
+        _write_atomic(self._session_path(session.id), session.model_dump_json(indent=1))
+
+    def load_session(self, session_id: str) -> AutoSession | None:
+        try:
+            path = self._session_path(session_id)
+            if path.stat().st_size > MAX_FILE_BYTES:
+                return None
+            return AutoSession.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, ValidationError):
+            return None
+
+    def sessions(self) -> list[AutoSession]:
+        """Saved Autonomous QA sessions, newest first."""
+        folder = self.root / "autonomous"
+        if not folder.is_dir():
+            return []
+        found = []
+        for path in folder.glob("*.json"):
+            try:
+                session = self.load_session(path.stem)
+            except ValueError:
+                continue
+            if session is not None:
+                found.append(session)
+        return sorted(found, key=lambda s: (s.created_at, s.id), reverse=True)
+
+    def delete_session(self, session_id: str) -> None:
+        self._session_path(session_id).unlink(missing_ok=True)
 
     def delete(self, run_id: str) -> None:
         shutil.rmtree(self.run_dir(run_id), ignore_errors=True)

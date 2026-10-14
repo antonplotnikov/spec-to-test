@@ -17,7 +17,7 @@ import socket
 import threading
 from collections.abc import Callable
 
-from spec_to_test.automation.security import Resolver, UrlRejected, build_egress_policy
+from spec_to_test.automation.security import Resolver, UrlRejected, _split, build_egress_policy
 from spec_to_test.qa_agent.bugs import generate_bugs
 from spec_to_test.qa_agent.executor import Executor, now
 from spec_to_test.qa_agent.models import CaseResult, PlanCase, QARun, RunStatus
@@ -25,6 +25,9 @@ from spec_to_test.qa_agent.safety import RUN_SLOT, QASettings
 from spec_to_test.qa_agent.store import RunStore, new_run_id
 
 Progress = Callable[[int, int, CaseResult], None]
+# Runs whose worker is alive in this process; a saved run still "running" that is not
+# here was interrupted (the server stopped) and can be resumed.
+ACTIVE_RUNS: set[str] = set()
 
 
 class QAError(Exception):
@@ -34,6 +37,21 @@ class QAError(Exception):
         super().__init__(code)
         self.code = code
         self.params = params or {}
+
+
+def url_error(url: str, rejected: UrlRejected) -> QAError:
+    """The QAError for a rejected URL. A host that is simply not allowed also gets the exact
+    AUTOMATION_ALLOWED_HOSTS entry the operator would have to add (it is only shown, never applied)."""
+    params = {"code": rejected.code, **rejected.params}
+    if rejected.code == "not_allowed":
+        try:
+            scheme, host, port = _split(url.strip())
+        except UrlRejected:
+            pass
+        else:
+            params["port"] = str(port)
+            params["entry"] = host if port == (443 if scheme == "https" else 80) else f"{host}:{port}"
+    return QAError("url", params)
 
 
 def playwright_available() -> bool:
@@ -51,7 +69,7 @@ def check_target(url: str, settings: QASettings, resolver: Resolver = socket.get
     try:
         build_egress_policy(url, settings.automation, resolver)
     except UrlRejected as rejected:
-        raise QAError("url", {"code": rejected.code, **rejected.params}) from None
+        raise url_error(url, rejected) from None
 
 
 def run_cases(
@@ -62,11 +80,13 @@ def run_cases(
     *,
     authorized: bool,
     allow_destructive: bool = False,
+    allow_forms: bool = False,
     document_hash: str = "",
     document_title: str = "",
     parent_run_id: str = "",
     on_progress: Progress | None = None,
     resolver: Resolver = socket.getaddrinfo,
+    on_finish: Callable[[QARun], None] | None = None,
 ) -> QARun:
     if not authorized:
         raise QAError("not_authorized")
@@ -77,7 +97,7 @@ def run_cases(
     try:
         policy = build_egress_policy(target_url, settings.automation, resolver)
     except UrlRejected as rejected:
-        raise QAError("url", {"code": rejected.code, **rejected.params}) from None
+        raise url_error(target_url, rejected) from None
     if not any(case.is_approved for case in cases):
         raise QAError("nothing_approved")
     if not RUN_SLOT.acquire(blocking=False):
@@ -90,6 +110,7 @@ def run_cases(
         created_at=now(),
         authorized=True,
         allow_destructive=allow_destructive,
+        allow_forms=allow_forms,
         parent_run_id=parent_run_id,
         limits=settings.limits.model_dump(),
         cases=[case.model_copy(deep=True) for case in cases],
@@ -104,16 +125,21 @@ def run_cases(
     def work() -> None:
         # The worker finishes the run (bug reports, saving, freeing the slot) even when
         # the caller stops listening, e.g. because the person left the page mid-run.
+        ACTIVE_RUNS.add(run.id)
         try:
             store.save(run)
-            executor = Executor(settings, policy, store.run_dir(run.id), allow_destructive=allow_destructive)
+            executor = Executor(settings, policy, store.run_dir(run.id), allow_destructive=allow_destructive,
+                                allow_forms=allow_forms)
             executor.run(run, on_case=save_progress)
             run.bugs = generate_bugs(run)
+            if on_finish:  # e.g. Autonomous QA classifies the results and refines the bug reports
+                on_finish(run)
             store.save(run)
             store.prune(settings.limits.max_runs_kept)
         except BaseException as exc:  # noqa: BLE001 - re-raised in the caller's thread
             outcome["error"] = exc
         finally:
+            ACTIVE_RUNS.discard(run.id)
             RUN_SLOT.release()
             events.put(None)
 

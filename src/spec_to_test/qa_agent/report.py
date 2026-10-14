@@ -159,6 +159,8 @@ def markdown_report(run: QARun, requirements: list[Requirement] | None = None, l
 
 def reason_text(code: str, params: dict[str, str], lang: str) -> str:
     if code == "url":
+        if params.get("code") == "not_allowed" and params.get("entry"):
+            return t("qaagent.reason.url_not_allowed_entry", lang, host=params.get("host", ""), entry=params["entry"])
         return t(f"automation.reason.url_{params.get('code', 'invalid')}", lang, host=params.get("host", ""))
     try:
         return t(f"qaagent.reason.{code}", lang, **params)
@@ -179,11 +181,12 @@ def results_csv(run: QARun) -> str:
 
 def bugs_csv(run: QARun) -> str:
     headers = ["ID", "Summary", "Severity", "Requirement", "Test case", "Steps to reproduce", "Expected", "Actual",
-               "Error", "Evidence", "Environment"]
+               "Error", "Evidence", "Environment", "Classification"]
     rows = [
         [b.id, b.title, b.severity.value, b.requirement_id, b.test_case_id,
          "\n".join(f"{i}. {s}" for i, s in enumerate(b.steps_to_reproduce, start=1)), b.expected, b.actual,
-         b.error, "\n".join(b.evidence), "\n".join(f"{k}: {v}" for k, v in b.environment.items())]
+         b.error, "\n".join(b.evidence), "\n".join(f"{k}: {v}" for k, v in b.environment.items()),
+         b.classification]
         for b in run.bugs
     ]
     return _to_csv(headers, rows)

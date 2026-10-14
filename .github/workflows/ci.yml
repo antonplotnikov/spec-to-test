@@ -157,4 +157,4 @@ jobs:
         # Fails instead of skipping if the browser could not be installed.
         run: |
           python -c "from playwright.sync_api import sync_playwright as p; b = p().start().chromium.launch(); b.close()"
-          pytest -q -rs tests/test_qa_agent_e2e.py tests/test_qa_agent_ui.py
+          pytest -q -rs tests/test_qa_agent_e2e.py tests/test_qa_agent_ui.py tests/test_qa_auto_e2e.py tests/test_qa_auto_ui.py

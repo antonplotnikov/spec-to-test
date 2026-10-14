@@ -26,6 +26,10 @@ requirements (or upload a TXT, MD, or PDF file) and it will:
   you are authorized to test, and get Passed / Failed / Blocked / Not run
   results with screenshots, bug reports, run history, retests and a QA report
   with requirement coverage — no AI key needed.
+- **Autonomous QA:** enter the URL of a site you may test; the agent explores
+  it read-only, drafts evidence-based requirements (Observed / Inferred /
+  Unknown, with questions), generates tests, and — after your approval — runs
+  them and drafts bug reports, with traceability from website evidence to bug.
 
 The interface is available in **English** (default), **Ukrainian**, and
 **Russian**. It works fully offline; AI review is optional and runs only with
@@ -560,6 +564,32 @@ everywhere, per-step/per-run timeouts and run limits. A local **Demo Shop**
 (`examples/qa_demo/`) with a deliberate bug shows a real pass and failure.
 Setup, step language, statuses and limitations:
 [docs/QA_AGENT.md](docs/QA_AGENT.md).
+
+### Autonomous QA
+
+Switch the QA Agent page to **Autonomous QA**, enter an authorized URL, tick
+the authorization and click **Start Autonomous QA**:
+
+1. **Discovery** (automatic, read-only) — pages, navigation, forms, fields,
+   buttons and redirects, each recorded as evidence. GET requests only; nothing
+   is typed, clicked or submitted; destructive links and other hosts are never
+   opened.
+2. **Requirements** (automatic draft, you decide) — each with an ID, source
+   URL, evidence, confidence and basis: *Observed*, *Inferred* (needs
+   confirmation) or *Unknown* (a question). Approve, reject, defer, edit or
+   answer them.
+3. **Test plan** — positive, negative, validation and boundary cases for the
+   approved requirements; cases that submit forms need their own approval.
+   *Send to workspace* puts the approved work into a document, so analysis,
+   Grill Mode, Test Cases and the RTM use it too.
+4. **Run & bugs** — runs after a fresh authorization; results are classified
+   as defect, uncertain expectation, timeout, environment or security block;
+   bug reports only where the evidence supports them.
+5. **Final report** — site map, requirements, results, bugs and the chain
+   *evidence → requirement → test case → result → bug*.
+
+Try it on the Demo Shop and read the safety model and limitations in
+[docs/AUTONOMOUS_QA.md](docs/AUTONOMOUS_QA.md).
 
 ---
 
