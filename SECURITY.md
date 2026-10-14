@@ -49,4 +49,25 @@ profile. You should receive a reply within 7 days.
   and test processes run with a minimal environment (no API key), resource
   limits and timeouts; in Docker the container is the sandbox (non-root, no
   capabilities, read-only root file system).
+- QA Agent: runs only on hosts in `AUTOMATION_ALLOWED_HOSTS`, only approved
+  cases (any edit revokes approval), and only after a per-run "I am
+  authorized" confirmation. URLs pass the same SSRF checks as Automation; the
+  browser resolves only pinned hosts, sends everything else (loopback
+  included) to a non-existent proxy, aborts off-allowlist requests and blocks
+  the case on any redirect away from the allowed hosts. Steps are data for a
+  fixed interpreter (no generated code). Destructive actions are blocked
+  unless allowed; secrets come from `AUTOMATION_SECRET_<NAME>`, are redacted
+  from stored text, masked in screenshots, and a screenshot that would show a
+  secret is not taken. Timeouts, case/step limits and one run at a time
+  bound resource use. See [docs/QA_AGENT.md](docs/QA_AGENT.md).
+- Autonomous QA: discovery needs the same allowlist and an explicit
+  authorization, is read-only (GET/HEAD only; nothing typed, clicked or
+  submitted; destructive and sign-out links not opened), and uses the same
+  egress policy. Page content is treated as untrusted data (clipped, redacted,
+  displayed escaped; marked untrusted in the optional AI prompt, whose output
+  is validated data). Requirements and test plans need approval;
+  form-submitting cases need per-case approval and a per-run permission;
+  destructive actions are never allowed in autonomous runs. Field values,
+  cookies and storage are never read. Page, depth, time and element limits
+  bound discovery. See [docs/AUTONOMOUS_QA.md](docs/AUTONOMOUS_QA.md).
 - Dependencies are checked with `pip-audit` and `npm audit` in CI.

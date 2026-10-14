@@ -21,6 +21,15 @@ requirements (or upload a TXT, MD, or PDF file) and it will:
 - **Automation (optional):** turn an Approved test case into a Playwright
   TypeScript test — Claude explores your staging site in a real browser, the
   test is generated, run in a sandboxed Chromium, and approved by you.
+- **QA Agent:** build an editable test plan linked to requirement IDs, run
+  the approved cases in a real browser (Python Playwright) against a web app
+  you are authorized to test, and get Passed / Failed / Blocked / Not run
+  results with screenshots, bug reports, run history, retests and a QA report
+  with requirement coverage — no AI key needed.
+- **Autonomous QA:** enter the URL of a site you may test; the agent explores
+  it read-only, drafts evidence-based requirements (Observed / Inferred /
+  Unknown, with questions), generates tests, and — after your approval — runs
+  them and drafts bug reports, with traceability from website evidence to bug.
 
 The interface is available in **English** (default), **Ukrainian**, and
 **Russian**. It works fully offline; AI review is optional and runs only with
@@ -528,6 +537,62 @@ See [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ---
 
+## QA Agent
+
+The **QA Agent** page runs browser tests against a web app you are
+authorized to test, without an AI key:
+
+1. **Test plan** — one plan case per test case, linked to its requirement and
+   test case IDs. Concrete steps ("Enter "x" in the "Email" field", "Click the
+   "Sign in" button") are converted to executable steps; vague ones are left
+   empty and flagged, never guessed. Edit steps in a small step language
+   (`goto /login`, `fill label=Email | …`, `click role=button[name=Sign in]`,
+   `expect_text Welcome`), then approve each case.
+2. **Run** — confirm you are authorized to test the host, and the approved
+   cases run in headless Chromium through Python Playwright. Each step is one
+   fixed Playwright call; nothing is executed as code.
+3. **History** — Passed / Failed / Blocked / Not run per case with the
+   screenshot, error, observed page text, console errors and a bug report for
+   every failure; retest failed and blocked cases as a linked run.
+4. **QA report** — coverage by requirement and downloads (Markdown, ZIP with
+   screenshots, JSON, CSV).
+
+Safety: operator allowlist (`AUTOMATION_ALLOWED_HOSTS`), SSRF checks on the
+URL and on every redirect and page request, destructive actions blocked unless
+allowed, secrets typed from `AUTOMATION_SECRET_<NAME>` and redacted
+everywhere, per-step/per-run timeouts and run limits. A local **Demo Shop**
+(`examples/qa_demo/`) with a deliberate bug shows a real pass and failure.
+Setup, step language, statuses and limitations:
+[docs/QA_AGENT.md](docs/QA_AGENT.md).
+
+### Autonomous QA
+
+Switch the QA Agent page to **Autonomous QA**, enter an authorized URL, tick
+the authorization and click **Start Autonomous QA**:
+
+1. **Discovery** (automatic, read-only) — pages, navigation, forms, fields,
+   buttons and redirects, each recorded as evidence. GET requests only; nothing
+   is typed, clicked or submitted; destructive links and other hosts are never
+   opened.
+2. **Requirements** (automatic draft, you decide) — each with an ID, source
+   URL, evidence, confidence and basis: *Observed*, *Inferred* (needs
+   confirmation) or *Unknown* (a question). Approve, reject, defer, edit or
+   answer them.
+3. **Test plan** — positive, negative, validation and boundary cases for the
+   approved requirements; cases that submit forms need their own approval.
+   *Send to workspace* puts the approved work into a document, so analysis,
+   Grill Mode, Test Cases and the RTM use it too.
+4. **Run & bugs** — runs after a fresh authorization; results are classified
+   as defect, uncertain expectation, timeout, environment or security block;
+   bug reports only where the evidence supports them.
+5. **Final report** — site map, requirements, results, bugs and the chain
+   *evidence → requirement → test case → result → bug*.
+
+Try it on the Demo Shop and read the safety model and limitations in
+[docs/AUTONOMOUS_QA.md](docs/AUTONOMOUS_QA.md).
+
+---
+
 ## Automation (optional)
 
 The **Automation** tab turns an *Approved* test case into a validated
@@ -731,6 +796,10 @@ when `openai` is not installed).
 real Playwright MCP server, Chromium and test runner (only the model is
 scripted); these tests skip themselves when `automation/runner` is not
 installed.
+`tests/test_qa_agent_e2e.py` and `tests/test_qa_agent_ui.py` run the QA
+Agent with real Chromium (Python Playwright) against the local Demo Shop; they
+skip themselves when Playwright's Chromium is not installed
+(`pip install -r requirements-qa.txt && python -m playwright install chromium`).
 `tests/test_evaluation.py` runs the AI quality evaluation with the scripted
 model and fails when a threshold is missed; `pytest -m live_ai` runs it
 against a real provider (skipped unless `SPEC_TO_TEST_LIVE_AI=1`).
