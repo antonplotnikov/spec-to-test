@@ -6,6 +6,7 @@
 # (plus requirements-ai.txt when .env enables the Anthropic provider). When
 # Node.js is installed it also sets up the Automation tab: the Python extras
 # (requirements-automation.txt) and the Playwright toolchain (automation/runner).
+# The QA Agent page gets Python Playwright (requirements-qa.txt) and its Chromium.
 #
 # Usage: macos/start.sh [--setup-only]
 set -euo pipefail
@@ -47,6 +48,27 @@ if ! "$VENV/bin/python" -c 'import streamlit, webview' >/dev/null 2>&1; then
         "$VENV/bin/python" -m pip install --upgrade pip &&
             "$VENV/bin/python" -m pip install -r "$ROOT/requirements-desktop.txt"
     } >>"$LOG_FILE" 2>&1 || fail "Installing dependencies failed. See $LOG_FILE"
+fi
+
+# QA Agent page: Python Playwright and its Chromium (about 150 MB, downloaded once).
+# Not fatal: without them the page explains what is missing.
+if ! "$VENV/bin/python" -c 'import playwright' >/dev/null 2>&1; then
+    notify "Installing QA Agent components…"
+    "$VENV/bin/python" -m pip install -r "$ROOT/requirements-qa.txt" >>"$LOG_FILE" 2>&1 ||
+        echo "QA Agent: Playwright could not be installed (the page will say what is missing)." >>"$LOG_FILE"
+fi
+if "$VENV/bin/python" -c 'import playwright' >/dev/null 2>&1 &&
+    ! "$VENV/bin/python" -c '
+import os, sys
+from playwright.sync_api import sync_playwright
+pw = sync_playwright().start()
+try:
+    sys.exit(0 if os.path.exists(pw.chromium.executable_path) else 1)
+finally:
+    pw.stop()' >/dev/null 2>&1; then
+    notify "Downloading the browser for QA Agent…"
+    "$VENV/bin/python" -m playwright install chromium >>"$LOG_FILE" 2>&1 ||
+        echo "QA Agent: Chromium could not be downloaded (the page will say what is missing)." >>"$LOG_FILE"
 fi
 
 # Optional AI features: install the SDKs only when .env asks for a provider that needs one

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "target_url": "http://127.0.0.1:8765/",
+  "cases": [
+    {
+      "id": "QA-001",
+      "requirement_id": "REQ-1",
+      "title": "Home page shows the shop name",
+      "steps": [
+        {"action": "goto", "value": "/"},
+        {"action": "expect_visible", "target": "role=heading[name=Demo Shop]"},
+        {"action": "expect_title", "value": "Demo Shop"}
+      ],
+      "expected_result": "The heading \"Demo Shop\" is shown."
+    },
+    {
+      "id": "QA-002",
+      "requirement_id": "REQ-2",
+      "title": "Sign in with valid credentials",
+      "steps": [
+        {"action": "goto", "value": "/login"},
+        {"action": "fill", "target": "label=Email", "value": "demo@example.com"},
+        {"action": "fill", "target": "label=Password", "value": "{{secret:DEMO_PASSWORD}}"},
+        {"action": "click", "target": "role=button[name=Sign in]"},
+        {"action": "expect_url", "value": "/dashboard"},
+        {"action": "expect_text", "value": "Welcome, Demo User"}
+      ],
+      "expected_result": "The dashboard opens and shows \"Welcome, Demo User\"."
+    },
+    {
+      "id": "QA-003",
+      "requirement_id": "REQ-3",
+      "title": "Sign in with a wrong password",
+      "steps": [
+        {"action": "goto", "value": "/login"},
+        {"action": "fill", "target": "label=Email", "value": "demo@example.com"},
+        {"action": "fill", "target": "label=Password", "value": "wrong-password"},
+        {"action": "click", "target": "role=button[name=Sign in]"},
+        {"action": "expect_text", "target": "role=alert", "value": "Invalid email or password"},
+        {"action": "expect_url", "value": "/login"}
+      ],
+      "expected_result": "The error \"Invalid email or password\" is shown and the user stays on the sign-in page."
+    },
+    {
+      "id": "QA-004",
+      "requirement_id": "REQ-4",
+      "title": "Contact form rejects an empty email",
+      "steps": [
+        {"action": "goto", "value": "/contact"},
+        {"action": "fill", "target": "label=Name", "value": "Alex"},
+        {"action": "fill", "target": "label=Email", "value": "{{empty}}"},
+        {"action": "fill", "target": "label=Message", "value": "Where is my order?"},
+        {"action": "click", "target": "role=button[name=Send]"},
+        {"action": "expect_text", "value": "Email is required"},
+        {"action": "expect_no_text", "value": "Thanks"}
+      ],
+      "expected_result": "The error \"Email is required\" is shown and no confirmation appears."
+    },
+    {
+      "id": "QA-005",
+      "requirement_id": "REQ-5",
+      "title": "Delete the account",
+      "steps": [
+        {"action": "goto", "value": "/account"},
+        {"action": "click", "target": "#danger"},
+        {"action": "expect_text", "value": "Your account was deleted"}
+      ],
+      "expected_result": "The account is deleted."
+    },
+    {
+      "id": "QA-006",
+      "requirement_id": "REQ-6",
+      "title": "The go-elsewhere link stays inside the shop",
+      "steps": [
+        {"action": "goto", "value": "/go-elsewhere"},
+        {"action": "expect_title", "value": "Demo Shop"}
+      ],
+      "expected_result": "The user stays on a Demo Shop page."
+    }
+  ]
+}

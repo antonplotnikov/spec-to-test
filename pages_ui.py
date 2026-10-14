@@ -1,5 +1,5 @@
 """Pages of the app other than Grill Mode: Home, Requirements Analysis, Test Cases,
-RTM, Dashboard, Export and Settings.
+QA Agent, RTM, Dashboard, Export and Settings.
 
 Rendering only. The analysis, test generation, RTM, exports and AI calls are
 the same functions the single-page layout used; every edit still goes through
@@ -16,6 +16,8 @@ import streamlit as st
 
 import automation_ui
 import llm_ui
+import qa_agent_ui
+import qa_auto_ui
 import shell_ui
 import theme_ui
 from projects_ui import (
@@ -688,6 +690,21 @@ def tests(p: Page) -> None:
         _test_case_editor(p, ws)
     with tab_automation:
         automation_ui.render_automation(lang, ws, p.automation_ai, p.persist)
+
+
+# ---------------------------------------------------------------------------
+# QA Agent
+# ---------------------------------------------------------------------------
+
+def qa_agent(p: Page) -> None:
+    project_id = active_project_id()
+    docs = qa_auto_ui.Documents(
+        load=lambda doc_hash: p.store.load(project_id, doc_hash),
+        persist=p.persist,
+        remember=lambda doc_hash: remember_document(project_id, doc_hash),
+    )
+    qa_agent_ui.render_qa_agent(p.lang, st.session_state.get(WORKSPACE), p.ai_config, docs,
+                                no_document=lambda: _workspace(p, "qa_agent"))
 
 
 def _risk_of(ws: Workspace, requirement_id: str) -> Severity | None:

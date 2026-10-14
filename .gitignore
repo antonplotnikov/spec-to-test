@@ -36,3 +36,6 @@ automation/runner/node_modules/
 .playwright-mcp/
 test-results/
 playwright-report/
+
+# QA Agent command-line output (python -m spec_to_test.qa_agent --out qa-output)
+qa-output/

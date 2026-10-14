@@ -103,6 +103,8 @@ jobs:
         run: pip-audit -r requirements-desktop.txt
       - name: Audit automation dependencies
         run: pip-audit -r requirements-automation.txt
+      - name: Audit QA Agent dependencies
+        run: pip-audit -r requirements-qa.txt
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -135,3 +137,24 @@ jobs:
         run: pytest -q -m e2e -rs
       - name: Run all tests with the automation extras installed
         run: pytest -q
+
+  qa-agent-e2e:
+    name: QA Agent (real browser, Python Playwright)
+    runs-on: ubuntu-22.04  # 24.04 AppArmor blocks the Chromium sandbox
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt -r requirements-qa.txt
+          python -m playwright install --with-deps chromium
+      - name: Run QA Agent tests against the local Demo Shop
+        # Fails instead of skipping if the browser could not be installed.
+        run: |
+          python -c "from playwright.sync_api import sync_playwright as p; b = p().start().chromium.launch(); b.close()"
+          pytest -q -rs tests/test_qa_agent_e2e.py tests/test_qa_agent_ui.py tests/test_qa_auto_e2e.py tests/test_qa_auto_ui.py

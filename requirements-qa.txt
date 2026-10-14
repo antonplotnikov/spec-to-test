@@ -1,0 +1,4 @@
+# Optional: enables the QA Agent page (plan, run and report browser tests).
+# After installing, download the browser once: python -m playwright install chromium
+-r requirements.txt
+playwright>=1.50,<2
