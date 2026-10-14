@@ -254,12 +254,14 @@ Analysis). The page has two columns: the interview in the middle (progress,
 counters for confirmed answers, assumptions, unknowns and unresolved
 contradictions, the current requirement, the question card with its priority,
 category, requirement IDs and testing rationale, the answer actions and your
-previous answers) and an analysis panel on the right with three tabs:
+previous answers) and an analysis panel on the right with four tabs:
 *Analysis* (quality score and dimensions of the session's requirements, open
 items, active assumptions, unresolved questions, related requirements),
 *Findings* (ambiguities, missing information, contradictions and review
-risks, each with what the interview decided so far) and *Report* (a live
-summary that keeps confirmed facts, assumptions and open questions apart).
+risks, each with what the interview decided so far), *Report* (a live
+summary that keeps confirmed facts, assumptions and open questions apart) and
+*History* (where every decision came from and every change to it, see
+[Decision history](#decision-history-and-audit-log)).
 Everything in the panel is computed from the session; assumptions are never
 counted or listed as confirmed. Pick a workflow:
 
@@ -276,8 +278,11 @@ How it works:
    priority (high / medium / low), names the requirement(s) it is about, and
    says why it matters for testing. Answer it, keep your answer as an
    *assumption*, mark it as *unknown*, or skip it (essential questions cannot be
-   skipped). You can go back and change any answer. The queue adapts after
-   every answer:
+   skipped). You can go back and change any answer. Within a priority, the
+   riskiest question comes first: a severe finding on a weak requirement (low
+   quality score) before a minor one. Findings already resolved in the
+   analyzed document are not asked about again (the start screen says how
+   many). The queue adapts after every answer:
    - an answer that contradicts its requirement or another answer (for
      example "at least 10 characters" vs "at least 8") is flagged as a
      **conflict** and asked about next — choose the correct statement, write
@@ -315,8 +320,10 @@ How it works:
      or a severity the report stays Markdown-only — neither is guessed.
    - **clarified requirements:** findings answered by a clarification you
      *confirmed* can be marked resolved, one tick per clarification, nothing
-     ticked by default. Assumptions never resolve a finding. This raises the
-     quality score and cannot be undone in the UI yet.
+     ticked by default, with an optional reason. Assumptions never resolve a
+     finding. This raises the quality score; every change is recorded and can
+     be **reopened or undone** on Requirements Analysis → Findings (see
+     [Findings history](#findings-history-reopen-and-undo)).
 
 To improve an existing draft, paste it with labels, for example:
 
@@ -373,7 +380,151 @@ requirements, plus — on request, with consent — AI ideas. An AI test case is
 kept only if its expected result quotes a requirement or one of your answers;
 the app (not the model) labels its basis as *requirement*, *confirmed answer*
 or *depends on an assumption*. **Download as Markdown** contains the result
-followed by the report.
+followed by the report and the decision trace.
+
+### Saving and resuming interviews
+
+Every change to an interview is saved as an interview of the open project —
+answers, question history, draft, findings, progress, unresolved questions
+and the audit log. The start screen lists the project's **unfinished
+interviews** (with progress and open questions) to **Resume** or **Delete**;
+finished and cancelled ones are kept below. **Close, keep saved** leaves an
+interview without cancelling it.
+
+- `local` storage: interviews are files in the project's data folder, written
+  after every action, and the last unfinished one **reopens automatically
+  after a page reload** (or the next visit), with a note saying so.
+- `session` storage (the default, e.g. shared deployments): interviews are
+  kept for this browser session only; nothing is written to disk. Use **Save
+  progress to a file** (a JSON file) and **Resume from a file** to continue
+  after a reload or on another machine. Loaded files are size-limited and
+  validated; older formats are upgraded, invalid ones refused.
+
+### Decision history and audit log
+
+The **History** tab lists every question with its source — a rule finding
+(and the words that triggered it), a contradiction in the source, an answer
+that conflicts with a requirement or another answer, a follow-up to an
+answer, the AI interviewer (and its model), or an empty draft field — the
+requirement IDs it is about, the answer, and its state: **CONFIRMED** (a
+decision), **ASSUMPTION**, **UNKNOWN**, **CONFLICT** or **OPEN**. An answer
+that lost a resolved contradiction is marked *overruled*. Every change to an
+answer is kept with its time and previous value, and the **audit log** lists
+every action (answers, changes, AI questions added, draft edits, reviews,
+confirmation, cancellation); entries are never edited. **Download audit log
+(JSON)** exports the requirements, every decision and the full log. Nothing
+is inferred: requirement IDs appear only when the question or draft links
+them and the document contains them, and unknown items carry no value.
+
+### Findings history: reopen and undo
+
+Requirements Analysis → Findings has a **Resolved findings** panel: pick a
+resolved finding and **Reopen** it (it counts against quality and coverage
+again), or **Undo last change** (the whole last action — e.g. everything one
+Grill resolution resolved — is reverted). Both take an optional reason. The
+**change history** shows every resolve, reopen and undo with its time, how
+it happened (Grill clarification with its session, by hand, undo) and the
+reason or clarification. Both sides of a contradiction always change
+together. Findings resolved before history was recorded show that their
+history is unknown.
+
+### Reactive interview queue
+
+The open questions are recalculated after every answer (confirmed, assumption
+or unknown), every direct draft edit, and every finding status change:
+
+- **Findings resolved or reopened during an interview.** When a finding of
+  the analyzed document is resolved or reopened (Requirements Analysis →
+  Findings, or another interview's resolution), the open requirements
+  interview on that document follows at once: a resolved finding's open
+  question leaves the queue, a reopened one comes back under the same ID and,
+  if the interview had run out of questions, is asked next. A note says what
+  changed; answers are never touched, the question on screen stays unless it
+  was the one resolved, and a review that was shown is redone.
+- **Answers that settle other questions.** A confirmed or assumed
+  clarification that states a limit ("locked after 5 failed attempts")
+  answers the missing-limit question of the same requirement; one that names
+  the failure path ("files over 20 MB are rejected with an error") answers
+  its error-handling question. Contradictions and missing outcomes are never
+  settled this way. Changing that answer to *unknown* brings the question back.
+- **Nothing is lost.** A question that leaves the queue is listed under
+  **Closed without asking** with the reason (resolved in the document,
+  answered by another answer, no longer applies) and recorded in the audit
+  log (*question closed*, *question back in the queue*, *findings changed in
+  the document*). Question IDs never change, so the decision trace, saved
+  interviews and exports stay consistent, and the number of handled
+  questions never goes down.
+
+### Numbers, units and contradictions (EN / RU / UK)
+
+The rule engine, the test design and Grill's conflict checks share one parser
+(`quantities.py`) for limits written in English, Russian or Ukrainian:
+
+- comparators *at least / up to / more than / less than / must not exceed*,
+  *не менее / не более / свыше / менее / не дольше*, *щонайменше / не більше /
+  понад / менше / не пізніше*; ranges *between 8 and 64*, *8–64*, *от 8 до 64*,
+  *від 8 до 64*; numbers like *1 000*, *1,000*, *2,5*;
+- units of time (ms … weeks), size (KB, MB, GB, also КБ/МБ/ГБ), characters,
+  attempts, items, percent, and the currencies USD ($), EUR (€), GBP (£),
+  RUB (₽, руб., рублей) and UAH (₴, грн, гривень).
+
+Two requirements contradict only when their limits cannot both hold in the
+same dimension after converting units: *30 minutes* and *1800 seconds* agree,
+*500 ms* and *2 seconds* do not, *at least 10* and *at most 8 characters* do
+not. Amounts in different currencies are never compared (no exchange rate is
+assumed). Requirements for another scope or condition — *international
+orders*, *для оптовых покупателей*, *для корпоративних клієнтів*, *… if the
+address is abroad* — are a different context, not a contradiction; an answer
+that states a limit for another scope is treated as a new rule, not a
+conflict. Questions are asked only where they apply: *uploaded photos should
+appear quickly*, *after login the dashboard shows …*, *in the form of a PDF*,
+*enterprise customers*, *страница загружается*, *отчёт формируется в формате
+PDF*, a quoted label such as *«Быстрая оплата»*, or a session that *expires
+when the user logs out* no longer raise error-handling, ambiguity or limit
+questions, and a rule that states its value (*Orders over 50 USD get free
+shipping*) is not asked what should be observed.
+
+---
+
+## AI quality evaluation
+
+A repeatable suite measures how good the Grill AI is, using the same code
+path as the app (planner, AI interviewer merged into the ranked queue,
+reviews, test case suggestions, trust filters):
+
+```bash
+cd src
+python -m spec_to_test.evaluation              # scripted model: deterministic, offline (also run by pytest in CI)
+python -m spec_to_test.evaluation --rules-only # built-in questions only, as a baseline
+python -m spec_to_test.evaluation --live       # the configured provider (optional; costs API credits)
+python -m spec_to_test.evaluation --json out.json --markdown out.md
+```
+
+| Metric | Meaning |
+|---|---|
+| relevance | asked questions that address a gold issue of the case |
+| duplication | asked questions repeating an earlier one about the same requirement |
+| coverage | gold issues addressed by at least one asked question |
+| resolved_reasked | questions about findings resolved in the document at that moment — before or during the interview (must be 0) |
+| false_positive_rate | "must not ask" traps (questions a reviewer would not ask) that were asked |
+| contradiction_recall / _precision | contradicting requirement pairs found / pairs reported that a person judged contradictory |
+| invented_values | numbers in the clarified requirements that neither the document nor an answer contains (must be 0) |
+| progress_regressions | times the number of handled questions went down (must be 0) |
+| hallucination_raw / _accepted | model items with an invented requirement ID, an invented number, or a quote/basis not in the input — before / after the trust filters (accepted must be 0) |
+| test_case_quality | suggested test cases with steps, an expected result, a real requirement, a traceable basis and no invented number |
+| invented_requirements | requirement IDs in the result that the document does not contain (must be 0) |
+| ai_errors | failed model calls; the interview must continue without them |
+
+Thirty cases live in `src/spec_to_test/evaluation/fixtures/` (English,
+Russian and Ukrainian): requirements, gold issues and contradicting pairs
+labeled by a person, look-alike pairs that must not be flagged, "must not
+ask" traps, a scripted author, findings resolved or reopened mid-interview,
+and scripted model replies with planted hallucinations, duplicates and every
+kind of API failure. Thresholds per mode are in
+`src/spec_to_test/evaluation/thresholds.json`; the command exits with 1 when
+one is missed, and CI publishes both reports in the job summary. The live test is optional:
+`SPEC_TO_TEST_LIVE_AI=1 AI_PROVIDER=anthropic ANTHROPIC_API_KEY=… pytest -m live_ai`.
+See [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ---
 
@@ -464,7 +615,8 @@ docker compose up --build    # http://localhost:8501
 | `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | `.env` / env / Streamlit secrets | — / `gpt-5` / OpenAI | OpenAI key, model, optional compatible gateway |
 | `OLLAMA_HOST` / `OLLAMA_MODEL` | `.env` / env / Streamlit secrets | `http://localhost:11434` / `llama3.1` | Local Ollama server and model (no key) |
 | `SPEC_TO_TEST_STORAGE` | env / Streamlit secrets (**not** `.env`) | `session` | Only the exact value `local` (any case, spaces ignored) saves work to disk; anything else, including empty, means `session` (browser session only, nothing on disk) |
-| `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work (`local` mode only) |
+| `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work and Grill interviews (`local` mode only) |
+| `SPEC_TO_TEST_LIVE_AI` | env (tests only) | — | `1` lets `pytest -m live_ai` run the evaluation suite against the configured real provider |
 | `AUTOMATION_ALLOWED_HOSTS` | env / Streamlit secrets (**not** `.env`) | — | Staging hosts for the Automation tab (`host`, `*.domain`, `host:port`); empty = off |
 | `AUTOMATION_ALLOW_PRIVATE_NETWORK` | env / secrets | `false` | Allow hosts on private/loopback addresses (internal staging) |
 | `AUTOMATION_SECRET_<NAME>` | env / secrets | — | Credential a test may type, referenced as `<NAME>` |
@@ -476,6 +628,18 @@ docker compose up --build    # http://localhost:8501
 Environment variables override `.env`. Upload limits are in
 `.streamlit/config.toml` and `src/spec_to_test/input_parser.py` (a test keeps
 them in sync).
+
+**Saved data and migrations.** Saved workspaces and Grill interviews carry a
+schema version and are upgraded when they are loaded, so files from older
+versions keep opening; no manual step is needed. Workspace schema 2 adds the
+findings change history (older files start with an empty history; findings
+they mark resolved stay resolved). Grill session schema 2 adds the audit log,
+timestamps, settled findings, question risk and the AI model of AI questions;
+a migrated interview gets one *upgraded* entry saying its earlier history was
+not recorded. Grill session schema 3 adds the questions closed without asking
+(a schema 2 interview simply has none yet). A file is rewritten in the new format on its next save; files
+from a newer app version are refused, not guessed. Older app versions ignore
+the new fields.
 
 ---
 
@@ -496,6 +660,10 @@ src/spec_to_test/
 ├── formatting.py            Markdown escaping for user text
 ├── storage.py               Storage modes: session (default) and opt-in local JSON
 ├── projects.py              Projects of requirement documents; session and disk stores
+├── quantities.py            Numbers, units, currencies, ranges (EN/RU/UK) shared by rules, test design, Grill
+├── findings.py              Resolve / reopen / undo findings with change history
+├── migrations.py            Upgrades saved workspaces to the current schema
+├── evaluation/              AI quality evaluation: cases, scripted model, metrics, CLI
 ├── ai_analysis.py           Optional LLM review (consent required)
 ├── llm/                     Optional LLM providers (no Streamlit)
 │   ├── config.py            Provider settings from env / secrets / .env; per-session choice
@@ -511,6 +679,8 @@ src/spec_to_test/
     ├── integration.py       Confirmed results → workspace, resolved findings, Markdown
     ├── report.py            Final report: facts / assumptions / unknowns, suggested test cases
     ├── insights.py          Analysis panel data: findings by kind, counts, related requirements
+    ├── persistence.py       Saved interviews: disk and session stores, export / import
+    ├── trace.py             Decision trace and audit log (sources, states, answer history)
     └── ai.py                Optional AI interviewer, questions, review and test ideas
 ├── automation/              Automation tab domain logic (no Streamlit)
 │   ├── config.py            Settings from the environment, prerequisites
@@ -561,7 +731,12 @@ when `openai` is not installed).
 real Playwright MCP server, Chromium and test runner (only the model is
 scripted); these tests skip themselves when `automation/runner` is not
 installed.
-CI runs lint, type checks, tests on Python 3.11 and 3.12, and `pip-audit` on
+`tests/test_evaluation.py` runs the AI quality evaluation with the scripted
+model and fails when a threshold is missed; `pytest -m live_ai` runs it
+against a real provider (skipped unless `SPEC_TO_TEST_LIVE_AI=1`).
+CI runs lint, type checks, tests on Python 3.11 and 3.12, the scripted and
+rules-only evaluation (thresholds enforced, tables in the job summary, JSON
+and Markdown uploaded as artifacts), and `pip-audit` on
 every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 QA documentation for the app itself — test plan, test cases, bug reports, RTM,
@@ -592,9 +767,11 @@ The app is ready for **Streamlit Community Cloud**. See
   replies are sent.
 - Any session can switch AI off (header AI menu or **Settings**); the rule-based features
   never depend on it.
-- Grill Mode keeps its session in your browser session only; nothing is
+- Grill Mode keeps its interviews in your browser session only; nothing is
   written to disk, and a confirmed result you add to the workspace stays in
-  your browser session too (unless you opted into `local` storage).
+  your browser session too — unless you opted into `local` storage, where
+  interviews are saved in the data folder like documents. A progress file you
+  download contains your answers and drafts; treat it like the document.
 - In every environment the default storage mode is `session`: documents are not
   read from or written to disk, so visitors of a shared deployment cannot see
   each other's work. `local` must be enabled explicitly with
@@ -611,24 +788,38 @@ The app is ready for **Streamlit Community Cloud**. See
 ## Limitations
 
 - Rules are keyword heuristics: they can miss issues and produce false positives.
+  Scope and condition detection (*premium users*, *если …*) uses word lists
+  and clause markers, so a reworded condition can hide a real contradiction
+  and an unlisted qualifier can let a different-context pair be flagged.
+  Numbers count only next to a known unit or currency; an exceeded rate limit
+  (*no more than once per 60 seconds*) gets no error-handling question.
 - Generated test cases are drafts with generic steps; they need human review.
-- Test design understands numbers with these units only: characters, minutes,
-  seconds, hours, days, attempts, MB. Decision tables support up to 3
+- Test design and contradiction checks understand numbers with these units
+  only: characters, time (ms to weeks; months and years are not converted to
+  days), KB/MB/GB, attempts, items, percent, USD/EUR/GBP/RUB/UAH. Currencies
+  are never converted into each other. Decision tables support up to 3
   conditions joined only by `and` or only by `or`.
 - IDs must start with capital letters (`REQ-1`). Scanned (image-only) PDFs are
   not supported. `**bold**` markers are removed from requirement text.
 - Generated text uses the interface language at generation time.
 - Saved work is matched by the exact document text.
 - Rule findings can be marked as resolved only through a confirmed Grill
-  Mode clarification, and cannot be reopened in the UI.
+  Mode clarification (they can be reopened or undone by hand). Findings
+  resolved before the change history existed have no recorded history.
 - Jira priorities and TestRail types/priorities use default values.
 - AI supports Anthropic only and was tested with a fake client, not the live API.
 - Tables do not support column sorting (they wrap text instead of truncating it).
 - Work is not saved between visits by default (`session` storage): closing or
   reloading the page loses it. Download the exports, or opt into `local`
   storage on your own computer.
-- Grill Mode keeps its session in the browser only; a page reload loses an
-  unfinished session. A confirmed result can be added to the workspace, which
+- In `session` storage a page reload starts a new browser session, so an
+  unfinished interview comes back only from a saved progress file; in
+  `local` storage it reopens automatically. Finding status changes reach an
+  open interview only when it runs on the analyzed document itself (same
+  document and requirement texts); finished interviews are records and are
+  not changed. An AI question that asks the same as a built-in one in other
+  words is dropped only when the wording is close, when it names exactly a
+  known contradicting pair, or when it offers one value in two units. A confirmed result can be added to the workspace, which
   needs an analyzed document and a link to one of its requirements. In the
   default `session` mode it is then kept only in the current browser session;
   it is saved to disk only with explicit `SPEC_TO_TEST_STORAGE=local`. A test

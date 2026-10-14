@@ -1,0 +1,44 @@
+{
+ "scripted": {
+  "relevance": {"min": 0.92},
+  "duplication": {"max": 0.0},
+  "coverage": {"min": 0.97},
+  "resolved_reasked": {"max": 0.0},
+  "false_positive_rate": {"max": 0.05},
+  "contradiction_recall": {"min": 0.95},
+  "contradiction_precision": {"min": 0.95},
+  "hallucination_accepted": {"max": 0.0},
+  "test_case_quality": {"min": 0.95},
+  "test_coverage": {"min": 1.0},
+  "invented_requirements": {"max": 0},
+  "invented_values": {"max": 0},
+  "progress_regressions": {"max": 0}
+ },
+ "rules": {
+  "relevance": {"min": 0.92},
+  "duplication": {"max": 0.0},
+  "coverage": {"min": 0.8},
+  "resolved_reasked": {"max": 0.0},
+  "false_positive_rate": {"max": 0.05},
+  "contradiction_recall": {"min": 0.95},
+  "contradiction_precision": {"min": 0.95},
+  "test_case_quality": {"min": 0.95},
+  "invented_requirements": {"max": 0},
+  "invented_values": {"max": 0},
+  "progress_regressions": {"max": 0}
+ },
+ "live": {
+  "relevance": {"min": 0.6},
+  "duplication": {"max": 0.1},
+  "coverage": {"min": 0.75},
+  "resolved_reasked": {"max": 0.0},
+  "false_positive_rate": {"max": 0.2},
+  "contradiction_recall": {"min": 0.95},
+  "contradiction_precision": {"min": 0.95},
+  "hallucination_accepted": {"max": 0.0},
+  "test_case_quality": {"min": 0.8},
+  "invented_requirements": {"max": 0},
+  "invented_values": {"max": 0},
+  "progress_regressions": {"max": 0}
+ }
+}

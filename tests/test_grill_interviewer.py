@@ -81,10 +81,11 @@ def interviewed() -> GrillSession:
     session = WF.submit_input(WF.start(GrillKind.REQUIREMENTS), RequirementsDraft(requirements=REQS))
     assert session.current_question_id == "rule.missing_expected_result.REQ-3"  # high priority first
     session = WF.answer(session, "", AnswerStatus.UNKNOWN)
-    assert session.current_question_id == "rule.ambiguous_wording.REQ-1"
-    session = WF.answer(session, "The page is interactive within 2 seconds on 4G.")  # confirmed
+    # Same priority: the riskier requirement first (REQ-3 has two findings, so lower quality).
     assert session.current_question_id == "rule.ambiguous_wording.REQ-3"
     session = WF.skip(session)
+    assert session.current_question_id == "rule.ambiguous_wording.REQ-1"
+    session = WF.answer(session, "The page is interactive within 2 seconds on 4G.")  # confirmed
     assert session.step == GrillStep.SHOW_DRAFT and not session.pending_questions
     return session
 
@@ -97,11 +98,11 @@ def test_every_earlier_answer_is_sent_with_its_status():
     items = model.payload()["interview"]
     assert [(i["status"], i["state"], i["answer"]) for i in items] == [  # in the order asked
         ("unknown", "unknown", ""),
-        ("answered", "confirmed", "The page is interactive within 2 seconds on 4G."),
         ("skipped", "open", ""),
+        ("answered", "confirmed", "The page is interactive within 2 seconds on 4G."),
     ]
     assert [i["priority"] for i in items] == ["high", "medium", "medium"]
-    assert items[1]["requirement_ids"] == ["REQ-1"]
+    assert items[2]["requirement_ids"] == ["REQ-1"]
     assert all(i["question"] for i in items)
 
 

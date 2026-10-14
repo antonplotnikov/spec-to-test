@@ -57,6 +57,34 @@ jobs:
         with:
           name: test-results-${{ matrix.python-version }}
           path: test-results.xml
+      - name: AI quality evaluation (scripted model, offline)
+        # Exits 1 when a regression threshold in evaluation/thresholds.json is missed.
+        working-directory: src
+        env:
+          AI_PROVIDER: none
+        run: python -m spec_to_test.evaluation --json ../evaluation.json --markdown ../evaluation.md
+      - name: Rule engine evaluation (no AI)
+        if: always()
+        working-directory: src
+        env:
+          AI_PROVIDER: none
+        run: python -m spec_to_test.evaluation --rules-only --json ../evaluation-rules.json --markdown ../evaluation-rules.md
+      - name: Publish evaluation summary
+        if: always()
+        run: |
+          for report in evaluation.md evaluation-rules.md; do
+            if [ -f "$report" ]; then cat "$report" >> "$GITHUB_STEP_SUMMARY"; echo >> "$GITHUB_STEP_SUMMARY"; fi
+          done
+      - name: Upload evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-${{ matrix.python-version }}
+          path: |
+            evaluation.json
+            evaluation.md
+            evaluation-rules.json
+            evaluation-rules.md
 
   security:
     name: Dependency audit

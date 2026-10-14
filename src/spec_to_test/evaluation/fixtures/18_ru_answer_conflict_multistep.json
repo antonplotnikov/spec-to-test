@@ -1,0 +1,136 @@
+{
+ "name": "ru_answer_conflict_multistep",
+ "description": "Многошаговое интервью: ответ называет 12 символов вместо 8 из требования — нужен вопрос о противоречии; размытое уточнение «простым» — нужен уточняющий вопрос.",
+ "language": "ru",
+ "requirements": "REQ-1: Пользователь вводит пароль длиной не менее 8 символов.\nREQ-2: После 5 неудачных попыток входа учётная запись блокируется.\nREQ-3: Интерфейс должен быть удобным.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некорректн"
+    ],
+    "note": "слишком короткий пароль"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "12"
+    ],
+    "note": "ответ: 12 символов, требование: 8"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "что видит пользователь после ввода пароля"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "удобн"
+    ],
+    "note": "размытое: удобный"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "clarity"
+    ],
+    "keywords": [
+     "простым"
+    ],
+    "note": "уточнение всё ещё размыто"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [],
+    "keywords": [
+     "разблок",
+     "как долго"
+    ],
+    "note": "как снимается блокировка"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_error_handling.REQ-1": {
+   "status": "answered",
+   "value": "Показывается ошибка: пароль должен содержать не менее 12 символов."
+  },
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "Пароль сохраняется, пользователь видит сообщение об успехе."
+  },
+  "rule.ambiguous_wording.REQ-3": {
+   "status": "answered",
+   "value": "Интерфейс должен быть простым."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "ваш ответ говорит",
+   "status": "answered",
+   "value": "REQ-1: Пользователь вводит пароль длиной не менее 8 символов."
+  },
+  {
+   "contains": "всё ещё содержит",
+   "status": "unknown"
+  },
+  {
+   "contains": "разблок",
+   "status": "answered",
+   "value": "Через 30 минут или по ссылке из письма."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": []
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "Как разблокируется учётная запись после блокировки?",
+      "reason": "Тест разблокировки.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ]
+ }
+}

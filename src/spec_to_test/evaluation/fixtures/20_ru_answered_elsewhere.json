@@ -1,0 +1,94 @@
+{
+ "name": "ru_answered_elsewhere",
+ "description": "Один ответ закрывает два вопроса: граница размера файла с описанием отказа отвечает и на вопрос об обработке ошибок того же требования.",
+ "language": "ru",
+ "requirements": "REQ-1: Размер загружаемого файла ограничен.\nREQ-2: Пользователь загружает несколько файлов одновременно.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_boundary",
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "размер"
+    ],
+    "note": "предельный размер файла и отказ"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "несколько"
+    ],
+    "note": "размытое: несколько"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некорректн"
+    ],
+    "note": "сбой загрузки одного из файлов"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "что видит пользователь после загрузки"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": "уже отвечено: файл больше 20 МБ отклоняется с ошибкой"
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_boundary.REQ-1": {
+   "status": "answered",
+   "value": "Не более 20 МБ; файл большего размера отклоняется с ошибкой."
+  },
+  "rule.ambiguous_wording.REQ-2": {
+   "status": "answered",
+   "value": "До 10 файлов за раз."
+  },
+  "rule.missing_expected_result.REQ-2": {
+   "status": "answered",
+   "value": "Все файлы появляются в списке с отметкой о загрузке."
+  },
+  "rule.missing_expected_result.REQ-1": {
+   "status": "unknown"
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

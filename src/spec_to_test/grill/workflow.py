@@ -28,6 +28,20 @@ caller (the page) has asked for consent and called the model:
 Every method returns a new session and leaves its input untouched, so the
 workflow keeps no state of its own and one instance can serve every user.
 Passing `expected_revision` rejects actions from an outdated page.
+
+Audit trail: every transition that changes something appends an `AuditEvent`
+(answers keep their previous status and value), so the history of each
+decision can be shown and exported. `clock` gives the timestamps.
+
+Reactive queue: the open questions are recalculated after every answer
+(confirmed, assumed or unknown), every direct draft edit, and every change of
+finding status in the analyzed document (`sync_settled`). An open question
+that no longer applies is not deleted: it moves to `session.retired` with the
+reason (resolved in the document, answered by another answer, obsolete) and a
+`question_retired` event, and comes back under the same ID (`question_restored`)
+if it applies again. Answered questions are never removed, the question on
+screen is replaced only if it was retired, and IDs never change, so progress,
+traceability and the audit log stay intact.
 """
 
 from collections.abc import Callable
@@ -39,6 +53,8 @@ from spec_to_test.grill.models import (
     Answer,
     AnswerStatus,
     ArtifactType,
+    AuditAction,
+    AuditEvent,
     FindingLevel,
     GrillKind,
     GrillMode,
@@ -46,13 +62,18 @@ from spec_to_test.grill.models import (
     GrillStep,
     Question,
     RequirementsDraft,
+    RetiredQuestion,
+    RetireReason,
     ReviewFinding,
+    utc_now,
 )
 from spec_to_test.grill.validation import deterministic_review, sort_findings
 from spec_to_test.models import Requirement, Source
 
 QuestionPlanner = Callable[[GrillSession], list[Question]]
 Reviewer = Callable[[GrillSession], list[ReviewFinding]]
+# Open question ID -> ID of the answered question that already covers it.
+Coverage = Callable[[GrillSession], dict[str, str]]
 
 
 class GrillError(Exception):
@@ -80,6 +101,7 @@ class Action(StrEnum):
     ADD_QUESTIONS = "add_questions"
     MERGE_QUESTIONS = "merge_questions"
     ADD_AI_FINDINGS = "add_ai_findings"
+    SYNC_FINDINGS = "sync_findings"
 
 
 _ACTIVE = frozenset(GrillStep) - {GrillStep.FINALIZED, GrillStep.CANCELLED}
@@ -102,6 +124,9 @@ ALLOWED: dict[Action, frozenset[GrillStep]] = {
     Action.ADD_QUESTIONS: frozenset({GrillStep.ASK_QUESTION, GrillStep.SHOW_DRAFT, GrillStep.REVIEW}),
     Action.MERGE_QUESTIONS: frozenset({GrillStep.ASK_QUESTION, GrillStep.SHOW_DRAFT}),
     Action.ADD_AI_FINDINGS: frozenset({GrillStep.REVIEW}),
+    Action.SYNC_FINDINGS: frozenset({
+        GrillStep.ASK_QUESTION, GrillStep.SHOW_DRAFT, GrillStep.REVIEW, GrillStep.AWAITING_CONFIRMATION,
+    }),
 }
 
 
@@ -113,12 +138,19 @@ def no_questions(session: GrillSession) -> list[Question]:
     return []
 
 
+def no_coverage(session: GrillSession) -> dict[str, str]:
+    return {}
+
+
 @dataclass(frozen=True)
 class GrillWorkflow:
     """Stateless controller. `planner` proposes questions, `reviewer` checks drafts."""
 
     planner: QuestionPlanner = no_questions
     reviewer: Reviewer = deterministic_review
+    clock: Callable[[], str] = utc_now
+    # Which open questions other answers already cover (they leave the queue).
+    coverage: Coverage = no_coverage
 
     # --- Start --------------------------------------------------------------
 
@@ -128,7 +160,10 @@ class GrillWorkflow:
         mode: GrillMode = GrillMode.INTERVIEW,
         artifact: ArtifactType | None = None,
         context_requirements: list[Requirement] | None = None,
+        settled_question_ids: list[str] | None = None,
     ) -> GrillSession:
+        """A new session. `settled_question_ids`: rule questions whose findings are already
+        resolved in the analyzed document (they are not asked again)."""
         if kind == GrillKind.REVIEW:
             if artifact is None:
                 raise GrillError("missing_artifact")
@@ -136,7 +171,8 @@ class GrillWorkflow:
         else:
             artifact = ArtifactType(kind.value)
         return GrillSession(
-            kind=kind, artifact=artifact, mode=mode, context_requirements=list(context_requirements or [])
+            kind=kind, artifact=artifact, mode=mode, context_requirements=list(context_requirements or []),
+            settled_question_ids=sorted(set(settled_question_ids or [])),
         )
 
     def submit_input(
@@ -149,6 +185,8 @@ class GrillWorkflow:
         new.draft = draft.model_copy(deep=True)
         new.input_text = input_text
         new.draft_revision = 1
+        new.created_at = new.created_at or self.clock()
+        self._log(new, AuditAction.STARTED, origin=Source.USER, detail=new.mode.value)
         if new.kind == GrillKind.REVIEW:
             return self._finish(self._run_review(new))
         return self._finish(self._advance(new))
@@ -243,9 +281,12 @@ class GrillWorkflow:
         except DraftError as exc:
             raise GrillError(exc.code) from None
         if merged != new.draft:
+            changed = [f for f in editable_fields(merged) if getattr(merged, f) != getattr(new.draft, f)]
             new.draft = merged
             new.draft_revision += 1
             new.accepted_unresolved = False
+            self._log(new, AuditAction.DRAFT_EDITED, origin=Source.USER, fields=changed)
+            new = self._replan(new)  # a filled field answers its open question
         new.step = GrillStep.SHOW_DRAFT
         return self._finish(new)
 
@@ -282,6 +323,8 @@ class GrillWorkflow:
             raise GrillError("unresolved_not_accepted")
         new.accepted_unresolved = bool(new.warning_findings)
         new.step = GrillStep.AWAITING_CONFIRMATION
+        self._log(new, AuditAction.CONFIRMATION_REQUESTED, origin=Source.USER,
+                  detail=f"accepted_warnings={len(new.warning_findings)}" if new.accepted_unresolved else "")
         return self._finish(new)
 
     def confirm(self, session: GrillSession, *, expected_revision: int | None = None) -> GrillSession:
@@ -290,11 +333,60 @@ class GrillWorkflow:
         if not new.review_is_current:
             raise GrillError("review_outdated")
         new.step = GrillStep.FINALIZED
+        self._log(new, AuditAction.CONFIRMED, origin=Source.USER)
         return self._finish(new)
 
     def cancel(self, session: GrillSession, *, expected_revision: int | None = None) -> GrillSession:
         new = self._begin(session, Action.CANCEL, expected_revision)
         new.step = GrillStep.CANCELLED
+        self._log(new, AuditAction.CANCELLED, origin=Source.USER)
+        return self._finish(new)
+
+    # --- Finding status in the analyzed document ----------------------------------
+
+    def sync_settled(
+        self, session: GrillSession, settled_question_ids: list[str], *, expected_revision: int | None = None
+    ) -> GrillSession:
+        """Follow finding status changes made in the analyzed document during the interview.
+
+        `settled_question_ids` are the rule questions whose findings are resolved
+        now. A newly resolved finding's open question is retired; a reopened
+        finding's question returns to the queue. Answers are never touched. The
+        question on screen stays unless it was retired. A review that was shown
+        is redone, because its open-question warnings changed.
+
+        Returns the session unchanged (same revision) when nothing changed, so a
+        page may call it on every render.
+        """
+        wanted = sorted(set(settled_question_ids))
+        if session.is_terminal or not isinstance(session.draft, RequirementsDraft):
+            return session
+        if wanted == sorted(set(session.settled_question_ids)):
+            return session
+        new = self._begin(session, Action.SYNC_FINDINGS, expected_revision)
+        before = set(new.settled_question_ids)
+        resolved, reopened = sorted(set(wanted) - before), sorted(before - set(wanted))
+        new.settled_question_ids = wanted
+        self._log(new, AuditAction.FINDINGS_SYNCED, origin=Source.USER,
+                  detail="; ".join(part for part in (
+                      f"resolved: {', '.join(resolved)}" if resolved else "",
+                      f"reopened: {', '.join(reopened)}" if reopened else "",
+                  ) if part))
+        pending_before = [q.id for q in new.pending_questions]
+        known_before = {q.id for q in new.questions} | {r.question.id for r in new.retired}
+        new = self._replan(new)
+        for question_id in reopened:  # settled when the interview started: never in the queue before
+            if question_id not in known_before and (question := new.question(question_id)) is not None:
+                self._log(new, AuditAction.QUESTION_RESTORED, question_id=question_id, origin=question.origin)
+        queue_changed = [q.id for q in new.pending_questions] != pending_before
+        if new.step == GrillStep.ASK_QUESTION:
+            if new.current_question is None:  # the question on screen was retired
+                new = self._select(new)
+        elif new.step == GrillStep.SHOW_DRAFT and not new.interview_closed:
+            new = self._select(new)  # a reopened finding is asked at once
+        elif new.step in (GrillStep.REVIEW, GrillStep.AWAITING_CONFIRMATION) and queue_changed:
+            new.accepted_unresolved = False
+            new = self._run_review(new)
         return self._finish(new)
 
     # --- Optional AI output ----------------------------------------------------------
@@ -313,6 +405,7 @@ class GrillWorkflow:
         if not added:
             raise GrillError("no_new_questions")
         new.questions = [*new.questions, *added]
+        self._log_added(new, added)
         new.interview_closed = False
         new.accepted_unresolved = False
         new.current_question_id = added[0].id
@@ -338,6 +431,7 @@ class GrillWorkflow:
         if not added:
             raise GrillError("no_new_questions")
         new.questions = [*new.questions, *added]
+        self._log_added(new, added)
         new.accepted_unresolved = False
         current = new.current_question
         if new.step == GrillStep.ASK_QUESTION and current is not None and current.id in new.answers:
@@ -359,6 +453,7 @@ class GrillWorkflow:
         kept = [f for f in new.findings if f.origin != Source.AI]
         new.findings = sort_findings(kept + [f.model_copy(deep=True) for f in findings])
         new.accepted_unresolved = False
+        self._log(new, AuditAction.AI_REVIEWED, origin=Source.AI, detail=f"findings={len(findings)}")
         return self._finish(new)
 
     # --- Internals ----------------------------------------------------------------
@@ -367,7 +462,7 @@ class GrillWorkflow:
     def _new_ai_questions(session: GrillSession, questions: list[Question]) -> list[Question]:
         """Validated copies of AI questions the session does not have yet (never essential)."""
         assert session.draft is not None
-        known = {q.id for q in session.questions}
+        known = {q.id for q in session.questions} | {r.question.id for r in session.retired}
         added: list[Question] = []
         for question in questions:
             if question.origin != Source.AI:
@@ -390,8 +485,16 @@ class GrillWorkflow:
             raise GrillError("invalid_transition")
         return session.model_copy(deep=True)
 
-    @staticmethod
-    def _finish(session: GrillSession) -> GrillSession:
+    def _log(self, session: GrillSession, action: AuditAction, **details: object) -> None:
+        session.events = [*session.events, AuditEvent(at=self.clock(), action=action, **details)]  # type: ignore[arg-type]
+
+    def _log_added(self, session: GrillSession, added: list[Question]) -> None:
+        for question in added:
+            self._log(session, AuditAction.QUESTION_ADDED, question_id=question.id, origin=question.origin,
+                      detail=question.ai_model)
+
+    def _finish(self, session: GrillSession) -> GrillSession:
+        session.updated_at = self.clock()
         session.revision += 1
         # Re-validate so a transition can never produce an inconsistent session.
         return GrillSession.model_validate(session.model_dump())
@@ -403,8 +506,7 @@ class GrillWorkflow:
             raise GrillError("unknown_question")
         return question
 
-    @staticmethod
-    def _record(session: GrillSession, question: Question, status: AnswerStatus, value: str) -> GrillSession:
+    def _record(self, session: GrillSession, question: Question, status: AnswerStatus, value: str) -> GrillSession:
         previous = session.answers.get(question.id)
         if previous is not None and previous.status == status and previous.value == value:
             return session  # unchanged answer: just move on
@@ -420,6 +522,12 @@ class GrillWorkflow:
         except DraftError as exc:
             raise GrillError(exc.code) from None
         session.answers = {**session.answers, question.id: answer}
+        self._log(
+            session, AuditAction.ANSWER_CHANGED if previous else AuditAction.ANSWERED,
+            question_id=question.id, status=status, value=value, answer_revision=answer.revision,
+            previous_status=previous.status if previous else None, previous_value=previous.value if previous else "",
+            origin=Source.USER,
+        )
         if updated != session.draft:
             session.draft = updated
             session.draft_revision += 1
@@ -427,17 +535,43 @@ class GrillWorkflow:
         return session
 
     def _replan(self, session: GrillSession) -> GrillSession:
-        """Merge new planner output: keep handled questions, drop stale unanswered ones.
+        """Recalculate the open questions; keep handled ones, retire those that no longer apply.
 
-        AI questions are not the planner's, so they stay until the user handles them.
+        AI questions are not the planner's, so they stay until the user handles
+        them (or another answer covers them). A question that leaves the queue
+        is kept in `session.retired` with its reason; one that applies again is
+        restored under the same ID.
         """
-        planned = self.planner(session)
+        covered = {qid: by for qid, by in self.coverage(session).items() if qid not in session.answers}
+        planned = [q for q in self.planner(session) if q.id not in covered]
         planned_ids = {q.id for q in planned}
         kept = [
             q for q in session.questions
-            if (q.id in session.answers or q.origin == Source.AI) and q.id not in planned_ids
+            if (q.id in session.answers or (q.origin == Source.AI and q.id not in covered)) and q.id not in planned_ids
         ]
-        session.questions = kept + [q for q in planned if q.id not in {k.id for k in kept}]
+        kept_ids = {k.id for k in kept}
+        questions = kept + [q for q in planned if q.id not in kept_ids]
+        active = {q.id for q in questions}
+
+        retired = {r.question.id: r for r in session.retired}
+        for question in questions:
+            if retired.pop(question.id, None) is not None:
+                self._log(session, AuditAction.QUESTION_RESTORED, question_id=question.id, origin=question.origin)
+        for question in session.questions:
+            if question.id in active:
+                continue
+            if question.id in covered:
+                reason, by = RetireReason.ANSWERED_ELSEWHERE, covered[question.id]
+            elif question.id in session.settled_question_ids:
+                reason, by = RetireReason.SETTLED, ""
+            else:
+                reason, by = RetireReason.OBSOLETE, ""
+            retired[question.id] = RetiredQuestion(question=question, reason=reason, at=self.clock(), covered_by=by)
+            self._log(session, AuditAction.QUESTION_RETIRED, question_id=question.id, origin=question.origin,
+                      detail=f"{reason.value}:{by}" if by else reason.value)
+
+        session.questions = questions
+        session.retired = list(retired.values())
         session.history = [qid for qid in session.history if session.question(qid)]
         return session
 
@@ -461,4 +595,7 @@ class GrillWorkflow:
         session.findings = self.reviewer(session)
         session.reviewed_revision = session.draft_revision
         session.step = GrillStep.REVIEW
+        counts = {level: sum(f.level == level for f in session.findings) for level in FindingLevel}
+        self._log(session, AuditAction.REVIEWED, origin=Source.RULE,
+                  detail=", ".join(f"{level.value}={n}" for level, n in counts.items()))
         return session

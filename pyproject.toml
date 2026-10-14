@@ -10,7 +10,10 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 testpaths = ["tests"]
-markers = ["e2e: real browser end-to-end tests (need automation/runner, skipped otherwise)"]
+markers = [
+  "e2e: real browser end-to-end tests (need automation/runner, skipped otherwise)",
+  "live_ai: calls a real AI provider (needs SPEC_TO_TEST_LIVE_AI=1 and a key, skipped otherwise)",
+]
 
 [tool.ruff]
 line-length = 120

@@ -1,0 +1,82 @@
+{
+ "name": "uk_reopen_steps",
+ "description": "Реактивна черга: зауваження «швидко» розв'язане до інтерв'ю і знову відкрите після першої відповіді; зауваження щодо помилок введення коду розв'язане в документі після другої відповіді.",
+ "language": "uk",
+ "requirements": "REQ-1: Користувач може змінити номер телефону в профілі.\nREQ-2: SMS з кодом має надходити швидко.\nREQ-3: Користувач вводить код із SMS.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "побачити"
+    ],
+    "note": "результат зміни номера"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "побачити"
+    ],
+    "note": "результат введення коду"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "швидко"
+    ],
+    "note": "знову відкрито: швидко"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [
+  "rule.ambiguous_wording.REQ-2"
+ ],
+ "steps": [
+  {
+   "after": 1,
+   "reopen": [
+    "rule.ambiguous_wording.REQ-2"
+   ]
+  },
+  {
+   "after": 2,
+   "resolve": [
+    "rule.missing_error_handling.REQ-3"
+   ]
+  }
+ ],
+ "answers": {
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "У профілі показується новий номер після підтвердження кодом."
+  },
+  "rule.missing_expected_result.REQ-3": {
+   "status": "answered",
+   "value": "Після правильного коду номер підтверджено."
+  },
+  "rule.ambiguous_wording.REQ-2": {
+   "status": "answered",
+   "value": "SMS надходить не пізніше ніж за 30 секунд."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

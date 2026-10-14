@@ -1,0 +1,114 @@
+{
+ "name": "en_irrelevant_traps",
+ "description": "Requirements that mention input words without being about input (uploaded photos appearing, a login date, an invoice in the form of a PDF, enterprise customers, a quoted 'Quick pay' label, a session that ends on logout). Only the delivery address form needs questions.",
+ "language": "en",
+ "requirements": "REQ-1: Uploaded photos should appear in the gallery within 3 seconds.\nREQ-2: After login, the dashboard shows the account type and the last login date.\nREQ-3: The monthly invoice is generated in the form of a PDF document.\nREQ-4: Enterprise customers see a dedicated support phone number on the help page.\nREQ-5: The session expires when the user logs out.\nREQ-6: The \"Quick pay\" button is shown on the cart page.\nREQ-7: The user enters a delivery address in the checkout form.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-7"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "invalid",
+     "missing"
+    ],
+    "note": "invalid or missing address"
+   },
+   {
+    "requirement_ids": [
+     "REQ-7"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "saved"
+    ],
+    "note": "what happens with the entered address"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": "'uploaded' describes the photos"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": "'after login' is a precondition; 'login date' is a value"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": "'in the form of' is not a form"
+   },
+   {
+    "requirement_ids": [
+     "REQ-4"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "missing_expected_result"
+    ],
+    "keywords": [],
+    "note": "'enterprise' is not 'enter'; 'see' is the outcome"
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": "expiry is tied to an event, not a number"
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [],
+    "note": "'Quick pay' is a label"
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_error_handling.REQ-7": {
+   "status": "answered",
+   "value": "Missing or invalid fields are highlighted and the order cannot be placed."
+  },
+  "rule.missing_expected_result.REQ-7": {
+   "status": "answered",
+   "value": "The address is saved to the order and shown in the summary."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

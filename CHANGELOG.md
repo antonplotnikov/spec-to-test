@@ -6,7 +6,78 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Grill Mode v2.1 — reactive questions, smarter rules, broader evaluation
+
+#### Added
+- **Reactive interview queue.** Open questions are recalculated after every
+  answer, draft edit and finding status change. `GrillWorkflow.sync_settled`
+  follows findings resolved or reopened in the analyzed document during an
+  interview (the page calls it on every render; no change = no new revision):
+  a resolved finding's open question leaves the queue, a reopened one returns
+  under the same ID (asked at once if the interview had run out), a shown
+  review is redone and a pending confirmation withdrawn. Answers, question IDs
+  and the question on screen are kept unless it was the one resolved.
+- **Answered elsewhere.** `planner.covered_questions`: a confirmed or assumed
+  clarification that states a limit settles the missing-limit question of the
+  same requirement; one that names the failure path (negation-aware) settles
+  its error-handling question; a number settles amount/speed vagueness.
+- **Retired questions keep their history.** `GrillSession.retired` (schema 3,
+  older sessions migrate with none) keeps each question that left the queue
+  with its reason (`settled`, `answered_elsewhere`, `duplicate`, `obsolete`)
+  and the covering question; new audit events `question_retired`,
+  `question_restored`, `findings_synced` (EN/RU/UK). The answers panel lists
+  them under **Closed without asking**.
+- **`quantities.py`**: one parser for limits in EN/RU/UK — comparators
+  (min, max, strict more/less than, "must not exceed", "не дольше", "не
+  пізніше"), ranges, number formats ("1 000", "1,000", "2,5"), unit
+  conversion within a dimension (ms…weeks, KB/MB/GB), percent, items, and
+  the currencies USD/EUR/GBP/RUB/UAH (never converted into each other).
+- **Evaluation**: 26 new cases (30 in total: 13 English, 10 Russian — one
+  with mixed Latin/Cyrillic units — and 7 Ukrainian) covering ambiguity,
+  contradictions, currencies, boundaries, irrelevant-question traps,
+  duplicates, multi-step interviews, findings
+  resolved/reopened mid-interview and every API failure kind. New gold fields
+  (`contradictions`, `non_contradictions`, `must_not_ask`, `steps`) and
+  metrics (`false_positive_rate`, `contradiction_recall`,
+  `contradiction_precision`, `invented_values`, `progress_regressions`;
+  `resolved_reasked` now also counts findings resolved during the interview).
+  Thresholds tightened; CI runs the scripted and rules-only suites and
+  publishes both tables in the job summary.
+
+#### Changed
+- **Contradictions are context-aware.** Limits are compared per dimension in
+  base units (30 min = 1800 s is not a conflict; 500 ms vs 2 s is), lower vs
+  upper limits that cannot both hold are reported, and requirements with
+  another scope qualifier (*international*, *оптовых*, *корпоративних*,
+  *admin*) or an extra condition (*if …*, *для …*, *якщо …*) are not.
+  Topic similarity also compares what the limit is about (the words before
+  it). Grill answers are compared with their requirement in base units too;
+  an answer that adds a scope qualifier states a new rule, not a conflict.
+- **Fewer irrelevant questions.** Error handling is not asked for
+  adjective-like participles (*uploaded photos*, *загруженные*, *завантажені*)
+  unless the input is validated or limited, for preconditions (*after login*),
+  nouns (*login date*, *account type*, *in the form of*), look-alikes
+  (*enterprise*, *формат*), page loading (*загружаться*) or a form/field named
+  without an action; limits are not asked for event-bound expiry (*expires
+  when the user logs out*); quoted labels are not vague; *see / видит /
+  бачить*, *формируется / формується* and *завершается* count as outcomes; a
+  declarative rule with a stated value is not asked what to observe. Inflected
+  vague words (*простым*, *кількох*) and attachments (*attach*, *прикрепля*)
+  are recognized.
+- AI questions are dropped when they ask about exactly a contradicting pair a
+  built-in question already covers (or that was resolved), offer one value in
+  two units ("30 minutes or 1800 seconds?"), or repeat a closed question.
+- `numbers_in` (hallucination checks) understands grouped numbers ("1 000").
+
 ### Changed
+- Adaptive Grill: within a priority the riskiest question is asked first
+  (`Question.risk`: finding severity, requirement quality, findings spanning
+  several requirements); field questions of test cases and bug reports keep
+  their order. Findings already resolved in the analyzed document are not
+  asked again, neither by the planner nor by the AI (their questions count as
+  already asked). Some tests were updated for the new order only.
+- Grill footer: **Review**, **Close, keep saved**, **Cancel**. The History
+  tab and the trace use compact list rows that fit the right panel.
 - Redesigned interface: a dark navy sidebar with the project/document switcher,
   page navigation (Home, Requirements Analysis, Grill Mode, Test Cases,
   Traceability, Dashboard, Export, Settings), the AI status and the language;
@@ -35,6 +106,41 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Streamlit toolbar set to `minimal` (no developer "Deploy" button).
 
 ### Added
+- **Saved Grill interviews** (`grill/persistence.py`): every change is saved as
+  an interview of the open project — answers, question history, draft,
+  findings, progress, unresolved questions and audit log. The start screen
+  lists unfinished interviews (Resume / Delete) and finished ones; **Close,
+  keep saved** leaves an interview without cancelling it. In `local` storage
+  interviews are files in the project's `grill/` folder and the last
+  unfinished one reopens after a page reload; in `session` storage nothing is
+  written to disk and **Save progress to a file** / **Resume from a file**
+  carry an interview across reloads and machines (validated, size-limited).
+- **Findings history** (`findings.py`): resolved findings can be **reopened**
+  and the last change **undone** on Requirements Analysis → Findings, each
+  with an optional reason; every resolve, reopen and undo is recorded in
+  `Workspace.finding_history` (time, how, Grill session, clarification,
+  reason). Grill's resolve panel takes an optional reason. Both sides of a
+  contradiction change together.
+- **Decision traceability and audit log** (`grill/trace.py`): a History tab
+  in Grill Mode shows each question's source (rule finding with its trigger
+  words, contradiction, conflicting answer, follow-up, AI interviewer and
+  model, empty field), requirement IDs, answer and state (CONFIRMED,
+  ASSUMPTION, UNKNOWN, CONFLICT, OPEN; overruled answers marked), every
+  change to each answer, and the session's append-only audit log. **Download
+  audit log (JSON)**; the Markdown download now ends with the decision trace.
+- **AI quality evaluation** (`spec_to_test.evaluation`, `docs/EVALUATION.md`):
+  `python -m spec_to_test.evaluation` runs fixture documents through the real
+  Grill pipeline with a scripted model and reports relevance, duplication,
+  coverage, re-asked resolved findings, hallucinations before and after the
+  trust filters, test case quality and invented requirement IDs, gated by
+  `thresholds.json`. `--rules-only` gives the baseline, `--live` uses the
+  configured provider; `pytest -m live_ai` (with `SPEC_TO_TEST_LIVE_AI=1`) is
+  the optional live test. CI uploads the report.
+- `grill.ai` functions accept `on_response` to observe the raw model reply
+  (used by the evaluation; never changes the result). AI questions record
+  their model (`Question.ai_model`).
+- `theme_ui.list_item`, a reusable list row (badges, literal text, caption);
+  styles for saved interviews and the findings panel; reduced-motion support.
 - Quality dimensions (`quality.DIMENSIONS`, `dimension_scores`): Clarity,
   Completeness, Testability and Consistency, each a fixed group of the
   existing criteria, so they add up to the same points as the score.
@@ -202,6 +308,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   does not compare the whole document.
 - This change does not address shared local storage between users
   (fixed separately, see Security above).
+
+### Migration
+- Grill session schema 1 → 2 (audit log, timestamps, settled findings,
+  question risk, AI model) and workspace schema 1 → 2 (`schema_version`,
+  `finding_history`). Older saves are upgraded automatically on load and
+  rewritten on the next save; files from a newer version are refused. No
+  manual step is needed.
 
 ## [1.1.0] - 2026-10-11
 

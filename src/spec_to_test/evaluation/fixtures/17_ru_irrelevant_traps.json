@@ -1,0 +1,120 @@
+{
+ "name": "ru_irrelevant_traps",
+ "description": "Ложные срабатывания: «загруженные фото», «страница загружается», «отчёт формируется в формате PDF», «после входа … видит», кнопка «Быстрая оплата». Вопросы нужны только по загрузке документа и по «быстро».",
+ "language": "ru",
+ "requirements": "REQ-1: Загруженные фотографии должны отображаться в галерее не дольше 3 секунд.\nREQ-2: Страница каталога должна загружаться быстро.\nREQ-3: Отчёт формируется в формате PDF.\nREQ-4: После входа в систему пользователь видит список своих заказов.\nREQ-5: Кнопка «Быстрая оплата» отображается в корзине.\nREQ-6: Пользователь загружает документ в формате PDF размером до 10 МБ.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "быстро"
+    ],
+    "note": "размытое: быстро"
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некорректн"
+    ],
+    "note": "файл больше 10 МБ или не PDF"
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "что происходит после загрузки"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "missing_expected_result"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-4"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "missing_expected_result"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [],
+    "note": ""
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.ambiguous_wording.REQ-2": {
+   "status": "answered",
+   "value": "Каталог открывается не дольше чем за 2 секунды."
+  },
+  "rule.missing_error_handling.REQ-6": {
+   "status": "answered",
+   "value": "Файл больше 10 МБ или не в PDF отклоняется с сообщением об ошибке."
+  },
+  "rule.missing_expected_result.REQ-6": {
+   "status": "answered",
+   "value": "Документ появляется в списке файлов профиля."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

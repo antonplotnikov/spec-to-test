@@ -15,7 +15,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 from spec_to_test.models import Requirement
-from spec_to_test.rule_engine import UNITS, _normalize, _quantities
+from spec_to_test.quantities import find_ranges, parse_number
+from spec_to_test.rule_engine import _normalize, _quantities
 
 Expectation = Literal["valid", "invalid", "stated", "unspecified"]
 ConstraintKind = Literal["min", "max", "exact", "range"]
@@ -89,19 +90,11 @@ class TestDesign(BaseModel):
 # Numeric constraints
 # ---------------------------------------------------------------------------
 
-_RANGE = {
-    unit: re.compile(
-        r"(?:(?<!\w)(?:between|from|від|от|между)\s+)?"
-        r"(?P<low>\d+(?:[.,]\d+)?)\s*(?:and|to|до|і|и|[-–])\s*(?P<high>\d+(?:[.,]\d+)?)\s*"
-        rf"(?:{pattern})(?!\w)",
-        re.IGNORECASE,
-    )
-    for unit, pattern in UNITS.items()
-}
-
-
 def _number(text: str) -> Decimal:
-    return Decimal(text.replace(",", "."))
+    value = parse_number(text)
+    if value is None:
+        raise ValueError(f"not a number: {text!r}")
+    return value
 
 
 def extract_constraints(text: str) -> list[Constraint]:
@@ -110,15 +103,13 @@ def extract_constraints(text: str) -> list[Constraint]:
     constraints: list[Constraint] = []
     ranged_units: set[str] = set()
 
-    for unit, pattern in _RANGE.items():
-        for match in pattern.finditer(text):
-            low, high = _number(match.group("low")), _number(match.group("high"))
-            if low < high:
-                constraints.append(
-                    Constraint(unit=unit, kind="range", low=low, high=high, phrase=match.group(0).strip())
-                )
-                ranged_units.add(unit)
-                break
+    for found_range in find_ranges(text):
+        if found_range.unit not in ranged_units:  # the first range per unit
+            constraints.append(Constraint(
+                unit=found_range.unit, kind="range", low=found_range.low, high=found_range.high,
+                phrase=found_range.phrase,
+            ))
+            ranged_units.add(found_range.unit)
 
     by_unit: dict[str, dict[str, tuple[str, str]]] = {}
     for (unit, comparator), quantity in _quantities(text).items():

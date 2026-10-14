@@ -109,6 +109,10 @@ def test_essential_findings_cannot_be_skipped_but_others_can():
     with pytest.raises(GrillError, match="essential_question"):
         WF.skip(session)
     session = WF.answer(session, "", AnswerStatus.UNKNOWN)
+    # Medium priority next; REQ-4 has two findings, so its question is the riskier one.
+    assert session.current_question_id == "rule.missing_error_handling.REQ-4"
+    session = WF.skip(session)
+    assert "rule.missing_error_handling.REQ-4" in session.answers
     assert session.current_question_id == "rule.ambiguous_wording.REQ-3"
     session = WF.skip(session)
     assert "rule.ambiguous_wording.REQ-3" in session.answers

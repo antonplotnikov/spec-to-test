@@ -1,0 +1,142 @@
+{
+ "name": "en_answer_conflict_multistep",
+ "description": "Multi-step interview: an answer states a different minimum length than the requirement (10 vs 8), which must raise a conflict question; a vague clarification must raise a follow-up.",
+ "language": "en",
+ "requirements": "REQ-1: The user enters a new password of at least 8 characters.\nREQ-2: The password reset link is valid for 24 hours.\nREQ-3: The reset page should be easy to use.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "invalid"
+    ],
+    "note": "a password that is too short"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "10"
+    ],
+    "note": "the answer says 10 characters, the requirement 8"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe"
+    ],
+    "note": "what the user sees after setting the password"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_expected_result",
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "expire",
+     "after 24"
+    ],
+    "note": "using the link after 24 hours"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "ambiguous_wording"
+    ],
+    "keywords": [
+     "easy"
+    ],
+    "note": "vague: easy to use"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "clarity"
+    ],
+    "keywords": [
+     "simple"
+    ],
+    "note": "the clarification is still vague"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_error_handling.REQ-1": {
+   "status": "answered",
+   "value": "An error message is shown; the password must be at least 10 characters."
+  },
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "The new password is saved and the user is signed in."
+  },
+  "rule.ambiguous_wording.REQ-3": {
+   "status": "answered",
+   "value": "The page should be simple and clear."
+  },
+  "rule.missing_expected_result.REQ-2": {
+   "status": "unknown"
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "your answer says",
+   "status": "answered",
+   "value": "REQ-1: The user enters a new password of at least 8 characters."
+  },
+  {
+   "contains": "still uses",
+   "status": "unknown"
+  },
+  {
+   "contains": "after 24 hours",
+   "status": "answered",
+   "value": "The page says the link has expired and offers a new one."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": []
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "What happens when the reset link is opened after 24 hours?",
+      "reason": "Expiry test.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -6,6 +6,7 @@ Use `t(key, lang, **params)` to get a translated string. Placeholders like
 
 from spec_to_test.automation.translations import AUTOMATION_TRANSLATIONS
 from spec_to_test.grill.translations import GRILL_TRANSLATIONS
+from spec_to_test.history_translations import HISTORY_TRANSLATIONS
 from spec_to_test.llm.translations import LLM_TRANSLATIONS
 from spec_to_test.models import Finding
 from spec_to_test.ui_translations import UI_TRANSLATIONS
@@ -992,6 +993,9 @@ TRANSLATIONS.update(LLM_TRANSLATIONS)
 # App shell and page layout text, same rule.
 assert not TRANSLATIONS.keys() & UI_TRANSLATIONS.keys()
 TRANSLATIONS.update(UI_TRANSLATIONS)
+# Saved interviews, finding history, traceability and audit text, same rule.
+assert not TRANSLATIONS.keys() & HISTORY_TRANSLATIONS.keys()
+TRANSLATIONS.update(HISTORY_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

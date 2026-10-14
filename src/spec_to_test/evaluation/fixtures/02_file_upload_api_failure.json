@@ -1,0 +1,160 @@
+{
+ "name": "file_upload_api_failure",
+ "description": "Upload limits the rule engine only partly sees. The first model call fails (rate limit): the interview must continue with the built-in questions, and the next call must work again.",
+ "language": "en",
+ "requirements": "REQ-1: The user can upload a profile photo.\nREQ-2: The maximum file size is 5 MB.\nREQ-3: Uploaded photos should appear quickly in the profile.\nREQ-4: Only JPG and PNG files are accepted; other formats are rejected with an error message.\nREQ-5: The user enters a caption of up to 200 characters.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe",
+     "shown"
+    ],
+    "note": "what the user sees after an upload"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "boundary"
+    ],
+    "keywords": [
+     "larger",
+     "exceed",
+     "too large"
+    ],
+    "note": "a file over 5 MB"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "ambiguous_wording",
+     "clarity"
+    ],
+    "keywords": [
+     "quickly"
+    ],
+    "note": "vague: quickly"
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "boundary"
+    ],
+    "keywords": [
+     "longer than",
+     "invalid"
+    ],
+    "note": "a caption over 200 characters"
+   }
+  ],
+  "contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": "'uploaded' describes the photos"
+   }
+  ]
+ },
+ "answers": {
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "The new photo is shown on the profile page."
+  },
+  "rule.ambiguous_wording.REQ-3": {
+   "status": "answered",
+   "value": "The photo appears within 3 seconds after the upload finishes."
+  },
+  "rule.missing_error_handling.REQ-5": {
+   "status": "answered",
+   "value": "A caption longer than 200 characters cannot be saved and an error is shown."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "larger than",
+   "status": "answered",
+   "value": "The upload is rejected with the message that the file is too large."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "error": "rate_limit"
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "What happens when the user uploads a file larger than the maximum size?",
+      "reason": "The boundary test for REQ-2 needs the expected outcome.",
+      "importance": "high"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": []
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": [
+     {
+      "title": "Unsupported format is rejected",
+      "requirement_ids": [
+       "REQ-4"
+      ],
+      "test_type": "negative",
+      "preconditions": [
+       "The profile page is open"
+      ],
+      "steps": [
+       "Upload a GIF file"
+      ],
+      "expected_result": "The file is rejected with an error message.",
+      "basis_quote": "rejected with an error message"
+     },
+     {
+      "title": "Too large file is rejected",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "test_type": "boundary",
+      "preconditions": [
+       "The profile page is open"
+      ],
+      "steps": [
+       "Upload a file just over the maximum size"
+      ],
+      "expected_result": "The upload is rejected with the message that the file is too large.",
+      "basis_quote": "the file is too large"
+     }
+    ]
+   }
+  ]
+ }
+}

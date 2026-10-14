@@ -1,0 +1,141 @@
+{
+ "name": "ru_currency_contexts",
+ "description": "Суммы в рублях с разной записью (₽, «1 000 рублей», «руб.»): 500 против 1000 — противоречие; правило для оптовых покупателей и порог в долларах — другой контекст и другая валюта, их нельзя считать противоречием.",
+ "language": "ru",
+ "requirements": "REQ-1: Сумма заказа должна быть не менее 500 ₽.\nREQ-2: Сумма заказа должна быть не менее 1 000 рублей.\nREQ-3: Для оптовых покупателей сумма заказа должна быть не менее 10 000 рублей.\nREQ-4: Доставка бесплатна для заказов свыше 3000 руб.\nREQ-5: Доставка бесплатна для заказов свыше 50 USD.\nREQ-6: Пользователь вводит адрес доставки в форме заказа.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1",
+     "REQ-2"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "500",
+     "1000"
+    ],
+    "note": "минимальная сумма 500 или 1000 рублей"
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некорректн"
+    ],
+    "note": "неверный или пустой адрес"
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "что происходит с введённым адресом"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ]
+  ],
+  "non_contradictions": [
+   [
+    "REQ-1",
+    "REQ-3"
+   ],
+   [
+    "REQ-2",
+    "REQ-3"
+   ],
+   [
+    "REQ-4",
+    "REQ-5"
+   ]
+  ],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-4"
+    ],
+    "topics": [
+     "missing_boundary",
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_boundary",
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": ""
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-1+REQ-2": {
+   "status": "answered",
+   "value": "REQ-2: Сумма заказа должна быть не менее 1 000 рублей."
+  },
+  "rule.missing_error_handling.REQ-6": {
+   "status": "answered",
+   "value": "Незаполненные поля подсвечиваются красным, заказ не отправляется."
+  },
+  "rule.missing_expected_result.REQ-6": {
+   "status": "answered",
+   "value": "Адрес сохраняется и показывается в сводке заказа."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1",
+       "REQ-2"
+      ],
+      "question": "Какая минимальная сумма заказа верна: 500 или 1000 рублей?",
+      "reason": "Повтор встроенного вопроса о противоречии.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-4",
+       "REQ-5"
+      ],
+      "question": "Порог 50 USD действует для заказов из-за рубежа?",
+      "reason": "Пороги в разных валютах могут относиться к разным рынкам.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ]
+ }
+}

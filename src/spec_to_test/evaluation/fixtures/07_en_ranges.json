@@ -1,0 +1,175 @@
+{
+ "name": "en_ranges",
+ "description": "Ranges and boundaries: 'between 3 and 20 characters' against 'at least 5 characters' is a contradiction; an age rule stated twice in different words is not. Limits without the out-of-range behavior.",
+ "language": "en",
+ "requirements": "REQ-1: The username must be between 3 and 20 characters.\nREQ-2: The username must be at least 5 characters long.\nREQ-3: The user can enter a bio of up to 500 characters.\nREQ-4: The user must be at least 18 years old to register.\nREQ-5: Users younger than 18 years cannot create an account.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1",
+     "REQ-2"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "3",
+     "5"
+    ],
+    "note": "minimum username length 3 or 5"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "boundary"
+    ],
+    "keywords": [
+     "longer than",
+     "more than 500"
+    ],
+    "note": "a bio over 500 characters"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "saved",
+     "profile"
+    ],
+    "note": "where the bio appears"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [],
+    "keywords": [
+     "shorter",
+     "longer",
+     "outside"
+    ],
+    "note": "a username outside the allowed length"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ]
+  ],
+  "non_contradictions": [
+   [
+    "REQ-4",
+    "REQ-5"
+   ]
+  ],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-4"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": ""
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-1+REQ-2": {
+   "status": "answered",
+   "value": "REQ-1: The username must be between 3 and 20 characters."
+  },
+  "rule.missing_error_handling.REQ-3": {
+   "status": "answered",
+   "value": "Typing stops at 500 characters and a counter shows the remaining characters."
+  },
+  "rule.missing_expected_result.REQ-3": {
+   "status": "answered",
+   "value": "The bio is saved and shown on the public profile."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "shorter or longer",
+   "status": "answered",
+   "value": "The field shows an error and the form cannot be sent."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1"
+      ],
+      "question": "What happens when the username is shorter or longer than allowed?",
+      "reason": "The negative boundary tests need the expected behavior.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1"
+      ],
+      "question": "Should usernames longer than 25 characters be truncated?",
+      "reason": "Invents a limit.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": []
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": [
+     {
+      "title": "Bio at the limit",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "test_type": "boundary",
+      "preconditions": [],
+      "steps": [
+       "Enter a bio of 500 characters",
+       "Save"
+      ],
+      "expected_result": "The bio is saved.",
+      "basis_quote": "up to 500 characters"
+     }
+    ]
+   }
+  ]
+ }
+}

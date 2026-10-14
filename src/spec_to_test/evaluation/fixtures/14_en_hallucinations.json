@@ -1,0 +1,171 @@
+{
+ "name": "en_hallucinations",
+ "description": "The model invents a requirement ID, a link lifetime nobody stated, a quote that is not in the document and a test case without a basis. None of it may be accepted.",
+ "language": "en",
+ "requirements": "REQ-1: The system sends a confirmation email after registration.\nREQ-2: The user must confirm the email address before the first login.\nREQ-3: The confirmation link expires.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [
+     "expires"
+    ],
+    "note": "when the link expires"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [],
+    "keywords": [
+     "expired"
+    ],
+    "note": "opening an expired link"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "not confirmed",
+     "before confirming"
+    ],
+    "note": "logging in before confirming"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_boundary.REQ-3": {
+   "status": "unknown"
+  },
+  "rule.missing_error_handling.REQ-2": {
+   "status": "answered",
+   "value": "Login is refused with a message to confirm the email first."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "expired",
+   "status": "answered",
+   "value": "A page offers to send a new confirmation email."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-7"
+      ],
+      "question": "Does REQ-7 apply to social sign-in?",
+      "reason": "Invented requirement.",
+      "importance": "low"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "question": "Should the link expire after 48 hours?",
+      "reason": "Presumes a number.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "question": "What does the user see when opening an expired confirmation link?",
+      "reason": "The negative test needs the result.",
+      "importance": "high"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": [
+     {
+      "level": "warning",
+      "category": "unsupported_claim",
+      "field": "requirements",
+      "requirement_ids": [
+       "REQ-1"
+      ],
+      "quote": "within 5 minutes",
+      "issue": "Fabricated quote.",
+      "fix": "None."
+     },
+     {
+      "level": "warning",
+      "category": "clarity",
+      "field": "requirements",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "quote": "The confirmation link expires",
+      "issue": "No lifetime is stated.",
+      "fix": "State how long the link is valid."
+     }
+    ]
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": [
+     {
+      "title": "Link valid for two days",
+      "requirement_ids": [
+       "REQ-3"
+      ],
+      "test_type": "positive",
+      "preconditions": [],
+      "steps": [
+       "Wait 47 hours",
+       "Open the link"
+      ],
+      "expected_result": "The email is confirmed within 48 hours.",
+      "basis_quote": "valid for 48 hours"
+     },
+     {
+      "title": "Login before confirmation",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "test_type": "negative",
+      "preconditions": [],
+      "steps": [
+       "Register",
+       "Log in without confirming"
+      ],
+      "expected_result": "Login is refused with a message to confirm the email first.",
+      "basis_quote": "confirm the email address before the first login"
+     }
+    ]
+   }
+  ]
+ }
+}

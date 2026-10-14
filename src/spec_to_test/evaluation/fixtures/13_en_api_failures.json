@@ -1,0 +1,130 @@
+{
+ "name": "en_api_failures",
+ "description": "Every kind of model failure (connection, server error, rate limit, authentication): the interview, the review and the test suggestions must go on with the built-in rules.",
+ "language": "en",
+ "requirements": "REQ-1: The user can search products by name.\nREQ-2: Search results must appear within 2 seconds.\nREQ-3: The user enters a search query of up to 100 characters.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe"
+    ],
+    "note": "what a search shows"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "invalid",
+     "empty"
+    ],
+    "note": "an empty or too long query"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "observe"
+    ],
+    "note": "what happens after entering a query"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [],
+    "keywords": [
+     "no results",
+     "no products",
+     "nothing"
+    ],
+    "note": "a search with no results"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_error_handling",
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": ""
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "Matching products are listed with name and price."
+  },
+  "rule.missing_error_handling.REQ-3": {
+   "status": "answered",
+   "value": "An empty query is not sent; longer input is cut at 100 characters."
+  },
+  "rule.missing_expected_result.REQ-3": {
+   "status": "answered",
+   "value": "The result list updates for the entered query."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "no products match",
+   "status": "answered",
+   "value": "A 'nothing found' message with a link to all products."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "error": "connection"
+   },
+   {
+    "error": "api"
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1"
+      ],
+      "question": "What is shown when no products match the name?",
+      "reason": "Empty-result test.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "error": "rate_limit"
+   }
+  ],
+  "test_cases": [
+   {
+    "error": "auth"
+   }
+  ]
+ }
+}

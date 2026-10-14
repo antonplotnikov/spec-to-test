@@ -1,0 +1,182 @@
+{
+ "name": "en_equivalent_units",
+ "description": "Limits written in different units: 30 minutes = 1800 seconds and 2 GB = 2048 MB are the same rule; 500 ms vs 2 seconds for the same API is a real contradiction. Upload limits without the failure path.",
+ "language": "en",
+ "requirements": "REQ-1: The session expires after 30 minutes of inactivity.\nREQ-2: The session expires after 1800 seconds of inactivity.\nREQ-3: Uploaded files must not exceed 2 GB.\nREQ-4: Uploaded files must not exceed 2048 MB.\nREQ-5: The search API must respond within 500 ms.\nREQ-6: The search API must respond within 2 seconds.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-5",
+     "REQ-6"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "500",
+     "2 seconds"
+    ],
+    "note": "response time 500 ms or 2 s"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "larger",
+     "exceed"
+    ],
+    "note": "a file over 2 GB"
+   },
+   {
+    "requirement_ids": [
+     "REQ-4"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "larger",
+     "exceed"
+    ],
+    "note": "a file over 2048 MB"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [],
+    "keywords": [
+     "expire"
+    ],
+    "note": "what the user sees when the session expires"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-5",
+    "REQ-6"
+   ]
+  ],
+  "non_contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ],
+   [
+    "REQ-3",
+    "REQ-4"
+   ]
+  ],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-6"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": ""
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": ""
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-5+REQ-6": {
+   "status": "answered",
+   "value": "REQ-6: The search API must respond within 2 seconds."
+  },
+  "rule.missing_error_handling.REQ-3": {
+   "status": "answered",
+   "value": "A larger file is rejected with an error that names the limit."
+  },
+  "rule.missing_error_handling.REQ-4": {
+   "status": "answered",
+   "value": "A larger file is rejected with an error that names the limit."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "expire",
+   "status": "answered",
+   "value": "The user is taken to the sign-in page with a session-expired message."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1"
+      ],
+      "question": "What does the user see after the session expires?",
+      "reason": "The expiry test needs an observable result.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1",
+       "REQ-2"
+      ],
+      "question": "Is the timeout 30 minutes or 1800 seconds?",
+      "reason": "Asks about a difference that does not exist.",
+      "importance": "high"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": []
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": []
+   }
+  ]
+ }
+}

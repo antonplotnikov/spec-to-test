@@ -1,0 +1,158 @@
+{
+ "name": "checkout_ru",
+ "description": "Russian document. The rule engine does not parse a currency limit, so it misses the 500 vs 1000 rubles contradiction; the scripted model asks about it.",
+ "language": "ru",
+ "requirements": "REQ-1: Пользователь может оформить заказ из корзины.\nREQ-2: Страница оформления заказа должна загружаться быстро.\nREQ-3: Сумма заказа должна быть не менее 500 рублей.\nREQ-4: Сумма заказа должна быть не менее 1000 рублей.\nREQ-5: Пользователь вводит номер телефона в форме заказа.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "результат оформления заказа"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "ambiguous_wording",
+     "clarity"
+    ],
+    "keywords": [
+     "быстро"
+    ],
+    "note": "размытое: быстро"
+   },
+   {
+    "requirement_ids": [
+     "REQ-3",
+     "REQ-4"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "500",
+     "1000"
+    ],
+    "note": "минимальная сумма 500 или 1000"
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "некорректн",
+     "неверн"
+    ],
+    "note": "неверный номер телефона"
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "увидеть"
+    ],
+    "note": "что происходит после ввода номера"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-3",
+    "REQ-4"
+   ]
+  ]
+ },
+ "answers": {
+  "rule.missing_expected_result.REQ-1": {
+   "status": "answered",
+   "value": "Пользователь видит страницу подтверждения с номером заказа."
+  },
+  "rule.ambiguous_wording.REQ-2": {
+   "status": "answered",
+   "value": "Страница загружается не дольше 2 секунд."
+  },
+  "rule.missing_error_handling.REQ-5": {
+   "status": "answered",
+   "value": "Неверный номер подсвечивается, и заказ нельзя отправить."
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "500",
+   "status": "answered",
+   "value": "Верно требование REQ-4: минимальная сумма 1000 рублей."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-3",
+       "REQ-4"
+      ],
+      "question": "Какая минимальная сумма заказа верна: 500 или 1000 рублей?",
+      "reason": "REQ-3 и REQ-4 противоречат друг другу, граничный тест зависит от ответа.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-2"
+      ],
+      "question": "Какими измеримыми критериями заменить: \"быстро\"?",
+      "reason": "Повтор встроенного вопроса.",
+      "importance": "medium"
+     }
+    ]
+   }
+  ],
+  "review": [
+   {
+    "findings": []
+   }
+  ],
+  "test_cases": [
+   {
+    "test_cases": [
+     {
+      "title": "Заказ на сумму ниже минимальной",
+      "requirement_ids": [
+       "REQ-4"
+      ],
+      "test_type": "boundary",
+      "preconditions": [
+       "Корзина на сумму 999 рублей"
+      ],
+      "steps": [
+       "Оформить заказ"
+      ],
+      "expected_result": "Заказ нельзя оформить: минимальная сумма 1000 рублей.",
+      "basis_quote": "не менее 1000 рублей"
+     }
+    ]
+   }
+  ]
+ }
+}

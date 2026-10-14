@@ -1,0 +1,64 @@
+{
+ "name": "uk_answered_elsewhere",
+ "description": "Одна відповідь закриває два питання: уточнення «кількох спроб» називає число, тож питання про межу для тієї самої вимоги ставити не можна.",
+ "language": "uk",
+ "requirements": "REQ-1: Після кількох невдалих спроб входу обліковий запис блокується.\nREQ-2: Користувач може розблокувати обліковий запис через email.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "ambiguous_wording",
+     "missing_boundary"
+    ],
+    "keywords": [
+     "кількох",
+     "спроб"
+    ],
+    "note": "скільки невдалих спроб"
+   },
+   {
+    "requirement_ids": [
+     "REQ-2"
+    ],
+    "topics": [
+     "missing_expected_result"
+    ],
+    "keywords": [
+     "побачити"
+    ],
+    "note": "що отримує користувач для розблокування"
+   }
+  ],
+  "contradictions": [],
+  "non_contradictions": [],
+  "must_not_ask": [
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [
+     "missing_boundary"
+    ],
+    "keywords": [],
+    "note": "вже відповіли: 3 невдалі спроби"
+   }
+  ]
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.ambiguous_wording.REQ-1": {
+   "status": "answered",
+   "value": "Після 3 невдалих спроб."
+  },
+  "rule.missing_expected_result.REQ-2": {
+   "status": "answered",
+   "value": "Приходить лист із посиланням для розблокування."
+  }
+ },
+ "answers_by_text": [],
+ "ai": {}
+}

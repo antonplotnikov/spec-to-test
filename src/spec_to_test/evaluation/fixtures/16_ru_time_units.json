@@ -1,0 +1,137 @@
+{
+ "name": "ru_time_units",
+ "description": "Сроки в разных единицах: 24 часа = 1 день и 5 минут = 300 секунд — одно и то же; 10 минут для того же кода противоречит обоим.",
+ "language": "ru",
+ "requirements": "REQ-1: Ссылка для сброса пароля действует 24 часа.\nREQ-2: Ссылка для сброса пароля действует 1 день.\nREQ-3: Код подтверждения из SMS действует 5 минут.\nREQ-4: Код подтверждения из SMS действует 300 секунд.\nREQ-5: Повторная отправка кода возможна не чаще одного раза в 60 секунд.\nREQ-6: Код подтверждения из SMS действует 10 минут.",
+ "gold": {
+  "issues": [
+   {
+    "requirement_ids": [
+     "REQ-3",
+     "REQ-6"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "5",
+     "10"
+    ],
+    "note": "срок кода 5 или 10 минут"
+   },
+   {
+    "requirement_ids": [
+     "REQ-4",
+     "REQ-6"
+    ],
+    "topics": [
+     "contradiction"
+    ],
+    "keywords": [
+     "300",
+     "10"
+    ],
+    "note": "срок кода 300 секунд или 10 минут"
+   },
+   {
+    "requirement_ids": [
+     "REQ-1"
+    ],
+    "topics": [],
+    "keywords": [
+     "истек",
+     "истеч"
+    ],
+    "note": "открытие ссылки после истечения срока"
+   },
+   {
+    "requirement_ids": [
+     "REQ-5"
+    ],
+    "topics": [
+     "missing_expected_result",
+     "missing_error_handling"
+    ],
+    "keywords": [
+     "раньше",
+     "увидеть"
+    ],
+    "note": "что видит пользователь при повторной отправке раньше срока"
+   }
+  ],
+  "contradictions": [
+   [
+    "REQ-3",
+    "REQ-6"
+   ],
+   [
+    "REQ-4",
+    "REQ-6"
+   ]
+  ],
+  "non_contradictions": [
+   [
+    "REQ-1",
+    "REQ-2"
+   ],
+   [
+    "REQ-3",
+    "REQ-4"
+   ]
+  ],
+  "must_not_ask": []
+ },
+ "settled": [],
+ "steps": [],
+ "answers": {
+  "rule.contradiction.REQ-3+REQ-6": {
+   "status": "answered",
+   "value": "REQ-6: Код подтверждения из SMS действует 10 минут."
+  },
+  "rule.contradiction.REQ-4+REQ-6": {
+   "status": "answered",
+   "value": "REQ-6: Код подтверждения из SMS действует 10 минут."
+  },
+  "rule.missing_expected_result.REQ-5": {
+   "status": "unknown"
+  }
+ },
+ "answers_by_text": [
+  {
+   "contains": "истечения",
+   "status": "answered",
+   "value": "Открывается страница «Ссылка устарела» с кнопкой отправить новую."
+  }
+ ],
+ "ai": {
+  "interview": [
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1"
+      ],
+      "question": "Что видит пользователь, открыв ссылку после истечения 24 часов?",
+      "reason": "Негативный тест для REQ-1.",
+      "importance": "high"
+     }
+    ]
+   },
+   {
+    "questions": [
+     {
+      "field": "",
+      "requirement_ids": [
+       "REQ-1",
+       "REQ-2"
+      ],
+      "question": "Ссылка действует 24 часа или 1 день?",
+      "reason": "Это одно и то же.",
+      "importance": "high"
+     }
+    ]
+   }
+  ]
+ }
+}
