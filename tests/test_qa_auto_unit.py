@@ -8,6 +8,7 @@ from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
+from spec_to_test.qa_agent.report import reason_text
 
 from spec_to_test.llm.config import load_config
 from spec_to_test.models import ClarificationStatus, ReviewStatus, Severity
@@ -455,6 +456,34 @@ def test_form_submitting_cases_are_blocked_unless_allowed():
     verdict = preflight(case, policy(), {}, limits, allow_destructive=False)
     assert verdict.status == RunStatus.BLOCKED and verdict.reason == "risk"
     assert preflight(case, policy(), {}, limits, allow_destructive=False, allow_forms=True) is None
+
+
+@pytest.mark.parametrize("url, entry", [
+    ("http://other.test/", "other.test"),
+    ("https://other.test/x", "other.test"),
+    ("http://other.test:3000/", "other.test:3000"),
+])
+def test_rejected_host_names_the_exact_allowlist_entry_and_changes_nothing(url, entry):
+    cfg = settings()
+    before = list(cfg.automation.allowed_hosts)
+    with pytest.raises(QAError) as error:
+        autonomous.new_session(url, cfg, "en", authorized=True, resolver=resolver)
+    params = error.value.params
+    assert error.value.code == "url" and params["code"] == "not_allowed"
+    if entry:
+        assert params["entry"] == entry
+        text = reason_text("url", params, "en")
+        assert f"`{entry}`" in text and "never added automatically" in text
+    assert cfg.automation.allowed_hosts == before  # the allowlist is only ever reported, never widened
+    with pytest.raises(QAError):  # still rejected on a second try
+        autonomous.new_session(url, cfg, "en", authorized=True, resolver=resolver)
+
+
+def test_ssrf_rejections_carry_no_allowlist_suggestion():
+    meta = lambda *a, **k: [(2, 1, 6, "", ("169.254.169.254", 80))]  # noqa: E731
+    with pytest.raises(QAError) as error:
+        autonomous.new_session(BASE, settings(), "en", authorized=True, resolver=meta)
+    assert error.value.params["code"] == "metadata" and "entry" not in error.value.params
 
 
 def test_sessions_need_authorization_and_an_allowed_host():

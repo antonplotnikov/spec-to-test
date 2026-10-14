@@ -17,7 +17,7 @@ import socket
 import threading
 from collections.abc import Callable
 
-from spec_to_test.automation.security import Resolver, UrlRejected, build_egress_policy
+from spec_to_test.automation.security import Resolver, UrlRejected, _split, build_egress_policy
 from spec_to_test.qa_agent.bugs import generate_bugs
 from spec_to_test.qa_agent.executor import Executor, now
 from spec_to_test.qa_agent.models import CaseResult, PlanCase, QARun, RunStatus
@@ -39,6 +39,21 @@ class QAError(Exception):
         self.params = params or {}
 
 
+def url_error(url: str, rejected: UrlRejected) -> QAError:
+    """The QAError for a rejected URL. A host that is simply not allowed also gets the exact
+    AUTOMATION_ALLOWED_HOSTS entry the operator would have to add (it is only shown, never applied)."""
+    params = {"code": rejected.code, **rejected.params}
+    if rejected.code == "not_allowed":
+        try:
+            scheme, host, port = _split(url.strip())
+        except UrlRejected:
+            pass
+        else:
+            params["port"] = str(port)
+            params["entry"] = host if port == (443 if scheme == "https" else 80) else f"{host}:{port}"
+    return QAError("url", params)
+
+
 def playwright_available() -> bool:
     try:
         import playwright.sync_api  # noqa: F401
@@ -54,7 +69,7 @@ def check_target(url: str, settings: QASettings, resolver: Resolver = socket.get
     try:
         build_egress_policy(url, settings.automation, resolver)
     except UrlRejected as rejected:
-        raise QAError("url", {"code": rejected.code, **rejected.params}) from None
+        raise url_error(url, rejected) from None
 
 
 def run_cases(
@@ -82,7 +97,7 @@ def run_cases(
     try:
         policy = build_egress_policy(target_url, settings.automation, resolver)
     except UrlRejected as rejected:
-        raise QAError("url", {"code": rejected.code, **rejected.params}) from None
+        raise url_error(target_url, rejected) from None
     if not any(case.is_approved for case in cases):
         raise QAError("nothing_approved")
     if not RUN_SLOT.acquire(blocking=False):

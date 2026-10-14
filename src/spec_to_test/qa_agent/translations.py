@@ -398,6 +398,11 @@ QA_AGENT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "The server answered with HTTP {status}.", "uk": "Сервер відповів HTTP {status}.",
         "ru": "Сервер ответил HTTP {status}.",
     },
+    "qaagent.reason.url_not_allowed_entry": {
+        "en": "{host} is not allowed. Nothing was opened. To test it, the server operator must add exactly `{entry}` to AUTOMATION_ALLOWED_HOSTS in the server environment (it is never added automatically) and restart. Only add sites you are authorized to test.",
+        "uk": "{host} не дозволено. Нічого не відкрито. Щоб протестувати його, оператор сервера має додати точно `{entry}` до AUTOMATION_ALLOWED_HOSTS в оточенні сервера (автоматично це не робиться) і перезапустити. Додавайте лише сайти, які вам дозволено тестувати.",
+        "ru": "{host} не разрешён. Ничего не открывалось. Чтобы протестировать его, оператор сервера должен добавить ровно `{entry}` в AUTOMATION_ALLOWED_HOSTS в окружении сервера (автоматически это не делается) и перезапустить. Добавляйте только сайты, которые вам разрешено тестировать.",
+    },
     "qaagent.reason.redirect": {
         "en": "The page tried to go outside the allowed hosts ({url}); the browser was stopped there.",
         "uk": "Сторінка намагалася вийти за межі дозволених хостів ({url}); браузер зупинено.",

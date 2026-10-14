@@ -159,6 +159,8 @@ def markdown_report(run: QARun, requirements: list[Requirement] | None = None, l
 
 def reason_text(code: str, params: dict[str, str], lang: str) -> str:
     if code == "url":
+        if params.get("code") == "not_allowed" and params.get("entry"):
+            return t("qaagent.reason.url_not_allowed_entry", lang, host=params.get("host", ""), entry=params["entry"])
         return t(f"automation.reason.url_{params.get('code', 'invalid')}", lang, host=params.get("host", ""))
     try:
         return t(f"qaagent.reason.{code}", lang, **params)

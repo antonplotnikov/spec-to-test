@@ -51,7 +51,7 @@ def new_session(url: str, settings: QASettings, lang: str, *, authorized: bool,
     try:
         policy = build_egress_policy(url.strip(), settings.automation, resolver)
     except UrlRejected as rejected:
-        raise QAError("url", {"code": rejected.code, **rejected.params}) from None
+        raise service.url_error(url, rejected) from None
     stamp = now()
     return AutoSession(id=new_run_id(), target_url=policy.base_url, lang=lang, created_at=stamp, updated_at=stamp,
                        authorized=True, limits=settings.limits.model_dump())
@@ -87,7 +87,7 @@ def discover(
     try:
         policy = build_egress_policy(session.target_url, settings.automation, resolver)
     except UrlRejected as rejected:
-        raise QAError("url", {"code": rejected.code, **rejected.params}) from None
+        raise service.url_error(session.target_url, rejected) from None
     if not RUN_SLOT.acquire(blocking=False):
         raise QAError("busy")
     events: queue.Queue[PageInfo | None] = queue.Queue()
