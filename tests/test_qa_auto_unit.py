@@ -8,7 +8,6 @@ from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
-from spec_to_test.qa_agent.report import reason_text
 
 from spec_to_test.llm.config import load_config
 from spec_to_test.models import ClarificationStatus, ReviewStatus, Severity
@@ -37,6 +36,7 @@ from spec_to_test.qa_agent.models import (
     RunStatus,
     StepAction,
 )
+from spec_to_test.qa_agent.report import reason_text
 from spec_to_test.qa_agent.safety import load_limits, load_qa_settings, preflight
 from spec_to_test.qa_agent.service import QAError, check_target
 from spec_to_test.qa_agent.steps import validate_step
