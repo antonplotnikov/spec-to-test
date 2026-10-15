@@ -33,7 +33,8 @@ SETTINGS_FILE = SUPPORT_DIR / "settings.env"
 # Only these settings are taken from the file; anything else in it is ignored.
 SETTING_KEYS = (
     "AI_PROVIDER", "AI_MODEL", "AI_LOCK_SETTINGS", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
-    "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL",
+    "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL", "AI_TIMEOUT",
+    "OPENAI_COMPATIBLE_BASE_URL", "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_MODEL",
 )
 # Automation and QA Agent settings (allowlist, secrets, limits).
 SETTING_PREFIXES = ("AUTOMATION_", "QA_")
@@ -41,7 +42,7 @@ SETTINGS_TEMPLATE = """# Spec-to-Test settings for this Mac. Only your macOS use
 # Remove the "# " in front of a line to use it, then restart Spec-to-Test.
 
 # AI (AI analysis, Grill Mode AI interviewer, Automation). AI_PROVIDER is the default
-# provider: anthropic, openai or ollama. Every provider with a key can be picked in
+# provider: anthropic, openai, openai_compatible or ollama. Every provider with a key can be picked in
 # the app's "AI settings"; Automation always uses Claude.
 # AI_PROVIDER=anthropic
 # ANTHROPIC_API_KEY=
@@ -49,6 +50,11 @@ SETTINGS_TEMPLATE = """# Spec-to-Test settings for this Mac. Only your macOS use
 # Local models with Ollama (no key; data stays on this Mac):
 # OLLAMA_HOST=http://localhost:11434
 # OLLAMA_MODEL=llama3.1
+# Local OpenAI-compatible server (LM Studio, vLLM, llama.cpp; key only if it asks for one):
+# OPENAI_COMPATIBLE_BASE_URL=http://localhost:1234/v1
+# OPENAI_COMPATIBLE_MODEL=qwen2.5-7b-instruct
+# Seconds one AI request may take (local models on a CPU may need more than 300):
+# AI_TIMEOUT=600
 # Optional model override for the default provider:
 # AI_MODEL=claude-opus-5-5
 

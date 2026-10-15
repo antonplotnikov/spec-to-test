@@ -49,7 +49,8 @@ def isolated_environment(tmp_path, monkeypatch):
     # No provider settings from the developer's shell leak into a test.
     for name in (
         "AI_MODEL", "AI_LOCK_SETTINGS", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
-        "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL",
+        "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL", "AI_TIMEOUT",
+        "OPENAI_COMPATIBLE_BASE_URL", "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_MODEL",
     ):
         monkeypatch.delenv(name, raising=False)
 

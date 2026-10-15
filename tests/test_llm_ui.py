@@ -130,6 +130,31 @@ def test_ollama_needs_no_key(monkeypatch, example_text):
     assert any("http://localhost:11434" in c for c in settings_text(at))
 
 
+def test_compatible_server_shows_its_address_and_never_its_key(monkeypatch, example_text):
+    # No SDK needed (plain HTTP), so no `sdk_installed` patch here.
+    monkeypatch.setenv("AI_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_MODEL", "qwen2.5-7b-instruct")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "loc-key-789")
+    at = analyzed(example_text)
+    assert "OpenAI-compatible" in ai_tab_text(at) and "qwen2.5-7b-instruct" in ai_tab_text(at)
+    lines = " ".join(settings_text(at))
+    assert "http://localhost:1234/v1" in lines and "OPENAI_COMPATIBLE_API_KEY" in lines
+    assert "loc-key-789" not in lines + ai_tab_text(at)
+
+
+def test_insecure_compatible_server_is_reported(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "compatible")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_BASE_URL", "http://gpu-box:8000/v1")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_MODEL", "m")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "loc-key-789")
+    at = new_app()
+    lines = " ".join(settings_text(at))
+    assert t("llm.problem.insecure_url", variable="OPENAI_COMPATIBLE_BASE_URL") in lines
+    assert "loc-key-789" not in lines
+    assert at.info[0].value == t("sidebar.privacy")  # AI stays off
+
+
 # --- Status ---------------------------------------------------------------------------------------------
 
 def test_status_says_connected_only_after_a_successful_test(two_providers, monkeypatch):

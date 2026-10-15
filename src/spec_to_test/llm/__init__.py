@@ -1,4 +1,4 @@
-"""Optional LLM providers (Claude, OpenAI, Ollama) behind one structured-output call.
+"""Optional LLM providers (Claude, OpenAI, OpenAI-compatible servers, Ollama) behind one structured-output call.
 
 `config` reads which providers may be used (keys only ever come from the
 environment, Streamlit secrets or a local .env); `providers` sends one request

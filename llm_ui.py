@@ -26,9 +26,11 @@ from spec_to_test.formatting import escape_markdown
 from spec_to_test.i18n import t
 from spec_to_test.llm.config import (
     KEY_VARIABLES,
+    MODEL_VARIABLES,
     PROVIDER_NAMES,
     PROVIDERS,
     SDK_MODULES,
+    URL_VARIABLES,
     AIConfig,
     LLMSettings,
     choose,
@@ -157,13 +159,20 @@ def _provider_lines(lang: str, settings: LLMSettings) -> None:
         if config is not None:
             if provider == "ollama":
                 detail = t("llm.status.server", lang, url=config.base_url)
+            elif provider == "openai_compatible":
+                key = config.api_key.get_secret_value()
+                detail = t("llm.status.server", lang, url=config.base_url) + " · " + (
+                    t("llm.status.key_set", lang, variable=KEY_VARIABLES[provider]) if key
+                    else t("llm.status.no_key", lang)
+                )
             else:
                 detail = t("llm.status.key_set", lang, variable=KEY_VARIABLES[provider])
             if not sdk_installed(provider):
                 detail += " · " + t("llm.status.sdk_missing", lang)
             lines.append(f"✅ **{name}** — {detail}")
         elif problem := settings.problems.get(provider):
-            variable = KEY_VARIABLES.get(provider, "OLLAMA_HOST" if provider == "ollama" else "OPENAI_BASE_URL")
+            variables = {"key_missing": KEY_VARIABLES, "model_missing": MODEL_VARIABLES}.get(problem, URL_VARIABLES)
+            variable = variables.get(provider, "AI_PROVIDER")
             lines.append(f"⚠️ **{name}** — {t(f'llm.problem.{problem}', lang, variable=variable)}")
         else:
             lines.append(f"▫️ **{name}** — {t('llm.status.off', lang)}")

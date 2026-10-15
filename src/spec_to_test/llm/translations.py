@@ -6,9 +6,9 @@ Merged into spec_to_test.i18n.TRANSLATIONS, so use `t()` as everywhere else.
 LLM_TRANSLATIONS: dict[str, dict[str, str]] = {
     "llm.heading": {"en": "AI settings", "uk": "Налаштування ШІ", "ru": "Настройки ИИ"},
     "llm.not_configured": {
-        "en": "AI is off. To enable it, set AI_PROVIDER (anthropic, openai or ollama) and the provider's key in the environment, Streamlit secrets or a local .env file. Keys are never entered on this page.",
-        "uk": "ШІ вимкнено. Щоб увімкнути, задайте AI_PROVIDER (anthropic, openai або ollama) і ключ провайдера в оточенні, секретах Streamlit або локальному файлі .env. Ключі ніколи не вводяться на цій сторінці.",
-        "ru": "ИИ выключен. Чтобы включить, задайте AI_PROVIDER (anthropic, openai или ollama) и ключ провайдера в окружении, секретах Streamlit или локальном файле .env. Ключи никогда не вводятся на этой странице.",
+        "en": "AI is off. To enable it, set AI_PROVIDER (anthropic, openai, openai_compatible or ollama) and the provider's key or server address in the environment, Streamlit secrets or a local .env file. Keys are never entered on this page.",
+        "uk": "ШІ вимкнено. Щоб увімкнути, задайте AI_PROVIDER (anthropic, openai, openai_compatible або ollama) і ключ або адресу сервера провайдера в оточенні, секретах Streamlit або локальному файлі .env. Ключі ніколи не вводяться на цій сторінці.",
+        "ru": "ИИ выключен. Чтобы включить, задайте AI_PROVIDER (anthropic, openai, openai_compatible или ollama) и ключ или адрес сервера провайдера в окружении, секретах Streamlit или локальном файле .env. Ключи никогда не вводятся на этой странице.",
     },
     "llm.enabled": {"en": "Use AI features", "uk": "Використовувати функції ШІ", "ru": "Использовать функции ИИ"},
     "llm.enabled_help": {
@@ -50,12 +50,28 @@ LLM_TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "SDK не встановлено (pip install -r requirements-ai.txt)",
         "ru": "SDK не установлен (pip install -r requirements-ai.txt)",
     },
+    "llm.status.no_key": {"en": "no key", "uk": "без ключа", "ru": "без ключа"},
     "llm.status.off": {"en": "not configured", "uk": "не налаштовано", "ru": "не настроен"},
     "llm.problem.key_missing": {"en": "key missing ({variable})", "uk": "бракує ключа ({variable})", "ru": "нет ключа ({variable})"},
     "llm.problem.invalid_url": {
         "en": "invalid address ({variable})",
         "uk": "неправильна адреса ({variable})",
         "ru": "неверный адрес ({variable})",
+    },
+    "llm.problem.url_missing": {
+        "en": "server address missing ({variable})",
+        "uk": "бракує адреси сервера ({variable})",
+        "ru": "нет адреса сервера ({variable})",
+    },
+    "llm.problem.model_missing": {
+        "en": "model missing or invalid ({variable})",
+        "uk": "модель не задано або вона неправильна ({variable})",
+        "ru": "модель не задана или неверна ({variable})",
+    },
+    "llm.problem.insecure_url": {
+        "en": "the key would be sent unencrypted: use https in {variable} (plain http only to localhost)",
+        "uk": "ключ було б надіслано без шифрування: використовуйте https у {variable} (http лише до localhost)",
+        "ru": "ключ ушёл бы без шифрования: используйте https в {variable} (http только для localhost)",
     },
     "llm.problem.unknown_provider": {
         "en": "unknown provider in {variable}",
@@ -77,8 +93,8 @@ LLM_TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Провайдер ИИ не знает эту модель. Проверьте название модели (для Ollama выполните: ollama pull <model>).",
     },
     "ai.error.unsupported_provider": {
-        "en": "This AI provider is not supported. Use anthropic, openai or ollama.",
-        "uk": "Цей провайдер ШІ не підтримується. Використовуйте anthropic, openai або ollama.",
-        "ru": "Этот провайдер ИИ не поддерживается. Используйте anthropic, openai или ollama.",
+        "en": "This AI provider is not supported. Use anthropic, openai, openai_compatible or ollama.",
+        "uk": "Цей провайдер ШІ не підтримується. Використовуйте anthropic, openai, openai_compatible або ollama.",
+        "ru": "Этот провайдер ИИ не поддерживается. Используйте anthropic, openai, openai_compatible или ollama.",
     },
 }
