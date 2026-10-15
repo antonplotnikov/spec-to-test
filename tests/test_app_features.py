@@ -12,7 +12,7 @@ PAGES = [
     "Home", "Requirements Analysis", "Grill Mode", "Test Cases", "QA Agent", "Traceability (RTM)",
     "Dashboard", "Export", "Settings",
 ]
-ANALYSIS_TABS = ["Requirements", "Findings", "Test design", "Bug reports", "AI analysis"]
+ANALYSIS_TABS = ["Requirements", "Findings", "Traceability gaps", "Test design", "Bug reports", "AI analysis"]
 
 
 def new_app() -> AppTest:
@@ -51,7 +51,7 @@ def test_analyze_opens_the_analysis_page(analyzed):
 def test_every_page_and_tab_is_present(analyzed):
     assert nav_labels(analyzed) == PAGES
     assert [tab.label for tab in analyzed.tabs] == ANALYSIS_TABS
-    assert [tab.label for tab in goto(analyzed, "tests").tabs] == ["Test cases", "Automation"]
+    assert [tab.label for tab in goto(analyzed, "tests").tabs] == ["Test cases", "Test suites", "Automation"]
     for page in ("rtm", "dashboard", "export", "settings", "grill", "home"):
         assert not goto(analyzed, page).exception
 

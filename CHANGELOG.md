@@ -6,6 +6,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### AI providers — local and OpenAI-compatible models
+
+#### Added
+- Provider `openai_compatible` (alias `compatible`) for self-hosted servers with an
+  OpenAI-style `/chat/completions` API (LM Studio, vLLM, llama.cpp server,
+  LocalAI): `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_MODEL` (required, no
+  default) and an optional `OPENAI_COMPATIBLE_API_KEY`. It sits next to the real
+  OpenAI provider (both can be configured), needs no SDK (plain HTTP, like
+  Ollama), never receives the OpenAI key or other `OPENAI_*` settings, and does
+  not follow redirects. Replies are validated against the same Pydantic models;
+  a `<think>` block or a Markdown fence around the JSON is accepted (also for Ollama).
+- `AI_TIMEOUT`: seconds one AI request may take (default 300, clamped to 10–3600),
+  for slow local models.
+- Settings page: the compatible server's address and whether it uses a key;
+  new problems *server address missing*, *model missing or invalid* and
+  *key would be sent unencrypted*.
+
+#### Changed
+- A provider key is sent only over `https` or over `http` to this machine. An
+  `OPENAI_BASE_URL` with plain `http` to another host together with
+  `OPENAI_API_KEY` now makes the OpenAI provider unusable (*insecure_url*)
+  instead of sending the key unencrypted.
+
 ### Autonomous QA — from a URL to bug reports
 
 #### Added

@@ -77,7 +77,8 @@ want it:
    ```
 3. Set a spending limit for the key in the provider's console.
 
-Ollama is not an option on Streamlit Cloud (it needs a server you run). Each
+Ollama and self-hosted OpenAI-compatible servers are not an option on Streamlit
+Cloud unless they are reachable over https (they need a server you run). Each
 visitor can still turn AI off for their own session in **AI settings**.
 
 Never commit the key. Streamlit secrets are not part of the repository.

@@ -4,6 +4,8 @@ Use `t(key, lang, **params)` to get a translated string. Placeholders like
 {max_mb} are filled from params. Missing translations fall back to English.
 """
 
+import re
+
 from spec_to_test.automation.translations import AUTOMATION_TRANSLATIONS
 from spec_to_test.grill.translations import GRILL_TRANSLATIONS
 from spec_to_test.history_translations import HISTORY_TRANSLATIONS
@@ -311,8 +313,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "tab.dashboard": {"en": "Dashboard", "uk": "Дашборд", "ru": "Дашборд"},
     "tab.rtm": {"en": "Traceability (RTM)", "uk": "Трасування (RTM)", "ru": "Трассировка (RTM)"},
     "tab.tests": {"en": "Test cases", "uk": "Тест-кейси", "ru": "Тест-кейсы"},
+    "tab.suites": {"en": "Test suites", "uk": "Набори тестів", "ru": "Наборы тестов"},
     "tab.design": {"en": "Test design", "uk": "Тест-дизайн", "ru": "Тест-дизайн"},
     "tab.defects": {"en": "Bug reports", "uk": "Баг-репорти", "ru": "Баг-репорты"},
+    "tab.gaps": {"en": "Traceability gaps", "uk": "Прогалини трасування", "ru": "Пробелы трассируемости"},
     "tab.ai": {"en": "AI analysis", "uk": "Аналіз ШІ", "ru": "Анализ ИИ"},
     "tab.export": {"en": "Export", "uk": "Експорт", "ru": "Экспорт"},
     # --- Columns -------------------------------------------------------------
@@ -322,12 +326,29 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "column.test_cases": {"en": "Test cases", "uk": "Тест-кейси", "ru": "Тест-кейсы"},
     "column.approved": {"en": "Approved tests", "uk": "Затверджені тести", "ru": "Утверждённые тесты"},
     "column.bugs": {"en": "Bug reports", "uk": "Баг-репорти", "ru": "Баг-репорты"},
+    "column.scenarios_applicable": {"en": "Applicable scenarios", "uk": "Застосовні сценарії", "ru": "Применимые сценарии"},
+    "column.scenarios_covered": {"en": "Covered scenarios", "uk": "Покриті сценарії", "ru": "Покрытые сценарии"},
+    "column.scenarios_missing": {"en": "Missing scenarios", "uk": "Відсутні сценарії", "ru": "Отсутствующие сценарии"},
+    "column.scenario_coverage": {"en": "Scenario coverage", "uk": "Покриття сценаріїв", "ru": "Покрытие сценариев"},
+    "column.scenario_reason": {"en": "Applicability rationale", "uk": "Обґрунтування застосовності", "ru": "Обоснование применимости"},
+    "scenario.happy_path": {"en": "Happy Path", "uk": "Основний сценарій", "ru": "Основной сценарий"},
+    "scenario.negative": {"en": "Negative", "uk": "Негативний", "ru": "Негативный"},
+    "scenario.boundary": {"en": "Boundary", "uk": "Граничні значення", "ru": "Граничные значения"},
+    "scenario.permissions": {"en": "Permissions", "uk": "Права доступу", "ru": "Права доступа"},
+    "scenario.state_transitions": {"en": "State Transitions", "uk": "Переходи станів", "ru": "Переходы состояний"},
+    "scenario.recovery": {"en": "Recovery", "uk": "Відновлення", "ru": "Восстановление"},
+    "scenario.unknown": {"en": "Unknown", "uk": "Невідомо", "ru": "Неизвестно"},
+    "scenario.no_behavior": {"en": "no stated behavior", "uk": "поведінку не зазначено", "ru": "поведение не указано"},
     "column.test_id": {"en": "Test ID", "uk": "ID тесту", "ru": "ID теста"},
     "column.bug_id": {"en": "Bug ID", "uk": "ID багу", "ru": "ID бага"},
     "column.ai_id": {"en": "Suggestion", "uk": "Пропозиція", "ru": "Предложение"},
     "column.title": {"en": "Title", "uk": "Назва", "ru": "Название"},
     "column.test_type": {"en": "Test type", "uk": "Тип тесту", "ru": "Тип теста"},
     "column.review": {"en": "Review status", "uk": "Статус рев'ю", "ru": "Статус ревью"},
+    "column.priority": {"en": "Priority", "uk": "Пріоритет", "ru": "Приоритет"},
+    "priority.high": {"en": "High", "uk": "Високий", "ru": "Высокий"},
+    "priority.medium": {"en": "Medium", "uk": "Середній", "ru": "Средний"},
+    "priority.low": {"en": "Low", "uk": "Низький", "ru": "Низкий"},
     "column.description": {"en": "Description", "uk": "Опис", "ru": "Описание"},
     "column.quote": {"en": "Source quote", "uk": "Цитата з джерела", "ru": "Цитата из источника"},
     # --- Filters -------------------------------------------------------------
@@ -358,7 +379,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "unit.hours": {"en": "hours", "uk": "годин", "ru": "часов"},
     "unit.days": {"en": "days", "uk": "днів", "ru": "дней"},
     "unit.attempts": {"en": "attempts", "uk": "спроб", "ru": "попыток"},
+    "unit.milliseconds": {"en": "milliseconds", "uk": "мілісекунд", "ru": "миллисекунд"},
+    "unit.weeks": {"en": "weeks", "uk": "тижнів", "ru": "недель"},
+    "unit.months": {"en": "months", "uk": "місяців", "ru": "месяцев"},
+    "unit.years": {"en": "years", "uk": "років", "ru": "лет"},
+    "unit.kilobytes": {"en": "KB", "uk": "КБ", "ru": "КБ"},
     "unit.megabytes": {"en": "MB", "uk": "МБ", "ru": "МБ"},
+    "unit.gigabytes": {"en": "GB", "uk": "ГБ", "ru": "ГБ"},
+    "unit.percent": {"en": "%", "uk": "%", "ru": "%"},
+    "unit.items": {"en": "items", "uk": "позицій", "ru": "позиций"},
+    "unit.usd": {"en": "USD", "uk": "доларів США", "ru": "долларов США"},
+    "unit.eur": {"en": "EUR", "uk": "євро", "ru": "евро"},
+    "unit.gbp": {"en": "GBP", "uk": "фунтів стерлінгів", "ru": "фунтов стерлингов"},
+    "unit.rub": {"en": "RUB", "uk": "рублів", "ru": "рублей"},
+    "unit.uah": {"en": "UAH", "uk": "гривень", "ru": "гривен"},
     "ai_type.ambiguity": {"en": "Ambiguity", "uk": "Неоднозначність", "ru": "Неоднозначность"},
     "ai_type.contradiction": {"en": "Contradiction", "uk": "Суперечність", "ru": "Противоречие"},
     "ai_type.missing_scenario": {"en": "Missing scenario", "uk": "Пропущений сценарій", "ru": "Пропущенный сценарий"},
@@ -465,6 +499,83 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Тест-кейси, пов'язані з невідомими вимогами: {ids}. Їх не буде експортовано.",
         "ru": "Тест-кейсы, связанные с неизвестными требованиями: {ids}. Они не экспортируются.",
     },
+    # --- Test suite planner ----------------------------------------------------
+    "suites.explainer": {
+        "en": "Suites are picked from the existing test cases by test type and review status only.",
+        "uk": "Набори формуються з наявних тест-кейсів лише за типом тесту і статусом рев'ю.",
+        "ru": "Наборы формируются из существующих тест-кейсов только по типу теста и статусу ревью.",
+    },
+    "suites.smoke": {"en": "Smoke", "uk": "Smoke", "ru": "Smoke"},
+    "suites.regression": {"en": "Regression", "uk": "Регресія", "ru": "Регрессия"},
+    "suites.full": {"en": "Full", "uk": "Повний", "ru": "Полный"},
+    "suites.criteria.smoke": {
+        "en": "Smoke: Approved Positive (happy path) test cases with High or Medium priority; Low stays out.",
+        "uk": "Smoke: затверджені позитивні тест-кейси (happy path) з пріоритетом High або Medium; Low не входить.",
+        "ru": "Smoke: утверждённые позитивные тест-кейсы (happy path) с приоритетом High или Medium; Low не входит.",
+    },
+    "suites.criteria.regression": {
+        "en": "Regression: every Approved test case.",
+        "uk": "Регресія: усі затверджені тест-кейси.",
+        "ru": "Регрессия: все утверждённые тест-кейсы.",
+    },
+    "suites.criteria.full": {
+        "en": "Full: every test case, whatever its review status.",
+        "uk": "Повний: усі тест-кейси незалежно від статусу рев'ю.",
+        "ru": "Полный: все тест-кейсы независимо от статуса ревью.",
+    },
+    "suites.select": {"en": "Suite", "uk": "Набір", "ru": "Набор"},
+    "suites.export_jira": {"en": "{suite} suite → Jira CSV", "uk": "Набір {suite} → Jira CSV", "ru": "Набор {suite} → Jira CSV"},
+    "suites.export_testrail": {"en": "{suite} suite → TestRail CSV", "uk": "Набір {suite} → TestRail CSV", "ru": "Набор {suite} → TestRail CSV"},
+    "suites.no_criticality": {
+        "en": "Priority is Medium unless a reviewer changes it; it is never inferred. Smoke follows the priorities set on the Test cases tab.",
+        "uk": "Пріоритет — Medium, доки рецензент його не змінить; він ніколи не визначається автоматично. Smoke спирається на пріоритети, задані на вкладці «Тест-кейси».",
+        "ru": "Приоритет — Medium, пока ревьюер его не изменит; он никогда не определяется автоматически. Smoke опирается на приоритеты, заданные на вкладке «Тест-кейсы».",
+    },
+    "suites.smoke_missing": {
+        "en": "Not represented in Smoke (no Approved Positive test case with High or Medium priority): {ids}.",
+        "uk": "Не представлені у Smoke (немає затвердженого позитивного тест-кейсу з пріоритетом High або Medium): {ids}.",
+        "ru": "Не представлены в Smoke (нет утверждённого позитивного тест-кейса с приоритетом High или Medium): {ids}.",
+    },
+    "suites.no_test_cases": {
+        "en": "There are no test cases yet, so no suite can be formed.",
+        "uk": "Тест-кейсів ще немає, тож жоден набір сформувати не можна.",
+        "ru": "Тест-кейсов ещё нет, поэтому ни один набор сформировать нельзя.",
+    },
+    "suites.empty": {
+        "en": "This suite is empty: no test case matches its criteria yet.",
+        "uk": "Цей набір порожній: жоден тест-кейс поки не відповідає його критеріям.",
+        "ru": "Этот набор пуст: ни один тест-кейс пока не соответствует его критериям.",
+    },
+    # --- Traceability gap analysis ---------------------------------------------
+    "gaps.explainer": {
+        "en": "Links between requirements and test cases. Unknown means the requirement does not say enough to tell what needs testing; it is not counted as a gap.",
+        "uk": "Зв'язки між вимогами і тест-кейсами. Невідомо — вимога не дає змоги визначити, що треба перевіряти; це не вважається прогалиною.",
+        "ru": "Связи между требованиями и тест-кейсами. Неизвестно — требование не позволяет определить, что нужно проверять; это не считается пробелом.",
+    },
+    "gaps.untested": {"en": "Requirements without test cases", "uk": "Вимоги без тест-кейсів", "ru": "Требования без тест-кейсов"},
+    "gaps.unknown": {"en": "Unknown: not enough data", "uk": "Невідомо: бракує даних", "ru": "Неизвестно: недостаточно данных"},
+    "gaps.unlinked": {"en": "Test cases without a requirement", "uk": "Тест-кейси без вимоги", "ru": "Тест-кейсы без требования"},
+    "gaps.none": {
+        "en": "No traceability gaps: every requirement has a test case and every test case is linked to a requirement.",
+        "uk": "Прогалин трасування немає: кожна вимога має тест-кейс, і кожен тест-кейс пов'язаний з вимогою.",
+        "ru": "Пробелов трассируемости нет: у каждого требования есть тест-кейс, и каждый тест-кейс связан с требованием.",
+    },
+    "gaps.untested_heading": {
+        "en": "Gap — requirements without any test case:",
+        "uk": "Прогалина — вимоги без жодного тест-кейсу:",
+        "ru": "Пробел — требования без единого тест-кейса:",
+    },
+    "gaps.unknown_heading": {
+        "en": "Unknown — no test case, but the requirement does not say what to test (not counted as a gap):",
+        "uk": "Невідомо — тест-кейсу немає, але вимога не каже, що перевіряти (не вважається прогалиною):",
+        "ru": "Неизвестно — тест-кейса нет, но требование не говорит, что проверять (не считается пробелом):",
+    },
+    "gaps.unlinked_heading": {
+        "en": "Gap — test cases not linked to a requirement of this document:",
+        "uk": "Прогалина — тест-кейси, не пов'язані з вимогою цього документа:",
+        "ru": "Пробел — тест-кейсы, не связанные с требованием этого документа:",
+    },
+    "gaps.not_in_document": {"en": "{req} is not in the document", "uk": "{req} немає в документі", "ru": "{req} нет в документе"},
     # --- Test case editor ----------------------------------------------------
     "tests.explainer": {
         "en": "Generated test cases are drafts. Edit them, then move them through Draft → Reviewed → Approved. Only Approved tests count as coverage.",
@@ -503,6 +614,183 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Title, at least one step and the expected result are required.",
         "uk": "Потрібні назва, хоча б один крок і очікуваний результат.",
         "ru": "Нужны название, хотя бы один шаг и ожидаемый результат.",
+    },
+    "impact.previous": {"en": "“{title}” from {date}", "uk": "«{title}» від {date}", "ru": "«{title}» от {date}"},
+    "impact.unknown_previous": {
+        "en": "Change impact: Unknown. Several earlier versions of “{title}” match equally, so the previous version cannot be identified reliably and nothing was compared.",
+        "uk": "Вплив змін: невідомо. Кілька попередніх версій «{title}» підходять однаково, тому попередню версію неможливо надійно визначити, і порівняння не виконано.",
+        "ru": "Влияние изменений: неизвестно. Несколько прежних версий «{title}» подходят одинаково, поэтому предыдущую версию нельзя надёжно определить, и сравнение не выполнено.",
+    },
+    "impact.no_changes": {
+        "en": "No requirement changes compared with the previous version {previous}.",
+        "uk": "Порівняно з попередньою версією {previous} вимоги не змінилися.",
+        "ru": "По сравнению с предыдущей версией {previous} требования не изменились.",
+    },
+    "impact.heading": {
+        "en": "Requirements changed since the previous version {previous}: added {added}, modified {modified}, removed {removed}, Unknown {unknown}.",
+        "uk": "Вимоги змінилися порівняно з попередньою версією {previous}: додано {added}, змінено {modified}, видалено {removed}, невідомо {unknown}.",
+        "ru": "Требования изменились по сравнению с предыдущей версией {previous}: добавлено {added}, изменено {modified}, удалено {removed}, неизвестно {unknown}.",
+    },
+    "impact.review_heading": {
+        "en": "Test cases of the previous version that need review:",
+        "uk": "Тест-кейси попередньої версії, які потребують перегляду:",
+        "ru": "Тест-кейсы предыдущей версии, требующие пересмотра:",
+    },
+    "impact.reason.modified": {
+        "en": "the requirement text changed",
+        "uk": "текст вимоги змінився",
+        "ru": "текст требования изменился",
+    },
+    "impact.reason.removed": {
+        "en": "the requirement was removed",
+        "uk": "вимогу видалено",
+        "ru": "требование удалено",
+    },
+    "impact.reason.unknown": {
+        "en": "Unknown — the requirement has no reliable match in the new version",
+        "uk": "невідомо — вимога не має надійної відповідності в новій версії",
+        "ru": "неизвестно — у требования нет надёжного соответствия в новой версии",
+    },
+    "impact.statuses_kept": {
+        "en": "Review statuses were not changed, including Approved.",
+        "uk": "Статуси перегляду не змінено, зокрема «Затверджено».",
+        "ru": "Статусы проверки не изменены, в том числе «Утверждено».",
+    },
+    "impact.changes_heading": {"en": "Requirement changes ({count})", "uk": "Зміни вимог ({count})", "ru": "Изменения требований ({count})"},
+    "impact.column.change": {"en": "Change", "uk": "Зміна", "ru": "Изменение"},
+    "impact.column.old": {"en": "Previous version", "uk": "Попередня версія", "ru": "Предыдущая версия"},
+    "impact.column.new": {"en": "New version", "uk": "Нова версія", "ru": "Новая версия"},
+    "impact.similarity": {
+        "en": "probable, text similarity {percent}%",
+        "uk": "імовірно, схожість тексту {percent}%",
+        "ru": "вероятно, сходство текста {percent}%",
+    },
+    "impact.kind.added": {"en": "Added", "uk": "Додано", "ru": "Добавлено"},
+    "impact.kind.modified": {"en": "Modified", "uk": "Змінено", "ru": "Изменено"},
+    "impact.kind.removed": {"en": "Removed", "uk": "Видалено", "ru": "Удалено"},
+    "impact.kind.unknown": {"en": "Unknown", "uk": "Невідомо", "ru": "Неизвестно"},
+    "approval.heading": {"en": "Before approving {id}", "uk": "Перед затвердженням {id}", "ru": "Перед утверждением {id}"},
+    "approval.review_heading": {
+        "en": "Review of approved {id}",
+        "uk": "Перегляд затвердженого {id}",
+        "ru": "Просмотр утверждённого {id}",
+    },
+    "approval.review_note": {
+        "en": "This test case is already Approved. The findings are for review only; the status is not changed automatically.",
+        "uk": "Цей тест-кейс уже затверджено. Результати лише для перегляду; статус не змінюється автоматично.",
+        "ru": "Этот тест-кейс уже утверждён. Результаты только для просмотра; статус не меняется автоматически.",
+    },
+    "approval.critic_problems": {"en": "Critic problems:", "uk": "Проблеми, знайдені критиком:", "ru": "Проблемы, найденные критиком:"},
+    "approval.critic_unknown": {
+        "en": "Unknown — not enough data to judge (not counted as a problem):",
+        "uk": "Невідомо — недостатньо даних для оцінки (не вважається проблемою):",
+        "ru": "Неизвестно — недостаточно данных для оценки (не считается проблемой):",
+    },
+    "approval.coverage": {
+        "en": "Scenario coverage of {req} by Approved test cases: {percent}%.",
+        "uk": "Покриття сценаріїв {req} затвердженими тест-кейсами: {percent}%.",
+        "ru": "Покрытие сценариев {req} утверждёнными тест-кейсами: {percent}%.",
+    },
+    "approval.coverage_unknown": {
+        "en": "Scenario coverage of {req}: Unknown — no applicable scenarios could be determined from the requirement.",
+        "uk": "Покриття сценаріїв {req}: невідомо — з вимоги неможливо визначити застосовні сценарії.",
+        "ru": "Покрытие сценариев {req}: неизвестно — по требованию нельзя определить применимые сценарии.",
+    },
+    "approval.missing": {
+        "en": "Missing applicable scenarios: {names}.",
+        "uk": "Відсутні застосовні сценарії: {names}.",
+        "ru": "Отсутствующие применимые сценарии: {names}.",
+    },
+    "approval.would_cover": {
+        "en": "Approving this test case would cover: {names}.",
+        "uk": "Затвердження цього тест-кейсу покриє: {names}.",
+        "ru": "Утверждение этого тест-кейса покроет: {names}.",
+    },
+    "approval.scenario_unknown": {
+        "en": "Unknown scenarios (counted neither as covered nor as missing): {names}.",
+        "uk": "Невідомі сценарії (не вважаються ні покритими, ні відсутніми): {names}.",
+        "ru": "Неизвестные сценарии (не считаются ни покрытыми, ни отсутствующими): {names}.",
+    },
+    "approval.not_blocked": {
+        "en": "Approval is not blocked: the decision is yours.",
+        "uk": "Затвердження не блокується: рішення ухвалюєте ви.",
+        "ru": "Утверждение не блокируется: решение принимаете вы.",
+    },
+    "critic.unknown": {"en": "Unknown", "uk": "Невідомо", "ru": "Неизвестно"},
+    "critic.criterion.steps": {"en": "Steps", "uk": "Кроки", "ru": "Шаги"},
+    "critic.criterion.expected_result": {"en": "Expected result", "uk": "Очікуваний результат", "ru": "Ожидаемый результат"},
+    "critic.criterion.requirement_match": {"en": "Requirement match", "uk": "Відповідність вимозі", "ru": "Соответствие требованию"},
+    "critic.criterion.duplicate": {"en": "Duplicate", "uk": "Дублікат", "ru": "Дубликат"},
+    "critic.criterion.unsupported": {"en": "Unsupported expectation", "uk": "Непідтверджене очікування", "ru": "Неподтверждённое ожидание"},
+    "critic.step_placeholder": {
+        "en": "step {step} is still the placeholder text.",
+        "uk": "крок {step} досі містить текст-заглушку.",
+        "ru": "шаг {step} всё ещё содержит текст-заглушку.",
+    },
+    "critic.step_generic": {
+        "en": "these steps only refer to the requirement and name no concrete action or data: {steps}.",
+        "uk": "ці кроки лише посилаються на вимогу й не називають конкретної дії чи даних: {steps}.",
+        "ru": "эти шаги лишь ссылаются на требование и не называют конкретного действия или данных: {steps}.",
+    },
+    "critic.step_vague": {
+        "en": "step {step} uses vague wording “{term}”.",
+        "uk": "крок {step} містить нечітке формулювання «{term}».",
+        "ru": "шаг {step} содержит нечёткую формулировку «{term}».",
+    },
+    "critic.step_too_short": {
+        "en": "step {step} is too short to say what to do and with which data.",
+        "uk": "крок {step} занадто короткий, щоб зрозуміти, що й з якими даними робити.",
+        "ru": "шаг {step} слишком короткий, чтобы понять, что и с какими данными делать.",
+    },
+    "critic.expected_placeholder": {
+        "en": "the expected result is still the placeholder text.",
+        "uk": "очікуваний результат досі містить текст-заглушку.",
+        "ru": "ожидаемый результат всё ещё содержит текст-заглушку.",
+    },
+    "critic.expected_unspecified": {
+        "en": "the requirement does not state the outcome for at least one value or condition.",
+        "uk": "вимога не визначає результат принаймні для одного значення чи умови.",
+        "ru": "требование не определяет результат хотя бы для одного значения или условия.",
+    },
+    "critic.expected_vague": {
+        "en": "the expected result uses vague wording “{term}” that cannot be checked.",
+        "uk": "очікуваний результат містить нечітке формулювання «{term}», яке неможливо перевірити.",
+        "ru": "ожидаемый результат содержит нечёткую формулировку «{term}», которую нельзя проверить.",
+    },
+    "critic.expected_not_observable": {
+        "en": "the expected result names no observable outcome, value or message.",
+        "uk": "очікуваний результат не називає спостережуваного результату, значення чи повідомлення.",
+        "ru": "ожидаемый результат не называет наблюдаемого результата, значения или сообщения.",
+    },
+    "critic.requirement_missing": {
+        "en": "the linked requirement is not in the document, so the match cannot be checked.",
+        "uk": "пов'язаної вимоги немає в документі, тому відповідність неможливо перевірити.",
+        "ru": "связанного требования нет в документе, поэтому соответствие проверить нельзя.",
+    },
+    "critic.requirement_no_expected": {
+        "en": "the requirement itself states no expected result, so the match cannot be checked.",
+        "uk": "сама вимога не містить очікуваного результату, тому відповідність неможливо перевірити.",
+        "ru": "само требование не содержит ожидаемого результата, поэтому соответствие проверить нельзя.",
+    },
+    "critic.requirement_mismatch": {
+        "en": "the test case shares no key terms with its requirement; it may test something else.",
+        "uk": "тест-кейс не має спільних ключових слів із вимогою; можливо, він перевіряє інше.",
+        "ru": "у тест-кейса нет общих ключевых слов с требованием; возможно, он проверяет другое.",
+    },
+    "critic.duplicate": {
+        "en": "same steps and expected result as {ids}.",
+        "uk": "ті самі кроки й очікуваний результат, що й у {ids}.",
+        "ru": "те же шаги и ожидаемый результат, что и у {ids}.",
+    },
+    "critic.invented_value": {
+        "en": "the expected result uses values not stated in the requirement: {values}.",
+        "uk": "очікуваний результат містить значення, яких немає у вимозі: {values}.",
+        "ru": "ожидаемый результат содержит значения, которых нет в требовании: {values}.",
+    },
+    "critic.invented_text": {
+        "en": "the expected result quotes {text}, which the requirement does not state.",
+        "uk": "очікуваний результат цитує {text}, чого немає у вимозі.",
+        "ru": "ожидаемый результат цитирует {text}, чего нет в требовании.",
     },
     "tests.new_title": {"en": "New test case", "uk": "Новий тест-кейс", "ru": "Новый тест-кейс"},
     "tests.new_step": {"en": "Describe the first step", "uk": "Опишіть перший крок", "ru": "Опишите первый шаг"},
@@ -556,8 +844,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     "tc.step_partition": {
         "en": "Class {interval}: use {value} {unit}.",
-        "uk": "Клас {interval}: використайте {value} {unit}.",
-        "ru": "Класс {interval}: используйте {value} {unit}.",
+        "uk": "Клас {interval}: використайте значення {value} {unit}.",
+        "ru": "Класс {interval}: используйте значение {value} {unit}.",
     },
     "tc.value_expectation": {
         "en": "{value} {unit} → {expectation}",
@@ -730,9 +1018,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Необязательно. Модель ИИ может искать неоднозначности, противоречия и пропущенные сценарии, которые правила могут пропустить. Результат ИИ — лишь предложение, он хранится отдельно от находок на основе правил и не влияет на оценки или покрытие.",
     },
     "ai.not_configured": {
-        "en": "AI is not configured (or is turned off in AI settings), and the app works fully without it. To enable it, set AI_PROVIDER (anthropic, openai or ollama) and the provider's key (ANTHROPIC_API_KEY or OPENAI_API_KEY; Ollama needs none) in a local .env file, install requirements-ai.txt (see README), and keep “Use AI features” on in AI settings.",
-        "uk": "ШІ не налаштовано (або вимкнено в налаштуваннях ШІ), і застосунок повністю працює без нього. Щоб увімкнути, вкажіть AI_PROVIDER (anthropic, openai або ollama) і ключ провайдера (ANTHROPIC_API_KEY або OPENAI_API_KEY; Ollama ключа не потребує) у локальному файлі .env, встановіть requirements-ai.txt (див. README) і залиште «Використовувати функції ШІ» увімкненим у налаштуваннях ШІ.",
-        "ru": "ИИ не настроен (или выключен в настройках ИИ), и приложение полностью работает без него. Чтобы включить, укажите AI_PROVIDER (anthropic, openai или ollama) и ключ провайдера (ANTHROPIC_API_KEY или OPENAI_API_KEY; Ollama ключ не нужен) в локальном файле .env, установите requirements-ai.txt (см. README) и оставьте «Использовать функции ИИ» включённым в настройках ИИ.",
+        "en": "AI is not configured (or is turned off in AI settings), and the app works fully without it. To enable it, set AI_PROVIDER (anthropic, openai, openai_compatible or ollama) and the provider's key (ANTHROPIC_API_KEY or OPENAI_API_KEY; Ollama needs none, an OpenAI-compatible server needs OPENAI_COMPATIBLE_BASE_URL and OPENAI_COMPATIBLE_MODEL) in a local .env file, install requirements-ai.txt (see README), and keep “Use AI features” on in AI settings.",
+        "uk": "ШІ не налаштовано (або вимкнено в налаштуваннях ШІ), і застосунок повністю працює без нього. Щоб увімкнути, вкажіть AI_PROVIDER (anthropic, openai, openai_compatible або ollama) і ключ провайдера (ANTHROPIC_API_KEY або OPENAI_API_KEY; Ollama ключа не потребує, OpenAI-сумісному серверу потрібні OPENAI_COMPATIBLE_BASE_URL і OPENAI_COMPATIBLE_MODEL) у локальному файлі .env, встановіть requirements-ai.txt (див. README) і залиште «Використовувати функції ШІ» увімкненим у налаштуваннях ШІ.",
+        "ru": "ИИ не настроен (или выключен в настройках ИИ), и приложение полностью работает без него. Чтобы включить, укажите AI_PROVIDER (anthropic, openai, openai_compatible или ollama) и ключ провайдера (ANTHROPIC_API_KEY или OPENAI_API_KEY; Ollama ключ не нужен, OpenAI-совместимому серверу нужны OPENAI_COMPATIBLE_BASE_URL и OPENAI_COMPATIBLE_MODEL) в локальном файле .env, установите requirements-ai.txt (см. README) и оставьте «Использовать функции ИИ» включённым в настройках ИИ.",
     },
     "ai.configured": {
         "en": "Provider: **{provider}** · Model: **{model}**",
@@ -774,9 +1062,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Пакет ИИ не установлен. Выполните: pip install -r requirements-ai.txt",
     },
     "ai.error.auth": {
-        "en": "The AI provider rejected the API key. Check ANTHROPIC_API_KEY or OPENAI_API_KEY in your settings.",
-        "uk": "Провайдер ШІ відхилив API-ключ. Перевірте ANTHROPIC_API_KEY або OPENAI_API_KEY у налаштуваннях.",
-        "ru": "Провайдер ИИ отклонил API-ключ. Проверьте ANTHROPIC_API_KEY или OPENAI_API_KEY в настройках.",
+        "en": "The AI provider rejected the API key. Check ANTHROPIC_API_KEY, OPENAI_API_KEY or OPENAI_COMPATIBLE_API_KEY in your settings.",
+        "uk": "Провайдер ШІ відхилив API-ключ. Перевірте ANTHROPIC_API_KEY, OPENAI_API_KEY або OPENAI_COMPATIBLE_API_KEY у налаштуваннях.",
+        "ru": "Провайдер ИИ отклонил API-ключ. Проверьте ANTHROPIC_API_KEY, OPENAI_API_KEY или OPENAI_COMPATIBLE_API_KEY в настройках.",
     },
     "ai.error.rate_limit": {
         "en": "The AI provider's rate limit was reached. Please try again later.",
@@ -784,9 +1072,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "Достигнут лимит запросов провайдера ИИ. Попробуйте позже.",
     },
     "ai.error.connection": {
-        "en": "Could not reach the AI provider. Check your internet connection (for Ollama: that the server is running).",
-        "uk": "Не вдалося з'єднатися з провайдером ШІ. Перевірте підключення до інтернету (для Ollama — що сервер запущено).",
-        "ru": "Не удалось связаться с провайдером ИИ. Проверьте подключение к интернету (для Ollama — что сервер запущен).",
+        "en": "Could not reach the AI provider. Check your internet connection (for Ollama or an OpenAI-compatible server: that it is running).",
+        "uk": "Не вдалося з'єднатися з провайдером ШІ. Перевірте підключення до інтернету (для Ollama чи OpenAI-сумісного сервера — що його запущено).",
+        "ru": "Не удалось связаться с провайдером ИИ. Проверьте подключение к интернету (для Ollama или OpenAI-совместимого сервера — что он запущен).",
     },
     "ai.error.api": {
         "en": "The AI request failed. Rule-based results are not affected.",
@@ -1013,6 +1301,54 @@ def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:
         return key  # makes missing keys easy to spot in the UI
     text = entry.get(lang) or entry[DEFAULT_LANGUAGE]
     return text.format(**params) if params else text
+
+
+# Ukrainian and Russian forms of a unit after a number: (1, 2, 0.5) — "1 неделя", "2 недели",
+# "0.5 недели". After 5 (and 0, 11–14, ...) the unit is `unit.<name>` itself: "5 недель".
+# Units missing here read the same after any number (МБ, %, євро); English never changes.
+UNIT_FORMS: dict[str, dict[str, tuple[str, str, str]]] = {
+    "characters": {"uk": ("символ", "символи", "символу"), "ru": ("символ", "символа", "символа")},
+    "milliseconds": {
+        "uk": ("мілісекунда", "мілісекунди", "мілісекунди"),
+        "ru": ("миллисекунда", "миллисекунды", "миллисекунды"),
+    },
+    "seconds": {"uk": ("секунда", "секунди", "секунди"), "ru": ("секунда", "секунды", "секунды")},
+    "minutes": {"uk": ("хвилина", "хвилини", "хвилини"), "ru": ("минута", "минуты", "минуты")},
+    "hours": {"uk": ("година", "години", "години"), "ru": ("час", "часа", "часа")},
+    "days": {"uk": ("день", "дні", "дня"), "ru": ("день", "дня", "дня")},
+    "weeks": {"uk": ("тиждень", "тижні", "тижня"), "ru": ("неделя", "недели", "недели")},
+    "months": {"uk": ("місяць", "місяці", "місяця"), "ru": ("месяц", "месяца", "месяца")},
+    "years": {"uk": ("рік", "роки", "року"), "ru": ("год", "года", "года")},
+    "attempts": {"uk": ("спроба", "спроби", "спроби"), "ru": ("попытка", "попытки", "попытки")},
+    "usd": {
+        "uk": ("долар США", "долари США", "долара США"),
+        "ru": ("доллар США", "доллара США", "доллара США"),
+    },
+    "gbp": {
+        "uk": ("фунт стерлінгів", "фунти стерлінгів", "фунта стерлінгів"),
+        "ru": ("фунт стерлингов", "фунта стерлингов", "фунта стерлингов"),
+    },
+    "rub": {"uk": ("рубль", "рублі", "рубля"), "ru": ("рубль", "рубля", "рубля")},
+    "uah": {"uk": ("гривня", "гривні", "гривні"), "ru": ("гривна", "гривны", "гривны")},
+    "items": {"uk": ("позиція", "позиції", "позиції"), "ru": ("позиция", "позиции", "позиции")},
+}
+_DIGITS = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def unit_for(unit: str, number: str, lang: str = DEFAULT_LANGUAGE) -> str:
+    """`unit.<unit>` in the form the last number in `number` takes ("8 – 64" → "символа")."""
+    forms = UNIT_FORMS.get(unit, {}).get(lang)
+    numbers = _DIGITS.findall(number)
+    if forms is None or not numbers:
+        return t(f"unit.{unit}", lang)
+    if not numbers[-1].isdigit():
+        return forms[2]  # a fraction
+    n = int(numbers[-1])
+    if n % 10 == 1 and n % 100 != 11:
+        return forms[0]
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return forms[1]
+    return t(f"unit.{unit}", lang)
 
 
 def clarification_question(finding: Finding, lang: str = DEFAULT_LANGUAGE) -> str:

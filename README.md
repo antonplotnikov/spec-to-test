@@ -69,7 +69,7 @@ screenshot should show.
 | **QA dashboard** | Requirements, open issues, test cases, coverage %, average quality, severity / coverage / review charts, and filters. |
 | **Exports** | Jira CSV (test cases, bugs), TestRail CSV, RTM CSV, and a Markdown QA report. |
 | **Grill Mode** | An interactive QA interviewer: clarify requirements, build or improve a test case or bug report, or run a QA review of an existing artifact. Every value shows where it came from (source, confirmed by you, assumption, unknown); nothing is finalized without your explicit confirmation. |
-| **AI analysis (optional)** | Anthropic Claude looks for ambiguities, contradictions, and missing scenarios. Consent is required for every run; results are labeled and kept apart from rule-based facts. |
+| **AI analysis (optional)** | An AI model (Claude, OpenAI, an OpenAI-compatible server or local Ollama) looks for ambiguities, contradictions, and missing scenarios. Consent is required for every run; results are labeled and kept apart from rule-based facts. |
 | **Persistence** | By default work (projects included) lives only in your browser session and nothing is written to disk. Opt-in `SPEC_TO_TEST_STORAGE=local` (single-user machines) saves projects and edits to disk and reopens the last project and document next time. |
 
 ### Coverage status
@@ -133,7 +133,7 @@ Open http://localhost:8501 and try it with
 |---|---|---|
 | `requirements.txt` | Streamlit, Pydantic, pypdf, pandas | you only want to run the app |
 | `requirements-dev.txt` | the above + pytest, ruff, mypy | you want to run tests or contribute |
-| `requirements-ai.txt` | the above + the `anthropic` and `openai` SDKs | you want the optional AI features with Claude or OpenAI (Ollama needs no SDK) |
+| `requirements-ai.txt` | the above + the `anthropic` and `openai` SDKs | you want the optional AI features with Claude or OpenAI (Ollama and OpenAI-compatible servers need no SDK) |
 
 No configuration is needed: without a `.env` file the app runs fully offline.
 
@@ -178,7 +178,7 @@ its own Dock icon. Closing the window or **⌘Q** stops the local server.
 - The app is signed ad hoc, not notarized: it is meant to be built on the Mac
   that runs it.
 
-### Optional: AI features (Claude, OpenAI or Ollama)
+### Optional: AI features (Claude, OpenAI, OpenAI-compatible servers or Ollama)
 
 ```bash
 pip install -r requirements-ai.txt   # official anthropic and openai SDKs
@@ -189,10 +189,12 @@ cp .env.example .env                 # then set AI_PROVIDER and the provider's k
 |---|---|---|---|
 | Claude (Anthropic) | `anthropic` (or `claude`) | `ANTHROPIC_API_KEY` | `claude-opus-5-5` |
 | OpenAI | `openai` | `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL` for a compatible gateway) | `gpt-5` |
+| OpenAI-compatible server (LM Studio, vLLM, llama.cpp, LocalAI) | `openai_compatible` (or `compatible`) | `OPENAI_COMPATIBLE_BASE_URL` (e.g. `http://localhost:1234/v1`); optional `OPENAI_COMPATIBLE_API_KEY` | none: set `OPENAI_COMPATIBLE_MODEL` |
 | Ollama (local) | `ollama` | none; `OLLAMA_HOST` (default `http://localhost:11434`) | `llama3.1` (`ollama pull` it first) |
 
 - `AI_PROVIDER` is the default. Every other provider whose key is set (or
-  Ollama, when `OLLAMA_HOST` is set) can be picked per browser session in the
+  Ollama / an OpenAI-compatible server, when `OLLAMA_HOST` /
+  `OPENAI_COMPATIBLE_BASE_URL` is set) can be picked per browser session in the
   header's AI menu (the model button next to the status) or under
   **Settings → AI provider**, together with the model. **Use AI features**
   switches AI off for your session: the app falls back to the rule-based mode
@@ -204,7 +206,18 @@ cp .env.example .env                 # then set AI_PROVIDER and the provider's k
   read-only.
 - API keys come only from the environment, Streamlit secrets or `.env`. They
   are never entered in or shown by the page (it only says which variable is
-  set), never logged, and never part of error messages.
+  set), never logged, and never part of error messages. A key is sent only
+  over `https`, or over `http` to this machine (`localhost`, `127.x`, `::1`);
+  otherwise the provider is reported as unusable instead of being called.
+- OpenAI-compatible servers and Ollama are called over plain HTTP: no SDK, no
+  retries, no redirects followed, and no `OPENAI_*` setting of the real OpenAI
+  provider (key, organisation, custom headers) is sent to them. They get the
+  JSON schema as `response_format` (`json_schema`, non-strict) and the reply is
+  validated here; a leading `<think>…</think>` block or a ```` ```json ```` fence
+  around the JSON is accepted. The server must support `response_format`
+  (LM Studio, vLLM, llama.cpp server and LocalAI do); otherwise the request
+  fails with a generic error. Local models on a CPU can be slow: raise
+  `AI_TIMEOUT` (seconds, default 300, 10–3600).
 - Nothing is sent until you tick the consent checkbox (it names the provider
   and the number of requirements). Consent is asked again for every run and
   for every new document, and it is also enforced in code.
@@ -673,12 +686,14 @@ docker compose up --build    # http://localhost:8501
 
 | Setting | Where | Default | Purpose |
 |---|---|---|---|
-| `AI_PROVIDER` | `.env` / env / Streamlit secrets | `none` | Default provider: `anthropic` (`claude`), `openai` or `ollama`; `none` = AI off |
+| `AI_PROVIDER` | `.env` / env / Streamlit secrets | `none` | Default provider: `anthropic` (`claude`), `openai`, `openai_compatible` (`compatible`) or `ollama`; `none` = AI off |
 | `AI_MODEL` | `.env` / env / Streamlit secrets | provider default | Model for the `AI_PROVIDER` provider |
 | `AI_LOCK_SETTINGS` | `.env` / env / Streamlit secrets | `false` | `true`: Settings and the header show provider and model but cannot change them |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | `.env` / env / Streamlit secrets | — / `claude-opus-5-5` | Claude key and model (Automation always uses Claude) |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | `.env` / env / Streamlit secrets | — / `gpt-5` / OpenAI | OpenAI key, model, optional compatible gateway |
+| `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_MODEL` / `OPENAI_COMPATIBLE_API_KEY` | `.env` / env / Streamlit secrets | — / — / — | Self-hosted OpenAI-compatible server (`…/v1`), the model it serves, optional key |
 | `OLLAMA_HOST` / `OLLAMA_MODEL` | `.env` / env / Streamlit secrets | `http://localhost:11434` / `llama3.1` | Local Ollama server and model (no key) |
+| `AI_TIMEOUT` | `.env` / env / Streamlit secrets | `300` | Seconds one AI request may take (clamped to 10–3600) |
 | `SPEC_TO_TEST_STORAGE` | env / Streamlit secrets (**not** `.env`) | `session` | Only the exact value `local` (any case, spaces ignored) saves work to disk; anything else, including empty, means `session` (browser session only, nothing on disk) |
 | `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work and Grill interviews (`local` mode only) |
 | `SPEC_TO_TEST_LIVE_AI` | env (tests only) | — | `1` lets `pytest -m live_ai` run the evaluation suite against the configured real provider |
@@ -732,7 +747,7 @@ src/spec_to_test/
 ├── ai_analysis.py           Optional LLM review (consent required)
 ├── llm/                     Optional LLM providers (no Streamlit)
 │   ├── config.py            Provider settings from env / secrets / .env; per-session choice
-│   └── providers.py         One structured request to Claude, OpenAI or Ollama; error codes
+│   └── providers.py         One structured request to Claude, OpenAI, a compatible server or Ollama; error codes
 ├── i18n.py                  All UI text in EN / UK / RU
 └── grill/                   Grill Mode domain logic (no Streamlit, no network)
     ├── models.py            Session, drafts, questions, answers, findings, provenance
@@ -788,8 +803,8 @@ mypy                   # type check
 Tests never touch your saved data or the network: `tests/conftest.py` points
 storage at a temporary folder (in `local` mode, so persistence can be tested;
 the `session` default has its own tests) and switches AI off (provider keys
-from your shell are removed). AI tests use fake clients; the Ollama client
-and the real OpenAI SDK are exercised against a local HTTP server on
+from your shell are removed). AI tests use fake clients; the Ollama and
+OpenAI-compatible clients and the real OpenAI SDK are exercised against a local HTTP server on
 127.0.0.1, so no provider is ever contacted (the SDK tests skip themselves
 when `openai` is not installed).
 `pytest -m e2e` runs the Automation pipeline against a local page with the
@@ -829,7 +844,7 @@ The app is ready for **Streamlit Community Cloud**. See
   (no injected links or images).
 - CSV exports neutralise spreadsheet formulas (CSV injection).
 - No data leaves your machine unless AI is configured **and** you consent for
-  that run (with Ollama, data goes only to your own Ollama server). In Grill
+  that run (with Ollama or a self-hosted OpenAI-compatible server, data goes only to that server). In Grill
   Mode, consent is asked for every one-off AI request; the AI interviewer's
   tick covers its follow-up questions in that Grill session only. Only the
   current draft, its linked requirement, and the questions so far with your

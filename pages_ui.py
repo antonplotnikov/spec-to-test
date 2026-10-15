@@ -32,6 +32,7 @@ from spec_to_test import ai_analysis
 from spec_to_test import findings as finding_status
 from spec_to_test.ai_analysis import AIError
 from spec_to_test.bug_reports import defect_from_suggestion, generate_defects, next_defect_id
+from spec_to_test.change_impact import change_impact
 from spec_to_test.exports import (
     DEFAULT_JIRA_TEST_ISSUE_TYPE,
     jira_defects_csv,
@@ -41,7 +42,7 @@ from spec_to_test.exports import (
     testrail_csv,
 )
 from spec_to_test.formatting import escape_markdown
-from spec_to_test.i18n import clarification_question, t
+from spec_to_test.i18n import clarification_question, t, unit_for
 from spec_to_test.input_parser import (
     ALLOWED_EXTENSIONS,
     MAX_FILE_SIZE_BYTES,
@@ -59,14 +60,26 @@ from spec_to_test.models import (
     ReviewStatus,
     Severity,
     TestCase,
+    TestPriority,
     TestType,
     Workspace,
 )
 from spec_to_test.projects import ProjectStore, document_title, now
 from spec_to_test.quality import QualityScore, average_score, score_all
-from spec_to_test.rtm import Coverage, RTMRow, build_rtm, filter_rows, orphan_test_case_ids, summarize
+from spec_to_test.rtm import (
+    Coverage,
+    RTMRow,
+    build_rtm,
+    filter_rows,
+    orphan_test_case_ids,
+    summarize,
+    traceability_gaps,
+)
 from spec_to_test.rule_engine import analyze_requirements
+from spec_to_test.scenario_coverage import ScenarioCategory, categories_of_test_case, scenario_coverage
 from spec_to_test.storage import document_hash, persistence_enabled
+from spec_to_test.suites import SuiteKind, plan_suites, suite_workspace
+from spec_to_test.test_critic import CriticIssue, critique
 from spec_to_test.test_design import design_tests, format_value
 from spec_to_test.test_generator import generate_test_cases, next_test_case_id
 
@@ -223,6 +236,10 @@ def _analyze(p: Page, text: str, uploaded) -> None:  # noqa: ANN001 - Streamlit'
                     findings=result.findings,
                 )
                 workspace.test_cases = generate_test_cases(workspace, lang)
+                project_id = active_project_id()
+                workspace.change_impact = change_impact(
+                    workspace, p.store.documents(project_id), lambda h: p.store.load(project_id, h),
+                )
             p.persist(workspace)
             remember_document(active_project_id(), doc_hash)
         shell_ui.go_to("analysis")
@@ -275,11 +292,48 @@ def _document_overview(p: Page, ws: Workspace) -> None:
 # Requirements Analysis
 # ---------------------------------------------------------------------------
 
+def _change_impact_note(lang: str, ws: Workspace) -> None:
+    """Differences from the previous version and the test cases there that need review."""
+    impact = ws.change_impact
+    if impact is None:
+        return
+    if impact.status == "unknown":
+        st.warning(t("impact.unknown_previous", lang, title=escape_markdown(impact.previous_title)), icon="❓")
+        return
+    previous = t("impact.previous", lang, title=escape_markdown(impact.previous_title),
+                 date=impact.previous_created_at[:16].replace("T", " "))
+    if not impact.changes:
+        st.info(t("impact.no_changes", lang, previous=previous), icon="✅")
+        return
+    counts = {kind: sum(c.kind == kind for c in impact.changes) for kind in ("added", "modified", "removed", "unknown")}
+    lines = [t("impact.heading", lang, previous=previous, **counts)]
+    if impact.test_cases:
+        lines += ["", t("impact.review_heading", lang)]
+        lines += [
+            f"- {tc.test_case_id} ({t(f'review.{tc.review_status.value}', lang)}) — "
+            f"{tc.requirement_id}: {t(f'impact.reason.{tc.reason}', lang)}"
+            for tc in impact.test_cases
+        ]
+        lines += ["", t("impact.statuses_kept", lang)]
+    st.warning("\n".join(lines), icon="🔀")
+    with st.expander(t("impact.changes_heading", lang, count=len(impact.changes)), icon=":material/difference:"):
+        show_table([
+            {
+                t("impact.column.change", lang): t(f"impact.kind.{c.kind}", lang)
+                + (f" ({t('impact.similarity', lang, percent=round(c.similarity * 100))})" if c.similarity else ""),
+                t("impact.column.old", lang): f"{c.old_id}: {c.old_text}" if c.old_id else "—",
+                t("impact.column.new", lang): f"{c.new_id}: {c.new_text}" if c.new_id else "—",
+            }
+            for c in impact.changes
+        ])
+
+
 def analysis(p: Page) -> None:
     lang = p.lang
     if (ws := _workspace(p, "analysis")) is None:
         return
     _restored_note(lang)
+    _change_impact_note(lang, ws)
     result = ws.analysis
     scores = score_all(ws.requirements, ws.findings)
     statuses = {req.id: result.status_of(req.id) for req in result.requirements}
@@ -311,21 +365,49 @@ def analysis(p: Page) -> None:
             type="primary", width="stretch", on_click=shell_ui.nav_callback, args=("grill",),
         )
 
-    tab_requirements, tab_findings, tab_design, tab_defects, tab_ai = st.tabs([
-        t("results.tab_requirements", lang), t("results.tab_findings", lang), t("tab.design", lang),
-        t("tab.defects", lang), t("tab.ai", lang),
+    tab_requirements, tab_findings, tab_gaps, tab_design, tab_defects, tab_ai = st.tabs([
+        t("results.tab_requirements", lang), t("results.tab_findings", lang), t("tab.gaps", lang),
+        t("tab.design", lang), t("tab.defects", lang), t("tab.ai", lang),
     ])
     with tab_requirements:
         _requirements_tab(lang, ws, scores, statuses)
     with tab_findings:
         _findings_tab(lang, ws)
         _finding_changes(p, ws)
+    with tab_gaps:
+        _gaps_tab(lang, ws, scores)
     with tab_design:
         _design_tab(lang, ws)
     with tab_defects:
         _defects_tab(p, ws)
     with tab_ai:
         _ai_tab(p, ws)
+
+
+def _gaps_tab(lang: str, ws: Workspace, scores: dict[str, QualityScore]) -> None:
+    """Traceability gaps: requirements without test cases and test cases without a requirement."""
+    gaps = traceability_gaps(build_rtm(ws, scores), ws)
+    st.caption(t("gaps.explainer", lang))
+    m = st.columns(3)
+    m[0].metric(t("gaps.untested", lang), len(gaps.untested), border=True)
+    m[1].metric(t("gaps.unknown", lang), len(gaps.unknown), border=True)
+    m[2].metric(t("gaps.unlinked", lang), len(gaps.unlinked), border=True)
+    if not (gaps.gaps or gaps.unknown):
+        st.success(t("gaps.none", lang), icon=":material/link:")
+        return
+    if gaps.untested:
+        st.warning("\n".join([t("gaps.untested_heading", lang),
+                              *(f"- {escape_markdown(_req_label(ws, r))}" for r in gaps.untested)]))
+    if gaps.unknown:
+        st.info("\n".join([t("gaps.unknown_heading", lang),
+                           *(f"- {escape_markdown(_req_label(ws, r))}" for r in gaps.unknown)]), icon="❓")
+    if gaps.unlinked:
+        cases = {tc.id: tc for tc in ws.test_cases}
+        st.warning("\n".join([t("gaps.unlinked_heading", lang), *(
+            f"- {escape_markdown(f'{i} · {cases[i].title} — ')}"
+            f"{t('gaps.not_in_document', lang, req=escape_markdown(cases[i].requirement_id))}"
+            for i in gaps.unlinked
+        )]))
 
 
 def _requirements_tab(lang: str, ws: Workspace, scores: dict[str, QualityScore], statuses: dict) -> None:
@@ -495,24 +577,24 @@ def _design_tab(lang: str, ws: Workspace) -> None:
     if design.is_empty:
         st.info(t("design.not_applicable", lang))
     for boundary in design.boundaries:
-        unit = t(f"unit.{boundary.constraint.unit}", lang)
         st.markdown(f"**{t('design.bva', lang)}** — “{escape_markdown(boundary.constraint.phrase)}”")
         show_table(
             [
                 {
-                    t("design.value", lang): f"{format_value(v.value)} {unit}",
+                    t("design.value", lang): (
+                        f"{format_value(v.value)} {unit_for(boundary.constraint.unit, format_value(v.value), lang)}"
+                    ),
                     t("design.expectation", lang): t(f"design.{v.expectation}", lang),
                 }
                 for v in boundary.values
             ]
         )
     for classes in design.partitions:
-        unit = t(f"unit.{classes.constraint.unit}", lang)
         st.markdown(f"**{t('design.ep', lang)}** — “{escape_markdown(classes.constraint.phrase)}”")
         show_table(
             [
                 {
-                    t("design.partition", lang): f"{part.interval} {unit}",
+                    t("design.partition", lang): f"{part.interval} {unit_for(classes.constraint.unit, part.interval, lang)}",
                     t("design.representative", lang): format_value(part.representative),
                     t("design.expectation", lang): t(f"design.{part.expectation}", lang),
                 }
@@ -685,11 +767,62 @@ def tests(p: Page) -> None:
     m[0].metric(t("dash.test_cases", lang), len(ws.test_cases), border=True)
     for col, status in zip(m[1:], ReviewStatus, strict=True):
         col.metric(t(f"review.{status.value}", lang), counts[status.value], border=True)
-    tab_tests, tab_automation = st.tabs([t("tab.tests", lang), t("tab.automation", lang)])
+    tab_tests, tab_suites, tab_automation = st.tabs([
+        t("tab.tests", lang), t("tab.suites", lang), t("tab.automation", lang),
+    ])
     with tab_tests:
         _test_case_editor(p, ws)
+    with tab_suites:
+        _suites_tab(lang, ws)
     with tab_automation:
         automation_ui.render_automation(lang, ws, p.automation_ai, p.persist)
+
+
+def _suites_tab(lang: str, ws: Workspace) -> None:
+    """Smoke / Regression / Full suites picked from the existing test cases."""
+    st.caption(t("suites.explainer", lang))
+    if not ws.test_cases:
+        st.info(t("suites.no_test_cases", lang))
+        return
+    plan = plan_suites(ws)
+    m = st.columns(len(SuiteKind))
+    for col, kind in zip(m, SuiteKind, strict=True):
+        col.metric(t(f"suites.{kind.value}", lang), len(plan.suites[kind]), border=True)
+    st.info(t("suites.no_criticality", lang), icon=":material/help:")
+    if plan.smoke_missing:
+        st.warning(t("suites.smoke_missing", lang, ids=", ".join(plan.smoke_missing)))
+    kind = st.selectbox(t("suites.select", lang), list(SuiteKind), key="suite_kind",
+                        format_func=lambda k: t(f"suites.{k.value}", lang))
+    st.caption(t(f"suites.criteria.{kind.value}", lang))
+    selected = set(plan.suites[kind])
+    cases = [tc for tc in ws.test_cases if tc.id in selected]
+    if not cases:
+        st.info(t("suites.empty", lang))
+        return
+    show_table([
+        {
+            t("column.test_id", lang): tc.id,
+            t("column.id", lang): tc.requirement_id,
+            t("column.title", lang): tc.title,
+            t("column.test_type", lang): t(f"test_type.{tc.test_type.value}", lang),
+            t("column.priority", lang): t(f"priority.{tc.priority.value}", lang),
+            t("column.review", lang): t(f"review.{tc.review_status.value}", lang),
+        }
+        for tc in cases
+    ])
+    suite = suite_workspace(ws, kind)
+    name = t(f"suites.{kind.value}", lang)
+    e1, e2 = st.columns(2)
+    e1.download_button(
+        t("suites.export_jira", lang, suite=name),
+        jira_test_cases_csv(suite, False, DEFAULT_JIRA_TEST_ISSUE_TYPE).encode("utf-8"),
+        file_name=f"jira_{kind.value}_suite.csv", mime="text/csv", icon=":material/download:", width="stretch",
+    )
+    e2.download_button(
+        t("suites.export_testrail", lang, suite=name),
+        testrail_csv(suite, False).encode("utf-8"),
+        file_name=f"testrail_{kind.value}_suite.csv", mime="text/csv", icon=":material/download:", width="stretch",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -761,6 +894,7 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
                 t("column.id", lang): tc.requirement_id,
                 t("column.title", lang): tc.title,
                 t("column.test_type", lang): t(f"test_type.{tc.test_type.value}", lang),
+                t("column.priority", lang): t(f"priority.{tc.priority.value}", lang),
                 t("column.review", lang): (
                     f"{REVIEW_BADGES[tc.review_status.value]} {t(f'review.{tc.review_status.value}', lang)}"
                 ),
@@ -777,6 +911,7 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
     )
     tc = next(c for c in ws.test_cases if c.id == selected_id)
     _test_case_detail(lang, ws, tc)
+    _approval_check(lang, ws, tc)
     if tc.clarification_questions:
         st.warning(
             t("tests.open_questions", lang)
@@ -800,6 +935,11 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
             t("column.review", lang), statuses_list, index=statuses_list.index(tc.review_status),
             format_func=lambda v: t(f"review.{v.value}", lang),
         )
+        priorities = list(TestPriority)
+        priority = st.selectbox(
+            t("column.priority", lang), priorities, index=priorities.index(tc.priority),
+            format_func=lambda v: t(f"priority.{v.value}", lang),
+        )
         preconditions = st.text_area(t("tests.preconditions", lang), "\n".join(tc.preconditions))
         steps = st.text_area(t("tests.steps", lang), "\n".join(tc.steps))
         expected = st.text_area(t("tests.expected", lang), tc.expected_result)
@@ -816,6 +956,7 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
                     "requirement_id": requirement_id,
                     "test_type": test_type,
                     "review_status": review_status,
+                    "priority": priority,
                     "preconditions": lines(preconditions),
                     "steps": lines(steps),
                     "expected_result": expected.strip(),
@@ -837,6 +978,49 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
         st.rerun()
 
 
+def _approval_check(lang: str, ws: Workspace, tc: TestCase) -> None:
+    """Critic findings and missing scenarios to weigh before approving; never blocks the decision."""
+    issues = critique(tc, ws)
+    problems = [i for i in issues if not i.unknown]
+    unknowns = [i for i in issues if i.unknown]
+    req = ws.requirement(tc.requirement_id)
+    coverage = scenario_coverage(req, ws.tests_for(req.id)) if req else None
+
+    def scenarios(categories: list[ScenarioCategory]) -> str:
+        return ", ".join(t(f"scenario.{c.value}", lang) for c in categories)
+
+    def issue_line(issue: CriticIssue) -> str:
+        return (f"- **{t(f'critic.criterion.{issue.criterion}', lang)}**: "
+                f"{escape_markdown(t(f'critic.{issue.code}', lang, **issue.params))}")
+
+    approved = tc.review_status == ReviewStatus.APPROVED
+    lines = [f"**{t('approval.review_heading' if approved else 'approval.heading', lang, id=tc.id)}**"]
+    if problems:
+        lines += ["", t("approval.critic_problems", lang), *map(issue_line, problems)]
+    if unknowns:
+        lines += ["", t("approval.critic_unknown", lang), *map(issue_line, unknowns)]
+    missing = coverage.missing if coverage else []
+    if coverage is not None:
+        lines.append("")
+        if coverage.percent is None:
+            lines.append(t("approval.coverage_unknown", lang, req=tc.requirement_id))
+        else:
+            lines.append(t("approval.coverage", lang, req=tc.requirement_id, percent=f"{coverage.percent:g}"))
+        if missing:
+            lines.append(t("approval.missing", lang, names=scenarios(missing)))
+            if not approved and (
+                would := [c for c in missing if c in categories_of_test_case(tc, req)]
+            ):
+                lines.append(t("approval.would_cover", lang, names=scenarios(would)))
+        if coverage.unknown:
+            lines.append(t("approval.scenario_unknown", lang, names=scenarios(coverage.unknown)))
+    lines += ["", f"_{t('approval.review_note' if approved else 'approval.not_blocked', lang)}_"]
+    if problems or missing:
+        st.warning("\n".join(lines), icon=":material/rule:")
+    else:
+        st.info("\n".join(lines), icon=":material/rule:")
+
+
 def _test_case_detail(lang: str, ws: Workspace, tc: TestCase) -> None:
     """Read view of one test case: what a tester needs before running it."""
     with theme_ui.card("test_case"):
@@ -845,6 +1029,7 @@ def _test_case_detail(lang: str, ws: Workspace, tc: TestCase) -> None:
         theme_ui.badges(
             theme_ui.badge(t(f"review.{tc.review_status.value}", lang), REVIEW_TONES[tc.review_status.value]),
             theme_ui.badge(t(f"test_type.{tc.test_type.value}", lang), "accent"),
+            theme_ui.badge(f"{t('column.priority', lang)}: {t(f'priority.{tc.priority.value}', lang)}", "neutral"),
             theme_ui.badge(tc.requirement_id, "info", ":material/link:"),
             theme_ui.badge(t("ui.tests.risk", lang, level=t(f"severity.{risk.value}", lang)),
                            SEVERITY_TONES[risk.value]) if risk else "",
@@ -912,9 +1097,34 @@ def _rtm_rows(lang: str, rows: list[RTMRow]) -> list[dict]:
             t("column.coverage", lang): (
                 f"{COVERAGE_BADGES[row.coverage.value]} {t(f'coverage.{row.coverage.value}', lang)}"
             ),
+            **_scenario_cells(lang, row),
         }
         for row in rows
     ]
+
+
+def _scenario_cells(lang: str, row: RTMRow) -> dict:
+    sc = row.scenarios
+    if sc is None:
+        return {}
+
+    def names(categories: list) -> str:
+        return ", ".join(t(f"scenario.{c.value}", lang) for c in categories) or "—"
+
+    unknown = t("scenario.unknown", lang)
+    reasons = [f"{t(f'scenario.{c.value}', lang)}: «{sc.reasons[c]}»" for c in sc.applicable]
+    reasons += [
+        f"{t(f'scenario.{c.value}', lang)}: {unknown}"
+        f" ({f'«{sc.reasons[c]}»' if c in sc.reasons else t('scenario.no_behavior', lang)})"
+        for c in sc.unknown
+    ]
+    return {
+        t("column.scenarios_applicable", lang): names(sc.applicable) if sc.applicable else unknown,
+        t("column.scenarios_covered", lang): names(sc.covered),
+        t("column.scenarios_missing", lang): names(sc.missing),
+        t("column.scenario_coverage", lang): unknown if sc.percent is None else f"{sc.percent:g}%",
+        t("column.scenario_reason", lang): "; ".join(reasons) or "—",
+    }
 
 
 # ---------------------------------------------------------------------------

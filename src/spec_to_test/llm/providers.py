@@ -1,8 +1,12 @@
-"""One structured request to Claude, OpenAI or Ollama.
+"""One structured request to Claude, OpenAI, an OpenAI-compatible server or Ollama.
 
 Every provider gets the same system prompt and user message and must answer
 with JSON matching a Pydantic model; the result is validated against that
-model before anyone sees it. Every failure becomes an `AIError` whose `code`
+model before anyone sees it. Self-hosted servers (OpenAI-compatible, Ollama)
+are called over plain HTTP: no SDK, and nothing from the environment (such as
+OPENAI_API_KEY or OPENAI_CUSTOM_HEADERS, which the OpenAI SDK would add) goes
+along. They get the JSON schema as a plain `response_format`/`format`, and the
+reply is validated here, since not all of them support OpenAI's strict schemas. Every failure becomes an `AIError` whose `code`
 maps to an `ai.error.<code>` translation. SDK error details are dropped: they
 can echo request data, and the API key must never reach a message or a log.
 
@@ -10,21 +14,25 @@ Callers check consent first; this module only sends what it is given.
 """
 
 import json
+import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError
 
-from spec_to_test.llm.config import AIConfig
+from spec_to_test.llm.config import DEFAULT_TIMEOUT_S, AIConfig
 
 T = TypeVar("T", bound=BaseModel)
 ClientFactory = Callable[[AIConfig], Any]
 
-TIMEOUT_S = 300.0
+TIMEOUT_S = DEFAULT_TIMEOUT_S
 MAX_RETRIES = 2
 MAX_RESPONSE_BYTES = 5_000_000
+# Reasoning models on local servers may think aloud or fence the JSON.
+_THINKING = re.compile(r"^\s*<think>.*?</think>", re.DOTALL)
+_FENCED = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
 
 
 class AIError(Exception):
@@ -39,6 +47,40 @@ class AIError(Exception):
 # Clients
 # ---------------------------------------------------------------------------
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect is an error: following it would resend the key to another address."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def _post_json(url: str, payload: dict[str, Any], timeout: float, key: str = "") -> dict[str, Any]:
+    """POST JSON and read a JSON object back. Every failure becomes an AIError."""
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST", headers=headers)
+    try:
+        with _OPENER.open(request, timeout=timeout) as response:  # operator-set http(s) URL
+            raw = response.read(MAX_RESPONSE_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        raise AIError(_http_code(exc.code)) from None
+    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
+        raise AIError("connection") from None
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise AIError("invalid_response")
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise AIError("invalid_response") from None
+    if not isinstance(data, dict):
+        raise AIError("invalid_response")
+    return data
+
+
 class OllamaClient:
     """Minimal client for Ollama's /api/chat (no SDK needed)."""
 
@@ -47,32 +89,35 @@ class OllamaClient:
         self.timeout = timeout
 
     def chat(self, model: str, messages: list[dict[str, str]], schema: dict[str, Any], max_tokens: int) -> dict[str, Any]:
-        body = json.dumps({
+        return _post_json(f"{self.base_url}/api/chat", {
             "model": model,
             "messages": messages,
             "stream": False,
             "format": schema,  # structured output: the reply must match this JSON schema
             "options": {"temperature": 0, "num_predict": max_tokens},
-        }).encode("utf-8")
-        request = urllib.request.Request(
-            f"{self.base_url}/api/chat", data=body, method="POST", headers={"Content-Type": "application/json"}
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310 - operator-set http(s) URL
-                raw = response.read(MAX_RESPONSE_BYTES + 1)
-        except urllib.error.HTTPError as exc:
-            raise AIError(_http_code(exc.code)) from None
-        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
-            raise AIError("connection") from None
-        if len(raw) > MAX_RESPONSE_BYTES:
-            raise AIError("invalid_response")
-        try:
-            data = json.loads(raw)
-        except ValueError:
-            raise AIError("invalid_response") from None
-        if not isinstance(data, dict):
-            raise AIError("invalid_response")
-        return data
+        }, self.timeout)
+
+
+class CompatibleClient:
+    """Minimal client for /chat/completions of an OpenAI-compatible server (LM Studio, vLLM, llama.cpp ...)."""
+
+    def __init__(self, base_url: str, api_key: SecretStr | None = None, timeout: float = TIMEOUT_S) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self._api_key = api_key or SecretStr("")
+
+    def chat(self, model: str, messages: list[dict[str, str]], schema: dict[str, Any], name: str,
+             max_tokens: int) -> dict[str, Any]:
+        # `max_tokens` and a non-strict json_schema are what these servers all accept;
+        # OpenAI's own `parse()` assumes support for strict schemas.
+        return _post_json(f"{self.base_url}/chat/completions", {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "temperature": 0,
+            "max_tokens": max_tokens,
+            "response_format": {"type": "json_schema", "json_schema": {"name": name, "schema": schema}},
+        }, self.timeout, self._api_key.get_secret_value())
 
 
 def _http_code(status: int) -> str:
@@ -82,7 +127,7 @@ def _http_code(status: int) -> str:
         return "model_not_found"  # Ollama answers 404 for a model that is not pulled
     if status == 429:
         return "rate_limit"
-    return "api"
+    return "api"  # including a redirect, which is not followed
 
 
 def default_client_factory(config: AIConfig) -> Any:
@@ -93,15 +138,19 @@ def default_client_factory(config: AIConfig) -> Any:
             import anthropic
         except ImportError as exc:
             raise AIError("sdk_missing") from exc
-        return anthropic.Anthropic(api_key=key, max_retries=MAX_RETRIES, timeout=TIMEOUT_S)
+        return anthropic.Anthropic(api_key=key, max_retries=MAX_RETRIES, timeout=config.timeout)
     if config.provider == "openai":
         try:
             import openai
         except ImportError as exc:
             raise AIError("sdk_missing") from exc
-        return openai.OpenAI(api_key=key, base_url=config.base_url or None, max_retries=MAX_RETRIES, timeout=TIMEOUT_S)
+        return openai.OpenAI(
+            api_key=key, base_url=config.base_url or None, max_retries=MAX_RETRIES, timeout=config.timeout,
+        )
+    if config.provider == "openai_compatible":
+        return CompatibleClient(config.base_url, config.api_key, timeout=config.timeout)
     if config.provider == "ollama":
-        return OllamaClient(config.base_url, timeout=TIMEOUT_S)
+        return OllamaClient(config.base_url, timeout=config.timeout)
     raise AIError("unsupported_provider")
 
 
@@ -124,6 +173,18 @@ def _anthropic(client: Any, config: AIConfig, system: str, user: str, output: ty
     return getattr(message, "parsed_output", None)
 
 
+def _parse_json(content: Any, output: type[T]) -> T:
+    if not isinstance(content, str):
+        raise AIError("invalid_response")
+    text = _THINKING.sub("", content, count=1)
+    if fenced := _FENCED.match(text):
+        text = fenced.group(1)
+    try:
+        return output.model_validate_json(text)
+    except ValidationError:
+        raise AIError("invalid_response") from None
+
+
 def _openai(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> Any:
     completion = client.chat.completions.parse(
         model=config.model,
@@ -143,6 +204,28 @@ def _openai(client: Any, config: AIConfig, system: str, user: str, output: type[
     return getattr(message, "parsed", None)
 
 
+def _openai_compatible(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> Any:
+    data = client.chat(
+        model=config.model,
+        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+        schema=output.model_json_schema(),
+        name=output.__name__,
+        max_tokens=max_tokens,
+    )
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise AIError("invalid_response")
+    choice = choices[0]
+    message = choice.get("message")
+    if not isinstance(message, dict):
+        message = {}
+    if choice.get("finish_reason") == "length":
+        raise AIError("truncated")
+    if choice.get("finish_reason") == "content_filter" or message.get("refusal"):
+        raise AIError("refused")
+    return _parse_json(message.get("content"), output)
+
+
 def _ollama(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> Any:
     data = client.chat(
         model=config.model,
@@ -152,16 +235,12 @@ def _ollama(client: Any, config: AIConfig, system: str, user: str, output: type[
     )
     if data.get("done_reason") == "length":
         raise AIError("truncated")
-    content = (data.get("message") or {}).get("content")
-    if not isinstance(content, str):
-        raise AIError("invalid_response")
-    try:
-        return output.model_validate_json(content)
-    except ValidationError:
-        raise AIError("invalid_response") from None
+    return _parse_json((data.get("message") or {}).get("content"), output)
 
 
-_SENDERS: dict[str, Callable[..., Any]] = {"anthropic": _anthropic, "openai": _openai, "ollama": _ollama}
+_SENDERS: dict[str, Callable[..., Any]] = {
+    "anthropic": _anthropic, "openai": _openai, "openai_compatible": _openai_compatible, "ollama": _ollama,
+}
 
 
 def request_structured(

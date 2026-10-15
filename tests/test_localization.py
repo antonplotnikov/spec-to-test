@@ -7,7 +7,7 @@ from streamlit.testing.v1 import AppTest
 
 from conftest import PROJECT_ROOT, goto, home
 from spec_to_test import ai_analysis
-from spec_to_test.i18n import LANGUAGES, TRANSLATIONS, t
+from spec_to_test.i18n import LANGUAGES, TRANSLATIONS, UNIT_FORMS, t
 from spec_to_test.models import AISuggestion, AISuggestionType
 
 APP_PATH = str(PROJECT_ROOT / "app.py")
@@ -15,7 +15,7 @@ APP_PATH = str(PROJECT_ROOT / "app.py")
 # Keys whose text is legitimately identical in all languages (names, IDs, formats).
 SAME_IN_ALL_LANGUAGES = {
     "app.title", "column.id", "tc.title_positive", "tc.value_expectation",
-    "unit.megabytes", "ai.configured", "export.mapping_body", "projects.document_option",
+    "unit.megabytes", "unit.percent", "suites.smoke", "ai.configured", "export.mapping_body", "projects.document_option",
 }
 KEY_PREFIXES = sorted({key.split(".")[0] for key in TRANSLATIONS}, key=len, reverse=True)
 RAW_KEY = re.compile(rf"(?<![\w/-])(?:{'|'.join(KEY_PREFIXES)})\.[a-z_]+(?:\.[a-z_]+)?(?![\w.])")
@@ -145,3 +145,30 @@ def test_generated_content_uses_the_language_at_generation_time(example_text):
 def test_raw_key_detector_catches_leaks_but_not_file_names():
     assert raw_keys(["Missing: tab.rtm", "ai.error.unknown_code"]) == {"tab.rtm", "ai.error.unknown_code"}
     assert raw_keys(["pip install -r requirements-ai.txt", "see docs/EXPORTS.md", "REQ-1.2"]) == set()
+
+
+@pytest.mark.parametrize("lang", list(LANGUAGES))
+def test_design_tab_names_every_unit(lang):
+    units = {
+        "milliseconds": "The response time must be at most 500 ms.",
+        "weeks": "The trial period must be at most 2 weeks.",
+        "months": "The subscription must last at most 6 months.",
+        "years": "The user must be at least 18 years old.",
+        "kilobytes": "The avatar must be at most 512 KB.",
+        "gigabytes": "The upload must be at most 2 GB.",
+        "percent": "The discount must be at most 50%.",
+        "items": "The cart must contain at most 10 items.",
+    }
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    at.selectbox(key="language").select(lang).run()
+    home(at).text_area(key="requirements_text").input("\n".join(units.values())).run()
+    home(at).button(key="analyze").click().run()
+    goto(at, "analysis")
+    for req, unit in zip(at.session_state["workspace"].requirements, units, strict=True):
+        next(s for s in at.selectbox if s.key == "design_req").select(req.id).run()
+        assert not at.exception
+        texts = visible_text(at)
+        assert not raw_keys(texts), raw_keys(texts)
+        forms = {t(f"unit.{unit}", lang), *UNIT_FORMS.get(unit, {}).get(lang, ())}
+        assert any(f" {form}" in text for form in forms for text in texts), unit

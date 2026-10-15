@@ -1,3 +1,6 @@
+import pytest
+
+from spec_to_test.i18n import UNIT_FORMS, t
 from spec_to_test.input_parser import extract_requirements
 from spec_to_test.models import ReviewStatus, Source, TestType, Workspace
 from spec_to_test.rule_engine import analyze_requirements
@@ -62,3 +65,50 @@ def test_next_id_continues_after_existing():
     assert next_test_case_id(ws.test_cases) == "TC-002"
     ws.test_cases[0].id = "TC-041"
     assert next_test_case_id(ws.test_cases) == "TC-042"
+
+
+def test_currency_units_are_translated():
+    for text, phrases in [
+        ("The price must be at least 0.5 USD.",
+         {"en": ["0.5 USD"], "uk": ["0.5 долара США"], "ru": ["0.5 доллара США"]}),
+        ("The fee must not exceed 100 UAH.",
+         {"en": ["100 UAH"], "uk": ["100 гривень", "101 гривня"], "ru": ["100 гривен", "101 гривна"]}),
+    ]:
+        for lang, expected in phrases.items():
+            cases = generate_test_cases(workspace_for(text), lang)
+            written = "\n".join(
+                line for c in cases if c.test_type == TestType.BOUNDARY for line in [*c.steps, c.expected_result]
+            )
+            assert "unit." not in written and all(phrase in written for phrase in expected), (lang, written)
+
+
+UNIT_REQUIREMENTS = {
+    "milliseconds": "The response time must be at most 500 ms.",
+    "weeks": "The trial period must be at most 2 weeks.",
+    "months": "The subscription must last at most 6 months.",
+    "years": "The user must be at least 18 years old.",
+    "kilobytes": "The avatar must be at most 512 KB.",
+    "gigabytes": "The upload must be at most 2 GB.",
+    "percent": "The discount must be at most 50%.",
+    "items": "The cart must contain at most 10 items.",
+}
+
+
+@pytest.mark.parametrize("lang", ["en", "uk", "ru"])
+@pytest.mark.parametrize("unit", sorted(UNIT_REQUIREMENTS))
+def test_designed_cases_name_the_unit(unit, lang):
+    cases = generate_test_cases(workspace_for(UNIT_REQUIREMENTS[unit]), lang)
+    designed = [c for c in cases if c.test_type in (TestType.BOUNDARY, TestType.EQUIVALENCE)]
+    assert designed
+    for case in designed:
+        written = "\n".join([*case.steps, case.expected_result])
+        forms = {t(f"unit.{unit}", lang), *UNIT_FORMS.get(unit, {}).get(lang, ())}
+        assert "unit." not in written and any(form in written for form in forms), written
+
+
+def test_partition_step_keeps_the_unit_in_the_number_form():
+    ws = workspace_for("The trial period must be at most 2 weeks.")
+    steps = [s for c in generate_test_cases(ws, "ru") if c.test_type == TestType.EQUIVALENCE for s in c.steps]
+    assert steps == ["Класс ≤ 2: используйте значение 1 неделя.", "Класс > 2: используйте значение 4 недели."]
+    steps = [s for c in generate_test_cases(ws, "uk") if c.test_type == TestType.EQUIVALENCE for s in c.steps]
+    assert steps == ["Клас ≤ 2: використайте значення 1 тиждень.", "Клас > 2: використайте значення 4 тижні."]

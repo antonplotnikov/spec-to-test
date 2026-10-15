@@ -26,7 +26,10 @@ def settings(**env: str) -> LLMSettings:
 @pytest.mark.parametrize("env", [{}, {"AI_PROVIDER": "none"}, {"AI_PROVIDER": " NONE "}])
 def test_ai_is_off_unless_a_provider_is_named(env):
     # Keys alone do not switch AI on: AI_PROVIDER=none means fully offline.
-    result = settings(**env, ANTHROPIC_API_KEY=CLAUDE_KEY, OPENAI_API_KEY=OPENAI_KEY, OLLAMA_HOST="localhost")
+    result = settings(
+        **env, ANTHROPIC_API_KEY=CLAUDE_KEY, OPENAI_API_KEY=OPENAI_KEY, OLLAMA_HOST="localhost",
+        OPENAI_COMPATIBLE_BASE_URL="http://localhost:1234/v1", OPENAI_COMPATIBLE_MODEL="m",
+    )
     assert not result.enabled and result.default() is None and result.problems == {}
 
 
@@ -178,3 +181,105 @@ def test_valid_model_ids(model):
 @pytest.mark.parametrize("model", ["", " ", "-flag", "a b", "a" * 101, "model\nX", "<script>"])
 def test_invalid_model_ids(model):
     assert not valid_model(model)
+
+
+# --- Self-hosted OpenAI-compatible servers --------------------------------------------------------
+
+LM_STUDIO = "http://localhost:1234/v1"
+
+
+@pytest.mark.parametrize("name", ["openai_compatible", "openai-compatible", "compatible", " Compatible "])
+def test_compatible_server_needs_an_address_and_a_model_but_no_key(name):
+    config = settings(
+        AI_PROVIDER=name, OPENAI_COMPATIBLE_BASE_URL=LM_STUDIO + "/", OPENAI_COMPATIBLE_MODEL="qwen2.5-7b-instruct",
+    ).default()
+    assert config is not None
+    assert (config.provider, config.model, config.base_url) == ("openai_compatible", "qwen2.5-7b-instruct", LM_STUDIO)
+    assert config.api_key.get_secret_value() == ""
+
+
+def test_compatible_server_model_may_come_from_ai_model():
+    config = settings(AI_PROVIDER="compatible", OPENAI_COMPATIBLE_BASE_URL=LM_STUDIO, AI_MODEL="llama-3.2-3b").default()
+    assert config is not None and config.model == "llama-3.2-3b"
+
+
+@pytest.mark.parametrize(
+    ("env", "problem"),
+    [
+        ({"OPENAI_COMPATIBLE_MODEL": "m"}, "url_missing"),
+        ({"OPENAI_COMPATIBLE_BASE_URL": LM_STUDIO}, "model_missing"),  # a server has no default model
+        ({"OPENAI_COMPATIBLE_BASE_URL": LM_STUDIO, "OPENAI_COMPATIBLE_MODEL": "a b"}, "model_missing"),
+        ({"OPENAI_COMPATIBLE_BASE_URL": "ftp://box", "OPENAI_COMPATIBLE_MODEL": "m"}, "invalid_url"),
+    ],
+)
+def test_compatible_server_problems_are_reported(env, problem):
+    result = settings(AI_PROVIDER="openai_compatible", **env)
+    assert result.default() is None and result.problems == {"openai_compatible": problem}
+
+
+def test_compatible_server_is_offered_besides_the_default_only_when_its_address_is_set():
+    assert "openai_compatible" not in settings(AI_PROVIDER="anthropic", ANTHROPIC_API_KEY=CLAUDE_KEY).configs
+    result = settings(
+        AI_PROVIDER="anthropic", ANTHROPIC_API_KEY=CLAUDE_KEY,
+        OPENAI_COMPATIBLE_BASE_URL=LM_STUDIO, OPENAI_COMPATIBLE_MODEL="local-model",
+    )
+    assert list(result.configs) == ["anthropic", "openai_compatible"]
+    assert choose(result, provider="openai_compatible").model == "local-model"
+
+
+def test_real_openai_and_a_compatible_server_are_separate():
+    result = settings(
+        AI_PROVIDER="openai", OPENAI_API_KEY=OPENAI_KEY,
+        OPENAI_COMPATIBLE_BASE_URL=LM_STUDIO, OPENAI_COMPATIBLE_MODEL="local-model",
+    )
+    assert list(result.configs) == ["openai", "openai_compatible"]
+    assert result.configs["openai"].base_url == ""  # still api.openai.com
+    # The OpenAI key is never reused for another server.
+    assert result.configs["openai_compatible"].api_key.get_secret_value() == ""
+
+
+@pytest.mark.parametrize(
+    "url", ["https://llm.example.com/v1", "http://localhost:8000/v1", "http://127.0.0.1:8000/v1", "http://[::1]:8000/v1"],
+)
+def test_a_key_may_go_over_https_or_to_this_machine(url):
+    result = settings(
+        AI_PROVIDER="compatible", OPENAI_COMPATIBLE_BASE_URL=url, OPENAI_COMPATIBLE_MODEL="m",
+        OPENAI_COMPATIBLE_API_KEY="vllm-key",
+    )
+    config = result.default()
+    assert config is not None and config.api_key.get_secret_value() == "vllm-key"
+
+
+@pytest.mark.parametrize("url", ["http://gpu-box:8000/v1", "http://10.0.0.5:8000/v1", "http://llm.example.com/v1"])
+def test_a_key_is_never_sent_unencrypted_to_another_machine(url):
+    result = settings(
+        AI_PROVIDER="compatible", OPENAI_COMPATIBLE_BASE_URL=url, OPENAI_COMPATIBLE_MODEL="m",
+        OPENAI_COMPATIBLE_API_KEY="vllm-key",
+    )
+    assert result.default() is None and result.problems == {"openai_compatible": "insecure_url"}
+    result = settings(AI_PROVIDER="openai", OPENAI_API_KEY=OPENAI_KEY, OPENAI_BASE_URL=url)
+    assert result.default() is None and result.problems == {"openai": "insecure_url"}
+    # Without a key there is nothing to protect: a keyless server on the LAN is fine.
+    config = settings(AI_PROVIDER="compatible", OPENAI_COMPATIBLE_BASE_URL=url, OPENAI_COMPATIBLE_MODEL="m").default()
+    assert config is not None
+
+
+def test_compatible_key_never_appears_in_repr_or_dumps():
+    result = settings(
+        AI_PROVIDER="compatible", OPENAI_COMPATIBLE_BASE_URL=LM_STUDIO, OPENAI_COMPATIBLE_MODEL="m",
+        OPENAI_COMPATIBLE_API_KEY="loc-key-789",
+    )
+    assert result.default() is not None
+    for text in (repr(result), result.model_dump_json(), repr(result.default())):
+        assert "loc-key-789" not in text
+
+
+# --- Request timeout -------------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("raw", "seconds"),
+    [("", 300.0), ("900", 900.0), (" 45.5 ", 45.5), ("1", 10.0), ("99999", 3600.0), ("soon", 300.0), ("nan", 300.0)],
+)
+def test_timeout_is_read_and_clamped(raw, seconds):
+    result = settings(AI_PROVIDER="ollama", AI_TIMEOUT=raw, ANTHROPIC_API_KEY=CLAUDE_KEY)
+    assert {c.timeout for c in result.configs.values()} == {seconds}
