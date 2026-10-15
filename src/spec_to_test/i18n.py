@@ -12,6 +12,7 @@ from spec_to_test.history_translations import HISTORY_TRANSLATIONS
 from spec_to_test.llm.translations import LLM_TRANSLATIONS
 from spec_to_test.models import Finding
 from spec_to_test.qa_agent.auto_translations import AUTO_TRANSLATIONS
+from spec_to_test.qa_agent.task_translations import TASK_TRANSLATIONS
 from spec_to_test.qa_agent.translations import QA_AGENT_TRANSLATIONS
 from spec_to_test.ui_translations import UI_TRANSLATIONS
 
@@ -1292,6 +1293,9 @@ TRANSLATIONS.update(QA_AGENT_TRANSLATIONS)
 # Autonomous QA text, same rule.
 assert not TRANSLATIONS.keys() & AUTO_TRANSLATIONS.keys()
 TRANSLATIONS.update(AUTO_TRANSLATIONS)
+# QA task mode text, same rule.
+assert not TRANSLATIONS.keys() & TASK_TRANSLATIONS.keys()
+TRANSLATIONS.update(TASK_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

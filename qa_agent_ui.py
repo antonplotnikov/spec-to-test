@@ -23,7 +23,7 @@ from spec_to_test.formatting import escape_markdown
 from spec_to_test.i18n import t
 from spec_to_test.llm.config import AIConfig
 from spec_to_test.llm.providers import AIError
-from spec_to_test.models import Severity, Workspace
+from spec_to_test.models import ChangeImpact, Severity, Workspace
 from spec_to_test.qa_agent import ai as qa_ai
 from spec_to_test.qa_agent import planner
 from spec_to_test.qa_agent import service as qa_service
@@ -232,7 +232,7 @@ def _on_ai_suggest(store: RunStore, workspace: Workspace, case_id: str, ai_confi
 # Page
 # ---------------------------------------------------------------------------
 
-MODES = ("manual", "auto")
+MODES = ("manual", "auto", "task")
 
 
 def render_qa_agent(
@@ -241,9 +241,11 @@ def render_qa_agent(
     ai_config: AIConfig | None,
     docs: Any = None,
     no_document: Callable[[], object] | None = None,
+    previous_impact: Callable[[Workspace], ChangeImpact | None] | None = None,
 ) -> None:
-    """`docs` (qa_auto_ui.Documents) lets Autonomous QA save its workspace document;
-    `no_document` draws the empty state of the manual mode when no document is open."""
+    """`docs` (qa_auto_ui.Documents) lets Autonomous QA and QA tasks save the workspace document;
+    `no_document` draws the empty state of the manual and task modes when no document is open;
+    `previous_impact` computes the Change Impact of a document that has none stored."""
     mode = st.segmented_control(t("qaagent.mode", lang), MODES, key="qa_mode", default="manual",
                                 format_func=lambda m: t(f"qaagent.mode.{m}", lang), label_visibility="collapsed")
     if mode == "auto" and docs is not None:
@@ -253,6 +255,16 @@ def render_qa_agent(
         settings = load_qa_settings()
         _setup(lang, settings)
         qa_auto_ui.render_autonomous(lang, ai_config, settings, _store(), docs)
+        return
+    if mode == "task":
+        import qa_task_ui
+
+        if workspace is None:
+            st.caption(t("qatask.explainer", lang))
+            if no_document is not None:
+                no_document()
+            return
+        qa_task_ui.render_task(lang, workspace, docs.persist if docs is not None else None, previous_impact)
         return
     st.caption(t("qaagent.explainer", lang))
     if workspace is None:

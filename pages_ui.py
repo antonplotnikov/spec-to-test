@@ -836,8 +836,12 @@ def qa_agent(p: Page) -> None:
         persist=p.persist,
         remember=lambda doc_hash: remember_document(project_id, doc_hash),
     )
-    qa_agent_ui.render_qa_agent(p.lang, st.session_state.get(WORKSPACE), p.ai_config, docs,
-                                no_document=lambda: _workspace(p, "qa_agent"))
+    qa_agent_ui.render_qa_agent(
+        p.lang, st.session_state.get(WORKSPACE), p.ai_config, docs, no_document=lambda: _workspace(p, "qa_agent"),
+        previous_impact=lambda ws: change_impact(
+            ws, p.store.documents(project_id), lambda h: p.store.load(project_id, h),
+        ),
+    )
 
 
 def _risk_of(ws: Workspace, requirement_id: str) -> Severity | None:
