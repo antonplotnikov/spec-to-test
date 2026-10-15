@@ -792,7 +792,7 @@ def _suites_tab(lang: str, ws: Workspace) -> None:
     if plan.smoke_missing:
         st.warning(t("suites.smoke_missing", lang, ids=", ".join(plan.smoke_missing)))
     kind = st.selectbox(t("suites.select", lang), list(SuiteKind), key="suite_kind",
-                        format_func=lambda k: t(f"suites.{k.value}", lang))
+                        format_func=lambda k: t(f"suites.{k.value}", lang)) or SuiteKind.SMOKE
     st.caption(t(f"suites.criteria.{kind.value}", lang))
     selected = set(plan.suites[kind])
     cases = [tc for tc in ws.test_cases if tc.id in selected]
@@ -836,8 +836,12 @@ def qa_agent(p: Page) -> None:
         persist=p.persist,
         remember=lambda doc_hash: remember_document(project_id, doc_hash),
     )
-    qa_agent_ui.render_qa_agent(p.lang, st.session_state.get(WORKSPACE), p.ai_config, docs,
-                                no_document=lambda: _workspace(p, "qa_agent"))
+    qa_agent_ui.render_qa_agent(
+        p.lang, st.session_state.get(WORKSPACE), p.ai_config, docs, no_document=lambda: _workspace(p, "qa_agent"),
+        previous_impact=lambda ws: change_impact(
+            ws, p.store.documents(project_id), lambda h: p.store.load(project_id, h),
+        ),
+    )
 
 
 def _risk_of(ws: Workspace, requirement_id: str) -> Severity | None:
@@ -1008,7 +1012,7 @@ def _approval_check(lang: str, ws: Workspace, tc: TestCase) -> None:
             lines.append(t("approval.coverage", lang, req=tc.requirement_id, percent=f"{coverage.percent:g}"))
         if missing:
             lines.append(t("approval.missing", lang, names=scenarios(missing)))
-            if not approved and (
+            if not approved and req is not None and (
                 would := [c for c in missing if c in categories_of_test_case(tc, req)]
             ):
                 lines.append(t("approval.would_cover", lang, names=scenarios(would)))

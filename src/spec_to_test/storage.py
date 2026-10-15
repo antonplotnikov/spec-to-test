@@ -21,6 +21,8 @@ Layout of the data folder:
     projects/<id>/workspaces/<hash>.json
     projects/<id>/grill/<session id>.json
     projects/<id>/grill/latest.json
+    qa_memory.json                      QA Agent memory of the default project
+    projects/<id>/qa_memory.json        QA Agent memory of any other project
 
 Workspaces carry a `schema_version`; older files are upgraded on load by
 spec_to_test.migrations (the file itself is rewritten on the next save).
@@ -49,6 +51,7 @@ LATEST_FILE = "latest.json"
 PROJECT_FILE = "project.json"
 DEFAULT_PROJECT_ID = "default"
 GRILL_DIR = "grill"
+MEMORY_FILE = "qa_memory.json"
 # Saved interviews larger than this are not read (a normal one is a few hundred KB at most).
 MAX_INTERVIEW_BYTES = 5_000_000
 
@@ -201,6 +204,7 @@ def delete_project(project_id: str) -> None:
         for path in _workspaces_dir(DEFAULT_PROJECT_ID).glob("*.json"):
             path.unlink(missing_ok=True)
         shutil.rmtree(_grill_dir(DEFAULT_PROJECT_ID), ignore_errors=True)
+        _memory_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
     shutil.rmtree(_project_dir(project_id), ignore_errors=True)
 
 
@@ -283,6 +287,36 @@ def load_interview_pointer(project_id: str) -> str:
         return _file_name(session_id, "session id") if session_id else ""
     except ValueError:
         return ""
+
+
+# --- QA Agent memory (raw JSON; validated by spec_to_test.qa_agent.memory) -------------
+
+def _memory_path(project_id: str) -> Path:
+    if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
+        return data_dir() / MEMORY_FILE
+    return _project_dir(project_id) / MEMORY_FILE
+
+
+def save_memory_data(project_id: str, data: dict) -> None:
+    """Write the project's QA Agent memory; does nothing in "session" mode."""
+    if not persistence_enabled():
+        return
+    _write_atomic(_memory_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
+
+
+def load_memory_data(project_id: str) -> dict | None:
+    if not persistence_enabled():
+        return None
+    try:
+        return _read_json(_memory_path(project_id))
+    except ValueError:  # not a valid id
+        return None
+
+
+def delete_memory_data(project_id: str) -> None:
+    if not persistence_enabled():
+        return
+    _memory_path(project_id).unlink(missing_ok=True)
 
 
 # --- Last opened project and document ---------------------------------------------------

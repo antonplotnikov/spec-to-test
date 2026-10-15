@@ -10,4 +10,6 @@ bugs      bug reports for failed cases
 report    coverage by requirement and exports
 store     where plans and runs are kept
 ai        optional: LLM-proposed steps (data, reviewed before use)
+tasks     QA tasks in plain text, answered with the existing Critic, Coverage,
+          Change Impact, Traceability and Suite Planner
 """

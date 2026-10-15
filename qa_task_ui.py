@@ -1,0 +1,326 @@
+"""QA task mode of the QA Agent page: a task in plain words, one combined result.
+
+The analysis is spec_to_test.qa_agent.tasks (which calls the existing tools);
+this module only draws the form and the result. A proposed status change is
+applied only from the Apply button, which stays disabled until the user ticks
+the confirmation.
+
+Project memory (spec_to_test.qa_agent.memory) is shown beside a result when it
+is relevant to it, and is managed in the "Project memory" panel: rules the
+user confirmed and the user's ratings of results. Nothing is saved without an
+explicit click.
+"""
+
+from collections.abc import Callable
+from typing import Any
+
+import streamlit as st
+
+from projects_ui import active_project_id
+from spec_to_test.formatting import escape_markdown
+from spec_to_test.i18n import t
+from spec_to_test.models import ChangeImpact, Workspace
+from spec_to_test.qa_agent import memory, tasks
+from spec_to_test.qa_agent.memory import MemoryEntry, MemoryEntryError, MemoryStore, Rating
+from spec_to_test.qa_agent.tasks import AgentResult, Item, ProposedAction
+
+TASK = "qa_task_text"
+RESULT = "qa_task_result"
+CONFIRM = "qa_task_confirm"
+MESSAGE = "qa_task_message"
+RATED = "qa_task_rated"
+FEEDBACK_COMMENT = "qa_task_feedback_comment"
+RULE_TEXT = "qa_memory_rule_text"
+RULE_TOOLS = "qa_memory_rule_tools"
+RULE_CONFIRM = "qa_memory_rule_confirm"
+PICK = "qa_memory_pick"
+RATING_ICONS = {"useful": "👍", "not_useful": "👎"}
+
+
+def _text(lang: str, item: Item) -> str:
+    params: dict[str, Any] = dict(item.params)
+    if item.terms:
+        params["names"] = ", ".join(t(term, lang) for term in item.terms)
+    try:
+        return t(item.key, lang, **params)
+    except (KeyError, IndexError, ValueError):
+        return t(item.key, lang)
+
+
+def _line(lang: str, item: Item) -> str:
+    head = " · ".join(part for part in (item.ref, t(item.topic, lang) if item.topic else "") if part)
+    text = escape_markdown(_text(lang, item))
+    return f"- **{escape_markdown(head)}**: {text}" if head else f"- {text}"
+
+
+def _on_run(workspace: Workspace, previous_impact: Callable[[Workspace], ChangeImpact | None] | None) -> None:
+    st.session_state[RESULT] = tasks.run_task(st.session_state.get(TASK, ""), workspace, previous_impact)
+    st.session_state.pop(CONFIRM, None)
+    st.session_state.pop(RATED, None)
+
+
+def _on_apply(workspace: Workspace, persist: Callable[[Workspace], None], action: ProposedAction) -> None:
+    result: AgentResult | None = st.session_state.get(RESULT)
+    if result is not None:
+        result.action = None  # one confirmation applies the change once
+    st.session_state.pop(CONFIRM, None)
+    try:
+        changed = tasks.apply_action(workspace, action)
+    except ValueError as error:
+        st.session_state[MESSAGE] = ("error", "qatask.action.missing", {"ids": str(error)})
+        return
+    if not changed:
+        st.session_state[MESSAGE] = ("info", "qatask.action.unchanged", {})
+        return
+    persist(workspace)
+    st.session_state[MESSAGE] = ("success", "qatask.action.applied",
+                                 {"ids": ", ".join(changed), "status": f"review.{action.status.value}"})
+
+
+def render_task(
+    lang: str,
+    workspace: Workspace,
+    persist: Callable[[Workspace], None] | None,
+    previous_impact: Callable[[Workspace], ChangeImpact | None] | None = None,
+) -> None:
+    st.caption(t("qatask.explainer", lang))
+    st.text_area(t("qatask.input", lang), key=TASK, placeholder=t("qatask.placeholder", lang),
+                 max_chars=tasks.MAX_TASK_LENGTH, height=90)
+    st.button(t("qatask.run", lang), key="qa_task_run", type="primary", icon=":material/play_arrow:",
+              on_click=_on_run, args=(workspace, previous_impact))
+    st.caption(t("qatask.limits", lang, steps=tasks.MAX_STEPS))
+
+    if message := st.session_state.pop(MESSAGE, None):
+        level, key, params = message
+        if "status" in params:
+            params = {**params, "status": t(params["status"], lang)}
+        getattr(st, level)(escape_markdown(t(key, lang, **params)))
+
+    store = memory.open_memory_store(st.session_state)
+    project_id = active_project_id()
+    result: AgentResult | None = st.session_state.get(RESULT)
+    if result is not None and result.document_hash != workspace.document_hash:
+        st.session_state.pop(RESULT, None)  # a result for another document
+        result = None
+    if result is not None:
+        _result(lang, result, workspace, persist)
+        _related_memory(lang, result, store, project_id)
+    _memory_panel(lang, store, project_id)
+
+
+def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None] | None) -> None:
+    plan = result.plan
+    if result.status == "error" and not result.steps:
+        ids = ", ".join(plan.unknown_ids) if plan else ""
+        st.error(escape_markdown(t(result.error, lang, max=tasks.MAX_TASK_LENGTH, ids=ids)))
+        return
+    assert plan is not None
+    if plan.unknown_ids:
+        st.warning(escape_markdown(t("qatask.unknown_ids", lang, ids=", ".join(plan.unknown_ids))))
+    if plan.action_needs_ids:
+        st.warning(t("qatask.action_needs_ids", lang))
+    if plan.action_too_large:
+        st.warning(t("qatask.action_too_large", lang, max=tasks.MAX_ACTION_TEST_CASES))
+    if plan.unsupported_terms:
+        st.info(escape_markdown(t("qatask.unsupported_terms", lang, terms=", ".join(plan.unsupported_terms))))
+    if result.status == "unsupported":
+        st.warning(t("qatask.unsupported", lang))
+        return
+
+    tool_names = [t(f"qatask.tool.{step.tool}", lang) for step in result.steps]
+    st.caption(t("qatask.plan", lang, tools=", ".join(tool_names)))
+    scope = plan.test_case_ids + plan.requirement_ids
+    st.caption(escape_markdown(t("qatask.scope", lang, ids=", ".join(scope))) if scope else t("qatask.scope_all", lang))
+    if plan.skipped_tools:
+        st.warning(t("qatask.skipped_tools", lang, max=tasks.MAX_STEPS,
+                     tools=", ".join(t(f"qatask.tool.{tool}", lang) for tool in plan.skipped_tools)))
+    if result.status == "error":
+        st.error(t(result.error, lang))
+    elif result.status == "partial":
+        st.warning(t("qatask.status.partial", lang))
+
+    st.subheader(t("qatask.heading.conclusions", lang), anchor=False)
+    conclusions = []
+    for step, name in zip(result.steps, tool_names, strict=True):
+        if step.status == "error":
+            conclusions.append(f"- {t('qatask.step_failed', lang, tool=name, error=step.error)}")
+        elif step.summary is not None:
+            conclusions.append(f"- **{name}**: {escape_markdown(_text(lang, step.summary))}")
+    st.markdown("\n".join(conclusions))
+
+    problems, unknowns = result.problems, result.unknowns
+    st.subheader(t("qatask.heading.problems", lang, count=len(problems)), anchor=False)
+    if problems:
+        st.markdown("\n".join(_line(lang, item) for item in problems))
+    else:
+        st.success(t("qatask.no_problems", lang))
+    if unknowns:
+        with st.expander(t("qatask.heading.unknowns", lang, count=len(unknowns)), icon=":material/help:"):
+            st.markdown("\n".join(_line(lang, item) for item in unknowns))
+
+    st.subheader(t("qatask.heading.recommendations", lang), anchor=False)
+    recommendations = result.recommendations
+    st.markdown("\n".join(_line(lang, item) for item in recommendations) if recommendations
+                else t("qatask.no_recommendations", lang))
+
+    if result.action is not None and persist is not None:
+        _action(lang, result, workspace, persist)
+
+
+def _action(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None]) -> None:
+    action = result.action
+    assert action is not None
+    with st.container(border=True, key="qa_task_action"):
+        st.markdown(f"**{t('qatask.heading.action', lang)}**")
+        st.markdown(t("qatask.action.describe", lang, ids=escape_markdown(", ".join(action.test_case_ids)),
+                      status=t(f"review.{action.status.value}", lang)))
+        critic = next((s for s in result.steps if s.tool == "critic"), None)
+        if critic is not None and any(item.ref in action.test_case_ids for item in critic.problems):
+            st.warning(t("qatask.action.critic_warning", lang))
+        confirmed = st.checkbox(t("qatask.action.confirm", lang), key=CONFIRM)
+        st.button(t("qatask.action.apply", lang), key="qa_task_apply", icon=":material/check:",
+                  disabled=not confirmed, on_click=_on_apply, args=(workspace, persist, action))
+
+
+# --- Project memory -------------------------------------------------------------------
+
+def _tools_text(lang: str, tools: list[str]) -> str:
+    return ", ".join(t(f"qatask.tool.{tool}", lang) for tool in tools)
+
+
+def _entry_text(lang: str, entry: MemoryEntry) -> str:
+    tools = _tools_text(lang, list(entry.tools))
+    if entry.kind == "rule":
+        return f"📌 {escape_markdown(entry.text)} _({tools})_"
+    comment = f" — {escape_markdown(entry.text)}" if entry.text else ""
+    return f"{RATING_ICONS[entry.rating or 'useful']} «{escape_markdown(entry.task)}»{comment} _({tools})_"
+
+
+def _memory_message(level: str, key: str, **params: str) -> None:
+    st.session_state[MESSAGE] = (level, key, params)
+
+
+def _on_feedback(store: MemoryStore, project_id: str, rating: Rating) -> None:
+    result: AgentResult | None = st.session_state.get(RESULT)
+    if result is None:
+        return
+    try:
+        store.add(project_id, memory.new_feedback(result, rating, st.session_state.get(FEEDBACK_COMMENT, "")))
+    except MemoryEntryError as error:
+        _memory_message("error", f"qamemory.error.{error.code}")
+        return
+    except (OSError, ValueError):
+        _memory_message("error", "qamemory.error.save_failed")
+        return
+    st.session_state[RATED] = True
+    st.session_state.pop(FEEDBACK_COMMENT, None)
+    _memory_message("success", "qamemory.feedback_saved")
+
+
+def _related_memory(lang: str, result: AgentResult, store: MemoryStore, project_id: str) -> None:
+    """Entries relevant to this result, and the buttons to rate it."""
+    if related := memory.relevant(store.entries(project_id), result.plan):
+        lines = [f"**{t('qamemory.relevant_heading', lang)}**", ""]
+        lines += [f"- {_entry_text(lang, entry)}" for entry in related]
+        lines += ["", f"_{t('qamemory.relevant_note', lang)}_"]
+        st.info("\n".join(lines), icon=":material/psychology:")
+    if st.session_state.get(RATED) or not any(step.status == "ok" for step in result.steps):
+        return
+    with st.container(border=True, key="qa_task_feedback"):
+        st.markdown(f"**{t('qamemory.feedback_heading', lang)}**")
+        st.text_input(t("qamemory.feedback_comment", lang), key=FEEDBACK_COMMENT,
+                      max_chars=memory.MAX_TEXT_LENGTH)
+        c1, c2 = st.columns(2)
+        c1.button(t("qamemory.rating.useful", lang), key="qa_feedback_useful", icon=":material/thumb_up:",
+                  on_click=_on_feedback, args=(store, project_id, "useful"), width="stretch")
+        c2.button(t("qamemory.rating.not_useful", lang), key="qa_feedback_not_useful",
+                  icon=":material/thumb_down:", on_click=_on_feedback, args=(store, project_id, "not_useful"),
+                  width="stretch")
+
+
+def _on_add_rule(store: MemoryStore, project_id: str) -> None:
+    state = st.session_state
+    try:
+        entry = memory.new_rule(state.get(RULE_TEXT, ""), list(state.get(RULE_TOOLS) or []),
+                                bool(state.get(RULE_CONFIRM)))
+        store.add(project_id, entry)
+    except MemoryEntryError as error:
+        _memory_message("error", f"qamemory.error.{error.code}")
+        return
+    except (OSError, ValueError):
+        _memory_message("error", "qamemory.error.save_failed")
+        return
+    for key in (RULE_TEXT, RULE_TOOLS, RULE_CONFIRM):
+        state.pop(key, None)
+    _memory_message("success", "qamemory.rule_saved")
+
+
+def _on_save_entry(store: MemoryStore, project_id: str, entry: MemoryEntry) -> None:
+    state = st.session_state
+    try:
+        store.update(project_id, memory.edited(
+            entry, state.get(f"qa_memory_text_{entry.id}", ""), list(state.get(f"qa_memory_tools_{entry.id}") or []),
+            state.get(f"qa_memory_rating_{entry.id}"),
+        ))
+    except MemoryEntryError as error:
+        _memory_message("error", f"qamemory.error.{error.code}")
+        return
+    except (OSError, ValueError):
+        _memory_message("error", "qamemory.error.save_failed")
+        return
+    _memory_message("success", "qamemory.entry_saved")
+
+
+def _on_delete_entry(store: MemoryStore, project_id: str, entry_id: str) -> None:
+    try:
+        store.delete(project_id, entry_id)
+    except (OSError, ValueError):
+        _memory_message("error", "qamemory.error.save_failed")
+        return
+    st.session_state.pop(PICK, None)
+    st.session_state.pop(f"qa_memory_delete_confirm_{entry_id}", None)
+    _memory_message("success", "qamemory.entry_deleted")
+
+
+def _memory_panel(lang: str, store: MemoryStore, project_id: str) -> None:
+    """View, add, correct and delete the project's memory."""
+    entries = store.entries(project_id)
+    with st.expander(t("qamemory.heading", lang, count=len(entries)), icon=":material/psychology:"):
+        st.caption(t("qamemory.explainer", lang))
+        if entries:
+            st.markdown("\n".join(f"- {_entry_text(lang, entry)}" for entry in entries))
+            by_id = {entry.id: entry for entry in entries}
+            picked = st.selectbox(t("qamemory.pick", lang), list(by_id), key=PICK, index=None,
+                                  format_func=lambda i: f"{by_id[i].text or by_id[i].task}"[:80])
+            if picked in by_id:
+                _entry_editor(lang, store, project_id, by_id[picked])
+        else:
+            st.info(t("qamemory.empty", lang))
+        st.markdown(f"**{t('qamemory.add_rule', lang)}**")
+        st.text_area(t("qamemory.rule_text", lang), key=RULE_TEXT, max_chars=memory.MAX_TEXT_LENGTH, height=70)
+        st.multiselect(t("qamemory.tools", lang), list(tasks.TOOLS), key=RULE_TOOLS,
+                       format_func=lambda tool: t(f"qatask.tool.{tool}", lang))
+        confirmed = st.checkbox(t("qamemory.rule_confirm", lang), key=RULE_CONFIRM)
+        st.button(t("qamemory.save_rule", lang), key="qa_memory_add", icon=":material/add:", disabled=not confirmed,
+                  on_click=_on_add_rule, args=(store, project_id))
+
+
+def _entry_editor(lang: str, store: MemoryStore, project_id: str, entry: MemoryEntry) -> None:
+    with st.container(border=True, key=f"qa_memory_editor_{entry.id}"):
+        if entry.kind == "feedback":
+            st.caption(t("qamemory.feedback_for", lang, task=escape_markdown(entry.task)))
+            ratings: list[Rating] = ["useful", "not_useful"]
+            st.radio(t("qamemory.rating", lang), ratings, index=ratings.index(entry.rating or "useful"),
+                     key=f"qa_memory_rating_{entry.id}", horizontal=True,
+                     format_func=lambda r: t(f"qamemory.rating.{r}", lang))
+        label = "qamemory.rule_text" if entry.kind == "rule" else "qamemory.feedback_comment"
+        st.text_area(t(label, lang), value=entry.text, key=f"qa_memory_text_{entry.id}",
+                     max_chars=memory.MAX_TEXT_LENGTH, height=70)
+        st.multiselect(t("qamemory.tools", lang), list(tasks.TOOLS), default=list(entry.tools),
+                       key=f"qa_memory_tools_{entry.id}", format_func=lambda tool: t(f"qatask.tool.{tool}", lang))
+        c1, c2, c3 = st.columns([1, 1, 2], vertical_alignment="center")
+        c1.button(t("qamemory.save", lang), key=f"qa_memory_save_{entry.id}", icon=":material/save:",
+                  on_click=_on_save_entry, args=(store, project_id, entry))
+        confirm = c3.checkbox(t("qamemory.delete_confirm", lang), key=f"qa_memory_delete_confirm_{entry.id}")
+        c2.button(t("qamemory.delete", lang), key=f"qa_memory_delete_{entry.id}", icon=":material/delete:",
+                  disabled=not confirm, on_click=_on_delete_entry, args=(store, project_id, entry.id))

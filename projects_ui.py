@@ -21,6 +21,7 @@ from spec_to_test.projects import (
     new_project,
     summary_of,
 )
+from spec_to_test.qa_agent.memory import open_memory_store
 
 ACTIVE = "project_id"
 WORKSPACE = "workspace"  # the analysis page's workspace (see app.py)
@@ -185,6 +186,7 @@ def _on_delete_project(store: ProjectStore, project_id: str, name: str) -> None:
     st.session_state[CONFIRM_DELETE] = False
     try:
         store.delete_project(project_id)
+        open_memory_store(st.session_state).delete_project(project_id)  # QA Agent memory goes with the project
     except (OSError, ValueError):
         _message("error", "projects.error.delete_failed")
         return
