@@ -792,7 +792,7 @@ def _suites_tab(lang: str, ws: Workspace) -> None:
     if plan.smoke_missing:
         st.warning(t("suites.smoke_missing", lang, ids=", ".join(plan.smoke_missing)))
     kind = st.selectbox(t("suites.select", lang), list(SuiteKind), key="suite_kind",
-                        format_func=lambda k: t(f"suites.{k.value}", lang))
+                        format_func=lambda k: t(f"suites.{k.value}", lang)) or SuiteKind.SMOKE
     st.caption(t(f"suites.criteria.{kind.value}", lang))
     selected = set(plan.suites[kind])
     cases = [tc for tc in ws.test_cases if tc.id in selected]
@@ -1012,7 +1012,7 @@ def _approval_check(lang: str, ws: Workspace, tc: TestCase) -> None:
             lines.append(t("approval.coverage", lang, req=tc.requirement_id, percent=f"{coverage.percent:g}"))
         if missing:
             lines.append(t("approval.missing", lang, names=scenarios(missing)))
-            if not approved and (
+            if not approved and req is not None and (
                 would := [c for c in missing if c in categories_of_test_case(tc, req)]
             ):
                 lines.append(t("approval.would_cover", lang, names=scenarios(would)))
