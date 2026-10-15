@@ -87,6 +87,16 @@ class TestType(StrEnum):
     ERROR_HANDLING = "error_handling"
 
 
+class TestPriority(StrEnum):
+    """Set by the reviewer; never inferred. Existing and generated test cases are Medium."""
+
+    __test__ = False  # tell pytest this is not a test class
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
 class ReviewStatus(StrEnum):
     """Review workflow for test cases: Draft -> Reviewed -> Approved."""
 
@@ -110,6 +120,7 @@ class TestCase(BaseModel):
     clarification_questions: list[str] = Field(default_factory=list)
     source: Source = Source.RULE
     review_status: ReviewStatus = ReviewStatus.DRAFT
+    priority: TestPriority = TestPriority.MEDIUM
     reviewer_comment: str = ""
 
 
@@ -190,6 +201,45 @@ class AutomatedTest(BaseModel):
     duration_ms: int = 0
 
 
+class RequirementChange(BaseModel):
+    """One difference between the previous and the new version of a document.
+
+    "unknown": the requirement has no reliable counterpart (no stable IDs, text
+    differs), so it may be added, removed or changed; nothing is guessed.
+    """
+
+    kind: Literal["added", "removed", "modified", "unknown"]
+    old_id: str = ""
+    new_id: str = ""
+    old_text: str = ""
+    new_text: str = ""
+    # Set when "modified" was inferred from text similarity (0-1), not from a shared explicit ID.
+    similarity: float | None = None
+
+
+class TestCaseImpact(BaseModel):
+    """A test case of the previous version that needs review. Its status is never changed."""
+
+    __test__ = False
+
+    test_case_id: str
+    requirement_id: str
+    review_status: ReviewStatus
+    reason: Literal["removed", "modified", "unknown"]
+
+
+class ChangeImpact(BaseModel):
+    """What changed since the previous version of the document (same title in the project)."""
+
+    previous_document_hash: str = ""
+    previous_title: str = ""
+    previous_created_at: str = ""
+    # "unknown": the previous version could not be identified reliably.
+    status: Literal["compared", "unknown"] = "compared"
+    changes: list[RequirementChange] = Field(default_factory=list)
+    test_cases: list[TestCaseImpact] = Field(default_factory=list)
+
+
 class FindingChange(StrEnum):
     RESOLVED = "resolved"
     REOPENED = "reopened"
@@ -235,6 +285,8 @@ class Workspace(BaseModel):
     # Status changes of findings (resolved / reopened / undone), oldest first.
     # Saves from before schema 2 start with an empty history.
     finding_history: list[FindingEvent] = Field(default_factory=list)
+    # Differences from the previous version, set when a new version is analyzed; older saves have None.
+    change_impact: ChangeImpact | None = None
 
     @property
     def analysis(self) -> AnalysisResult:

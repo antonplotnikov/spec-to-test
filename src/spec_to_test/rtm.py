@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from spec_to_test.models import ReviewStatus, Severity, Workspace
 from spec_to_test.quality import QualityScore, score_all
+from spec_to_test.scenario_coverage import ScenarioCoverage, scenario_coverage
 
 SEVERITY_ORDER = [Severity.HIGH, Severity.MEDIUM, Severity.LOW]
 
@@ -37,6 +38,8 @@ class RTMRow(BaseModel):
     approved_test_case_ids: list[str]
     defect_ids: list[str]
     coverage: Coverage
+    # Applicable/covered scenario categories; independent of the Approved-based coverage.
+    scenarios: ScenarioCoverage | None = None
 
     @property
     def highest_severity(self) -> Severity | None:
@@ -72,6 +75,7 @@ def build_rtm(workspace: Workspace, scores: dict[str, QualityScore] | None = Non
                 ],
                 defect_ids=[d.id for d in workspace.defects_for(req.id)],
                 coverage=coverage_of(workspace, req.id),
+                scenarios=scenario_coverage(req, tests),
             )
         )
     return rows
@@ -81,6 +85,37 @@ def orphan_test_case_ids(workspace: Workspace) -> list[str]:
     """Test cases linked to a requirement ID that is not in the document."""
     known = {req.id for req in workspace.requirements}
     return [tc.id for tc in workspace.test_cases if tc.requirement_id not in known]
+
+
+class TraceabilityGaps(BaseModel):
+    """Missing links between requirements and test cases.
+
+    untested: requirements without a test case whose text says what to test (a gap).
+    unknown:  requirements without a test case whose text is not enough to tell what
+              needs testing (Scenario Coverage Unknown); uncertain, not counted as a gap.
+    unlinked: test cases linked to a requirement ID that is not in the document.
+    """
+
+    untested: list[str]
+    unknown: list[str]
+    unlinked: list[str]
+
+    @property
+    def gaps(self) -> int:
+        return len(self.untested) + len(self.unlinked)
+
+
+def traceability_gaps(rows: list[RTMRow], workspace: Workspace) -> TraceabilityGaps:
+    without_tests = [row for row in rows if row.coverage == Coverage.NOT_COVERED]
+
+    def is_unknown(row: RTMRow) -> bool:
+        return row.scenarios is None or row.scenarios.percent is None
+
+    return TraceabilityGaps(
+        untested=[row.requirement_id for row in without_tests if not is_unknown(row)],
+        unknown=[row.requirement_id for row in without_tests if is_unknown(row)],
+        unlinked=orphan_test_case_ids(workspace),
+    )
 
 
 # ---------------------------------------------------------------------------

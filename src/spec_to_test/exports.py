@@ -94,7 +94,10 @@ def jira_test_cases_csv(
             parts.append("*Assumptions (not confirmed):*\n" + _numbered(tc.assumptions, "*"))
         if tc.clarification_questions:
             parts.append("*Open questions:*\n" + _numbered(tc.clarification_questions, "*"))
-        parts.append(f"*Test ID:* {tc.id} | *Type:* {tc.test_type.value} | *Review status:* {tc.review_status.value}")
+        parts.append(
+            f"*Test ID:* {tc.id} | *Type:* {tc.test_type.value} | *Review status:* {tc.review_status.value}"
+            f" | *Priority:* {tc.priority.value}"
+        )
         rows.append(
             [
                 f"[{tc.id}] {tc.title}",
@@ -139,7 +142,7 @@ def testrail_csv(workspace: Workspace, only_approved: bool = False) -> str:
                 tc.requirement_id,
                 "Test Case (Text)",
                 "Functional",
-                "Medium",
+                tc.priority.value.capitalize(),
                 "\n".join(preconditions),
                 _numbered(tc.steps),
                 tc.expected_result,

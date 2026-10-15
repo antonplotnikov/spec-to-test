@@ -8,7 +8,7 @@ rather than a guessed answer.
 
 import re
 
-from spec_to_test.i18n import clarification_question, t
+from spec_to_test.i18n import clarification_question, t, unit_for
 from spec_to_test.models import (
     Finding,
     Requirement,
@@ -38,7 +38,7 @@ def _value_line(value: str, unit: str, expectation: str, lang: str) -> str:
         "tc.value_expectation",
         lang,
         value=value,
-        unit=t(f"unit.{unit}", lang),
+        unit=unit_for(unit, value, lang),
         expectation=t(f"design.{expectation}", lang),
     )
 
@@ -102,7 +102,8 @@ def _cases_for(
                 "test_type": TestType.BOUNDARY,
                 "preconditions": [reference],
                 "steps": [
-                    t("tc.step_try_value", lang, value=format_value(v.value), unit=t(f"unit.{unit}", lang))
+                    t("tc.step_try_value", lang, value=(value := format_value(v.value)),
+                      unit=unit_for(unit, value, lang))
                     for v in analysis.values
                 ],
                 "expected_result": "\n".join(
@@ -128,7 +129,7 @@ def _cases_for(
                         lang,
                         interval=p.interval,
                         value=format_value(p.representative),
-                        unit=t(f"unit.{unit}", lang),
+                        unit=unit_for(unit, format_value(p.representative), lang),
                     )
                     for p in classes.partitions
                 ],
