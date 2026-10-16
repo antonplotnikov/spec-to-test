@@ -1,0 +1,11 @@
+## QA Agent gold (5 eval documents)
+password_reset: reqs 9, TCs 15, required req-problems 8, required TC-problems 11 (Counter({'template_test_case': 9, 'expectation_conflict': 1, 'boundary_semantics': 1})), optional 1, must_not 2, explicitly clear reqs 0, reqs with no label at all ['REQ-2', 'REQ-8']
+qa_demo: reqs 6, TCs 6, required req-problems 1, required TC-problems 6 (Counter({'template_test_case': 6})), optional 2, must_not 2, explicitly clear reqs 1, reqs with no label at all ['REQ-3', 'REQ-4']
+reference_spec: reqs 20, TCs 32, required req-problems 15, required TC-problems 25 (Counter({'template_test_case': 20, 'boundary_semantics': 4, 'expectation_conflict': 1})), optional 0, must_not 1, explicitly clear reqs 8, reqs with no label at all []
+checkout_ru: reqs 5, TCs 9, required req-problems 5, required TC-problems 6 (Counter({'template_test_case': 5, 'expectation_conflict': 1})), optional 0, must_not 1, explicitly clear reqs 0, reqs with no label at all []
+uk_units_ranges: reqs 6, TCs 18, required req-problems 3, required TC-problems 11 (Counter({'template_test_case': 6, 'boundary_semantics': 4, 'expectation_conflict': 1})), optional 2, must_not 3, explicitly clear reqs 0, reqs with no label at all []
+{'docs': 5, 'reqs': 46, 'tcs': 80, 'req_problems': 32, 'tc_problems': 59, 'optional': 5, 'must_not': 9}
+
+## Grill eval cases (requirement-level gold only, no test case labels)
+{'docs': 26, 'reqs': 106, 'issues': 94, 'issues_without_topic': 11, 'contradictions': 11, 'non_contradictions': 13, 'must_not_ask': 34, 'has_settled': 3, 'has_steps': 3} {'en': 11, 'ru': 9, 'uk': 6}
+families: {'02_file_upload_api_failure': 1, 'free_shipping_contexts': 1, 'equivalent_units': 1, 'ranges': 1, 'irrelevant_traps': 3, 'answer_conflict_multistep': 3, 'reopen_mid_interview': 1, 'answered_elsewhere': 3, 'duplicates': 1, 'api_failures': 1, 'hallucinations': 2, 'currency_contexts': 2, 'time_units': 1, 'reopen_steps': 2, 'duplicates_ai': 1, 'hallucinations_api': 1, 'attachments_currencies': 1}

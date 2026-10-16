@@ -1,0 +1,125 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-2"
+  ],
+  "description": "The requirement does not specify what happens if the user enters an invalid email.",
+  "quote": ""
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-2"
+  ],
+  "description": "The requirement does not specify what happens if the user enters an invalid password.",
+  "quote": ""
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-5"
+  ],
+  "description": "The requirement does not specify what happens after the user deletes their account.",
+  "quote": ""
+ },
+ {
+  "kind": "problem",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-6"
+  ],
+  "description": "The requirement does not specify what happens if the user clicks the \"go elsewhere\" link while not signed in.",
+  "quote": ""
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-2"
+  ],
+  "question": "What should happen if a registered user tries to sign in with an invalid email?"
+ },
+ {
+  "kind": "question",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-2"
+  ],
+  "question": "What should happen if a registered user tries to sign in with an invalid password?"
+ },
+ {
+  "kind": "question",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-5"
+  ],
+  "question": "What should happen after a signed-in user deletes their account?"
+ },
+ {
+  "kind": "question",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-6"
+  ],
+  "question": "What should happen if the user clicks the \"go elsewhere\" link while not signed in?"
+ },
+ {
+  "kind": "recommendation",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the expected behavior for invalid email and password scenarios in REQ-2."
+ },
+ {
+  "kind": "recommendation",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the expected behavior after account deletion in REQ-5."
+ },
+ {
+  "kind": "recommendation",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the expected behavior when clicking the \"go elsewhere\" link while not signed in in REQ-6."
+ }
+]

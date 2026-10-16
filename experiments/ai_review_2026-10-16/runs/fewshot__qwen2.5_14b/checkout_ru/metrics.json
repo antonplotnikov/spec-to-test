@@ -1,0 +1,13 @@
+{
+ "wall_s": 44.0,
+ "error": "",
+ "done_reason": "stop",
+ "prompt_tokens": 6911,
+ "output_tokens": 238,
+ "total_s": 44.0,
+ "ollama_ps": "NAME           ID              SIZE     PROCESSOR    CONTEXT    RUNNER      UNTIL              \nqwen2.5:14b    7cdf5a0187d5    11 GB    100% GPU     16384      llamacpp    4 minutes from now    \n",
+ "accepted_problems": 3,
+ "accepted_questions": 1,
+ "rejected": 0,
+ "rejected_by_reason": []
+}

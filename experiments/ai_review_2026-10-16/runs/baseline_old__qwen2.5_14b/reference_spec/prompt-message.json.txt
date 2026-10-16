@@ -1,0 +1,315 @@
+Review this specification (JSON):
+<specification>
+{
+ "document": "reference_spec.md",
+ "requirements": [
+  {
+   "id": "REF-01",
+   "text": "The system must send a password reset link to the registered email address within 60 seconds."
+  },
+  {
+   "id": "REF-02",
+   "text": "If the email address is not registered, the system must display the message \"If the account exists, a link has been sent.\""
+  },
+  {
+   "id": "REF-03",
+   "text": "The reset link must expire 30 minutes after it is generated."
+  },
+  {
+   "id": "REF-04",
+   "text": "After 5 consecutive failed login attempts, the account must be locked for 15 minutes."
+  },
+  {
+   "id": "REF-05",
+   "text": "Passwords must be stored as salted bcrypt hashes."
+  },
+  {
+   "id": "REF-06",
+   "text": "The system shall encrypt all personal data at rest using AES-256."
+  },
+  {
+   "id": "REF-07",
+   "text": "The reset page should load quickly and be user-friendly."
+  },
+  {
+   "id": "REF-08",
+   "text": "The user can change the password."
+  },
+  {
+   "id": "REF-09",
+   "text": "The password must have a minimum length."
+  },
+  {
+   "id": "REF-10",
+   "text": "The user enters the new password twice."
+  },
+  {
+   "id": "REF-11",
+   "text": "The new password must be at least 8 characters long."
+  },
+  {
+   "id": "REF-12",
+   "text": "The new password must be at least 12 characters long."
+  },
+  {
+   "id": "REF-13",
+   "text": "Admins must be able to export the audit log."
+  },
+  {
+   "id": "REF-14",
+   "text": "Admins must not export the audit log."
+  },
+  {
+   "id": "REF-15",
+   "text": "Система повинна надіслати лист підтвердження протягом 5 хвилин."
+  },
+  {
+   "id": "REF-16",
+   "text": "Інтерфейс має бути зручним."
+  },
+  {
+   "id": "REF-17",
+   "text": "Користувач може завантажити аватар."
+  },
+  {
+   "id": "REF-18",
+   "text": "Система должна заблокировать учетную запись после 3 неудачных попыток входа."
+  },
+  {
+   "id": "REF-19",
+   "text": "Количество попыток ограничено."
+  },
+  {
+   "id": "REF-20",
+   "text": "Пользователь вводит email в форму."
+  }
+ ],
+ "test_cases": [
+  {
+   "id": "TC-001",
+   "requirement_id": "REF-01",
+   "title": "REF-01: The system must send a password reset link to the registered email ad…",
+   "expected_result": "The system behaves as stated in the requirement: “The system must send a password reset link to the registered email address within 60 seconds.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-002",
+   "requirement_id": "REF-01",
+   "title": "REF-01: boundary values for “60 seconds”",
+   "expected_result": "59 seconds → in time (meets the requirement)\n60 seconds → in time (meets the requirement)\n61 seconds → too late (violates the requirement)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-003",
+   "requirement_id": "REF-01",
+   "title": "REF-01: equivalence classes for “60 seconds”",
+   "expected_result": "30 seconds → in time (meets the requirement)\n120 seconds → too late (violates the requirement)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-004",
+   "requirement_id": "REF-02",
+   "title": "REF-02: decision table, rule R1",
+   "expected_result": "the system must display the message \"If the account exists, a link has been sent.\"",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-005",
+   "requirement_id": "REF-03",
+   "title": "REF-03: The reset link must expire 30 minutes after it is generated.",
+   "expected_result": "The system behaves as stated in the requirement: “The reset link must expire 30 minutes after it is generated.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-006",
+   "requirement_id": "REF-03",
+   "title": "REF-03: boundary values for “30 minutes”",
+   "expected_result": "29 minutes → not yet — the stated change has not happened\n30 minutes → as stated in the requirement\n31 minutes → the stated change has happened",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-007",
+   "requirement_id": "REF-03",
+   "title": "REF-03: equivalence classes for “30 minutes”",
+   "expected_result": "15 minutes → not yet — the stated change has not happened\n60 minutes → the stated change has happened",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-008",
+   "requirement_id": "REF-04",
+   "title": "REF-04: After 5 consecutive failed login attempts, the account must be locked…",
+   "expected_result": "The system behaves as stated in the requirement: “After 5 consecutive failed login attempts, the account must be locked for 15 minutes.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-009",
+   "requirement_id": "REF-04",
+   "title": "REF-04: boundary values for “15 minutes”",
+   "expected_result": "14 minutes → still in effect as stated\n15 minutes → as stated in the requirement\n16 minutes → no longer in effect",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-010",
+   "requirement_id": "REF-04",
+   "title": "REF-04: equivalence classes for “15 minutes”",
+   "expected_result": "8 minutes → still in effect as stated\n30 minutes → no longer in effect",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-011",
+   "requirement_id": "REF-05",
+   "title": "REF-05: Passwords must be stored as salted bcrypt hashes.",
+   "expected_result": "The system behaves as stated in the requirement: “Passwords must be stored as salted bcrypt hashes.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-012",
+   "requirement_id": "REF-06",
+   "title": "REF-06: The system shall encrypt all personal data at rest using AES-256.",
+   "expected_result": "The system behaves as stated in the requirement: “The system shall encrypt all personal data at rest using AES-256.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-013",
+   "requirement_id": "REF-07",
+   "title": "REF-07: The reset page should load quickly and be user-friendly.",
+   "expected_result": "The system behaves as stated in the requirement: “The reset page should load quickly and be user-friendly.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-014",
+   "requirement_id": "REF-08",
+   "title": "REF-08: The user can change the password.",
+   "expected_result": "The system behaves as stated in the requirement: “The user can change the password.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-015",
+   "requirement_id": "REF-09",
+   "title": "REF-09: The password must have a minimum length.",
+   "expected_result": "The system behaves as stated in the requirement: “The password must have a minimum length.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-016",
+   "requirement_id": "REF-10",
+   "title": "REF-10: The user enters the new password twice.",
+   "expected_result": "The system behaves as stated in the requirement: “The user enters the new password twice.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-017",
+   "requirement_id": "REF-11",
+   "title": "REF-11: The new password must be at least 8 characters long.",
+   "expected_result": "The system behaves as stated in the requirement: “The new password must be at least 8 characters long.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-018",
+   "requirement_id": "REF-11",
+   "title": "REF-11: boundary values for “at least 8 characters”",
+   "expected_result": "7 characters → rejected (invalid)\n8 characters → accepted (valid)\n9 characters → accepted (valid)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-019",
+   "requirement_id": "REF-11",
+   "title": "REF-11: equivalence classes for “at least 8 characters”",
+   "expected_result": "4 characters → rejected (invalid)\n16 characters → accepted (valid)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-020",
+   "requirement_id": "REF-12",
+   "title": "REF-12: The new password must be at least 12 characters long.",
+   "expected_result": "The system behaves as stated in the requirement: “The new password must be at least 12 characters long.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-021",
+   "requirement_id": "REF-12",
+   "title": "REF-12: boundary values for “at least 12 characters”",
+   "expected_result": "11 characters → rejected (invalid)\n12 characters → accepted (valid)\n13 characters → accepted (valid)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-022",
+   "requirement_id": "REF-12",
+   "title": "REF-12: equivalence classes for “at least 12 characters”",
+   "expected_result": "6 characters → rejected (invalid)\n24 characters → accepted (valid)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-023",
+   "requirement_id": "REF-13",
+   "title": "REF-13: Admins must be able to export the audit log.",
+   "expected_result": "The system behaves as stated in the requirement: “Admins must be able to export the audit log.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-024",
+   "requirement_id": "REF-14",
+   "title": "REF-14: Admins must not export the audit log.",
+   "expected_result": "The system behaves as stated in the requirement: “Admins must not export the audit log.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-025",
+   "requirement_id": "REF-15",
+   "title": "REF-15: Система повинна надіслати лист підтвердження протягом 5 хвилин.",
+   "expected_result": "The system behaves as stated in the requirement: “Система повинна надіслати лист підтвердження протягом 5 хвилин.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-026",
+   "requirement_id": "REF-15",
+   "title": "REF-15: boundary values for “5 хвилин”",
+   "expected_result": "4 minutes → in time (meets the requirement)\n5 minutes → in time (meets the requirement)\n6 minutes → too late (violates the requirement)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-027",
+   "requirement_id": "REF-15",
+   "title": "REF-15: equivalence classes for “5 хвилин”",
+   "expected_result": "2 minutes → in time (meets the requirement)\n10 minutes → too late (violates the requirement)",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-028",
+   "requirement_id": "REF-16",
+   "title": "REF-16: Інтерфейс має бути зручним.",
+   "expected_result": "The system behaves as stated in the requirement: “Інтерфейс має бути зручним.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-029",
+   "requirement_id": "REF-17",
+   "title": "REF-17: Користувач може завантажити аватар.",
+   "expected_result": "The system behaves as stated in the requirement: “Користувач може завантажити аватар.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-030",
+   "requirement_id": "REF-18",
+   "title": "REF-18: Система должна заблокировать учетную запись после 3 неудачных попыток…",
+   "expected_result": "The system behaves as stated in the requirement: “Система должна заблокировать учетную запись после 3 неудачных попыток входа.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-031",
+   "requirement_id": "REF-19",
+   "title": "REF-19: Количество попыток ограничено.",
+   "expected_result": "The system behaves as stated in the requirement: “Количество попыток ограничено.”",
+   "review_status": "draft"
+  },
+  {
+   "id": "TC-032",
+   "requirement_id": "REF-20",
+   "title": "REF-20: Пользователь вводит email в форму.",
+   "expected_result": "The system behaves as stated in the requirement: “Пользователь вводит email в форму.”",
+   "review_status": "draft"
+  }
+ ],
+ "changes_since_previous_version": null
+}
+</specification>

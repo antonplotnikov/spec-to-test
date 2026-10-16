@@ -1,0 +1,72 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REQ-4",
+   "REQ-7"
+  ],
+  "description": "The new password must be at least 8 characters long (REQ-4) and at least 10 characters long (REQ-7), which are contradictory.",
+  "quote": "The new password must be at least 8 characters long and contain one digit."
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-6"
+  ],
+  "description": "The test case does not specify how many failed attempts trigger the account lock.",
+  "quote": "After too many failed attempts, the account is locked."
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "TC-011",
+   "REQ-7"
+  ],
+  "description": "The test case for REQ-7 does not match the requirement, which specifies a minimum length of 10 characters.",
+  "quote": "The new password must be at least 10 characters long."
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-6"
+  ],
+  "question": "How many failed attempts trigger the account lock?"
+ },
+ {
+  "kind": "recommendation",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the minimum password length requirement and update the test cases accordingly."
+ },
+ {
+  "kind": "recommendation",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Define the number of failed attempts that trigger the account lock and update the test case."
+ }
+]

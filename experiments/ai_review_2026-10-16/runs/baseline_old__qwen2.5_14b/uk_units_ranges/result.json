@@ -1,0 +1,535 @@
+{
+ "task": "Full check",
+ "document_hash": "9a5af06010f7e8d7",
+ "status": "done",
+ "error": "",
+ "plan": {
+  "tools": [
+   "requirements",
+   "critic",
+   "coverage",
+   "impact",
+   "traceability",
+   "suites"
+  ],
+  "test_case_ids": [],
+  "requirement_ids": [],
+  "unknown_ids": [],
+  "unsupported_terms": [],
+  "action": null,
+  "action_needs_ids": false,
+  "action_too_large": false,
+  "action_conflicts": [],
+  "skipped_tools": []
+ },
+ "steps": [
+  {
+   "tool": "requirements",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.requirements",
+    "params": {
+     "checked": "6",
+     "contradiction": "1",
+     "ambiguous_wording": "0",
+     "missing_error_handling": "0",
+     "missing_expected_result": "0"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.requirements.contradiction",
+     "params": {
+      "related": "REQ-2",
+      "terms": "“від 8 до 64 символів” ↔ “щонайменше 10 символів”"
+     },
+     "terms": [],
+     "ref": "REQ-1",
+     "refs": [],
+     "topic": "finding.contradiction"
+    }
+   ],
+   "unknowns": [],
+   "recommendations": [
+    {
+     "key": "qatask.rec.requirements_clarify",
+     "params": {
+      "ids": "REQ-1, REQ-2"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "critic",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.critic",
+    "params": {
+     "checked": "18",
+     "problems": "8"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "critic.step_generic",
+     "params": {
+      "steps": "1, 2, 3"
+     },
+     "terms": [],
+     "ref": "TC-001",
+     "refs": [
+      "TC-004",
+      "TC-007",
+      "TC-010",
+      "TC-013",
+      "TC-016"
+     ],
+     "topic": "critic.criterion.steps"
+    },
+    {
+     "key": "critic.expectation_conflict",
+     "params": {
+      "ids": "TC-005",
+      "values": "9 символів"
+     },
+     "terms": [],
+     "ref": "TC-002",
+     "refs": [],
+     "topic": "critic.criterion.conflict"
+    }
+   ],
+   "unknowns": [],
+   "recommendations": [
+    {
+     "key": "qatask.rec.critic_fix",
+     "params": {
+      "ids": "TC-001, TC-002, TC-004, TC-005, TC-007, TC-010, TC-013, TC-016"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "coverage",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.coverage",
+    "params": {
+     "checked": "6",
+     "full": "0",
+     "incomplete": "6"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.permissions"
+     ],
+     "ref": "REQ-6",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "unknowns": [],
+   "recommendations": [
+    {
+     "key": "qatask.rec.coverage",
+     "params": {
+      "ids": "REQ-6"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REQ-1",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REQ-2",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.negative",
+      "scenario.boundary"
+     ],
+     "ref": "REQ-3",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.negative",
+      "scenario.boundary"
+     ],
+     "ref": "REQ-4",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REQ-5",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REQ-6",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "impact",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.impact_none",
+    "params": {},
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "traceability",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.traceability",
+    "params": {
+     "requirements": "6",
+     "covered": "0",
+     "gaps": "0"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-1",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-2",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-3",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-4",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-5",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-6",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "suites",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.suites",
+    "params": {
+     "smoke": "0",
+     "regression": "0",
+     "full": "18"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [
+    {
+     "key": "qatask.suites.no_approved",
+     "params": {},
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "ai",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.ai",
+    "params": {
+     "model": "Ollama · qwen2.5:14b",
+     "problems": "6",
+     "questions": "2",
+     "rejected": "0"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Вимоги REQ-1 та REQ-2 протирічать один одному, оскільки вони вказують на різні мінімальні розміри пароля.",
+      "quote": "Пароль має містити від 8 до 64 символів."
+     },
+     "terms": [],
+     "ref": "REQ-1",
+     "refs": [
+      "REQ-2"
+     ],
+     "topic": "qatask.ai.category.contradiction"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Вимоги REQ-3 та REQ-4 протирічать один одному, оскільки вони вказують на різні мінімальні розміри аватара.",
+      "quote": "Розмір аватара не повинен перевищувати 1 МБ."
+     },
+     "terms": [],
+     "ref": "REQ-3",
+     "refs": [
+      "REQ-4"
+     ],
+     "topic": "qatask.ai.category.contradiction"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Тестовий випадок TC-003 не відповідає вимозі REQ-1, оскільки він перевищує максимальний розмір пароля.",
+      "quote": "128 символів → відхиляється (невалідне)"
+     },
+     "terms": [],
+     "ref": "REQ-1",
+     "refs": [
+      "TC-003"
+     ],
+     "topic": "qatask.ai.category.test_gap"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Тестовий випадок TC-006 не відповідає вимозі REQ-2, оскільки він перевищує максимальний розмір пароля.",
+      "quote": "20 символів → приймається (валідне)"
+     },
+     "terms": [],
+     "ref": "REQ-2",
+     "refs": [
+      "TC-006"
+     ],
+     "topic": "qatask.ai.category.test_gap"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Тестовий випадок TC-009 не відповідає вимозі REQ-3, оскільки він перевищує максимальний розмір аватара.",
+      "quote": "2048 КБ → відхиляється (невалідне)"
+     },
+     "terms": [],
+     "ref": "REQ-3",
+     "refs": [
+      "TC-009"
+     ],
+     "topic": "qatask.ai.category.test_gap"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Тестовий випадок TC-012 не відповідає вимозі REQ-4, оскільки він перевищує максимальний розмір аватара.",
+      "quote": "2048 КБ → відхиляється (невалідне)"
+     },
+     "terms": [],
+     "ref": "REQ-4",
+     "refs": [
+      "TC-012"
+     ],
+     "topic": "qatask.ai.category.test_gap"
+    }
+   ],
+   "unknowns": [
+    {
+     "key": "qatask.ai.question",
+     "params": {
+      "text": "Який розмір пароля повинен бути використаний для вимоги REQ-1 та REQ-2?"
+     },
+     "terms": [],
+     "ref": "REQ-1",
+     "refs": [
+      "REQ-2"
+     ],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.question",
+     "params": {
+      "text": "Який розмір аватара повинен бути використаний для вимоги REQ-3 та REQ-4?"
+     },
+     "terms": [],
+     "ref": "REQ-3",
+     "refs": [
+      "REQ-4"
+     ],
+     "topic": ""
+    }
+   ],
+   "recommendations": [
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Виправте протиріччя між вимогами REQ-1 та REQ-2."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Виправте протиріччя між вимогами REQ-3 та REQ-4."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Перевірте та виправте тестові випадки, які не відповідають вимогам."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  }
+ ],
+ "action": null,
+ "approval": {
+  "key": "qatask.approval.summary_ids",
+  "params": {
+   "draft": "18",
+   "total": "18",
+   "ids": "REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6"
+  },
+  "terms": [
+   "qatask.tool.coverage",
+   "qatask.tool.traceability",
+   "qatask.tool.suites"
+  ],
+  "ref": "",
+  "refs": [],
+  "topic": ""
+ }
+}

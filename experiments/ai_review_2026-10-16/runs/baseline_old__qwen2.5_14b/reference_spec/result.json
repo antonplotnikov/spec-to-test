@@ -1,0 +1,957 @@
+{
+ "task": "Full check",
+ "document_hash": "2235af266b1669b5",
+ "status": "done",
+ "error": "",
+ "plan": {
+  "tools": [
+   "requirements",
+   "critic",
+   "coverage",
+   "impact",
+   "traceability",
+   "suites"
+  ],
+  "test_case_ids": [],
+  "requirement_ids": [],
+  "unknown_ids": [],
+  "unsupported_terms": [],
+  "action": null,
+  "action_needs_ids": false,
+  "action_too_large": false,
+  "action_conflicts": [],
+  "skipped_tools": []
+ },
+ "steps": [
+  {
+   "tool": "requirements",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.requirements",
+    "params": {
+     "checked": "20",
+     "contradiction": "2",
+     "ambiguous_wording": "2",
+     "missing_error_handling": "3",
+     "missing_expected_result": "6"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.requirements.ambiguous_wording",
+     "params": {
+      "terms": "quickly, user-friendly"
+     },
+     "terms": [],
+     "ref": "REF-07",
+     "refs": [],
+     "topic": "finding.ambiguous_wording"
+    },
+    {
+     "key": "qatask.requirements.missing_expected_result",
+     "params": {
+      "terms": ""
+     },
+     "terms": [],
+     "ref": "REF-08",
+     "refs": [
+      "REF-10",
+      "REF-13",
+      "REF-17",
+      "REF-19",
+      "REF-20"
+     ],
+     "topic": "finding.missing_expected_result"
+    },
+    {
+     "key": "qatask.requirements.missing_error_handling",
+     "params": {
+      "terms": "enters"
+     },
+     "terms": [],
+     "ref": "REF-10",
+     "refs": [],
+     "topic": "finding.missing_error_handling"
+    },
+    {
+     "key": "qatask.requirements.contradiction",
+     "params": {
+      "related": "REF-12",
+      "terms": "“at least 8 characters” ↔ “at least 12 characters”"
+     },
+     "terms": [],
+     "ref": "REF-11",
+     "refs": [],
+     "topic": "finding.contradiction"
+    },
+    {
+     "key": "qatask.requirements.contradiction",
+     "params": {
+      "related": "REF-14",
+      "terms": "“must” ↔ “must not”"
+     },
+     "terms": [],
+     "ref": "REF-13",
+     "refs": [],
+     "topic": "finding.contradiction"
+    },
+    {
+     "key": "qatask.requirements.ambiguous_wording",
+     "params": {
+      "terms": "зручним"
+     },
+     "terms": [],
+     "ref": "REF-16",
+     "refs": [],
+     "topic": "finding.ambiguous_wording"
+    },
+    {
+     "key": "qatask.requirements.missing_error_handling",
+     "params": {
+      "terms": "завантажити"
+     },
+     "terms": [],
+     "ref": "REF-17",
+     "refs": [],
+     "topic": "finding.missing_error_handling"
+    },
+    {
+     "key": "qatask.requirements.missing_error_handling",
+     "params": {
+      "terms": "вводит, форму"
+     },
+     "terms": [],
+     "ref": "REF-20",
+     "refs": [],
+     "topic": "finding.missing_error_handling"
+    }
+   ],
+   "unknowns": [],
+   "recommendations": [
+    {
+     "key": "qatask.rec.requirements_clarify",
+     "params": {
+      "ids": "REF-07, REF-08, REF-10, REF-11, REF-12, REF-13, REF-14, REF-16, REF-17, REF-19, REF-20"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "critic",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.critic",
+    "params": {
+     "checked": "32",
+     "problems": "20"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "critic.step_generic",
+     "params": {
+      "steps": "1, 2, 3"
+     },
+     "terms": [],
+     "ref": "TC-001",
+     "refs": [
+      "TC-005",
+      "TC-008",
+      "TC-011",
+      "TC-012",
+      "TC-013",
+      "TC-014",
+      "TC-015",
+      "TC-016",
+      "TC-017",
+      "TC-020",
+      "TC-023",
+      "TC-024",
+      "TC-025",
+      "TC-028",
+      "TC-029",
+      "TC-030",
+      "TC-031",
+      "TC-032"
+     ],
+     "topic": "critic.criterion.steps"
+    },
+    {
+     "key": "critic.step_generic",
+     "params": {
+      "steps": "2, 3"
+     },
+     "terms": [],
+     "ref": "TC-004",
+     "refs": [],
+     "topic": "critic.criterion.steps"
+    }
+   ],
+   "unknowns": [
+    {
+     "key": "critic.requirement_no_expected",
+     "params": {},
+     "terms": [],
+     "ref": "TC-014",
+     "refs": [
+      "TC-016",
+      "TC-023",
+      "TC-029",
+      "TC-031",
+      "TC-032"
+     ],
+     "topic": "critic.criterion.requirement_match"
+    }
+   ],
+   "recommendations": [
+    {
+     "key": "qatask.rec.critic_fix",
+     "params": {
+      "ids": "TC-001, TC-004, TC-005, TC-008, TC-011, TC-012, TC-013, TC-014, TC-015, TC-016, TC-017, TC-020, TC-023, TC-024, TC-025, TC-028, TC-029, TC-030, TC-031, TC-032"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.rec.critic_unknown",
+     "params": {},
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "coverage",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.coverage",
+    "params": {
+     "checked": "20",
+     "full": "0",
+     "incomplete": "17"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-02",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.negative",
+      "scenario.state_transitions"
+     ],
+     "ref": "REF-04",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.permissions"
+     ],
+     "ref": "REF-13",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.negative",
+      "scenario.permissions"
+     ],
+     "ref": "REF-14",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.negative",
+      "scenario.boundary",
+      "scenario.state_transitions"
+     ],
+     "ref": "REF-18",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "unknowns": [
+    {
+     "key": "qatask.coverage.unknown_categories",
+     "params": {},
+     "terms": [
+      "scenario.boundary"
+     ],
+     "ref": "REF-09",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.unknown",
+     "params": {},
+     "terms": [],
+     "ref": "REF-10",
+     "refs": [
+      "REF-19",
+      "REF-20"
+     ],
+     "topic": ""
+    }
+   ],
+   "recommendations": [
+    {
+     "key": "qatask.rec.coverage",
+     "params": {
+      "ids": "REF-02, REF-04, REF-13, REF-14, REF-18"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REF-01",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.negative"
+     ],
+     "ref": "REF-02",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REF-03",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REF-04",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-05",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-06",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-07",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-08",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-09",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REF-11",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REF-12",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-13",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-14",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path",
+      "scenario.boundary"
+     ],
+     "ref": "REF-15",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-16",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-17",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REF-18",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "impact",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.impact_none",
+    "params": {},
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "traceability",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.traceability",
+    "params": {
+     "requirements": "20",
+     "covered": "0",
+     "gaps": "0"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-01",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-02",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-03",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-04",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-05",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-06",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-07",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-08",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-09",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-10",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-11",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-12",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-13",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-14",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-15",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-16",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-17",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-18",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-19",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REF-20",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "suites",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.suites",
+    "params": {
+     "smoke": "0",
+     "regression": "0",
+     "full": "32"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [
+    {
+     "key": "qatask.suites.no_approved",
+     "params": {},
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "ai",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.ai",
+    "params": {
+     "model": "Ollama · qwen2.5:14b",
+     "problems": "7",
+     "questions": "2",
+     "rejected": "0"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Requirements REF-13 and REF-14 contradict each other regarding whether admins can export the audit log.",
+      "quote": "Admins must be able to export the audit log."
+     },
+     "terms": [],
+     "ref": "REF-13",
+     "refs": [
+      "REF-14"
+     ],
+     "topic": "qatask.ai.category.contradiction"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Requirements REF-11 and REF-12 both specify minimum password lengths, but it's unclear which takes precedence.",
+      "quote": "The new password must be at least 12 characters long."
+     },
+     "terms": [],
+     "ref": "REF-11",
+     "refs": [
+      "REF-12"
+     ],
+     "topic": "qatask.ai.category.ambiguity"
+    },
+    {
+     "key": "qatask.ai.problem",
+     "params": {
+      "text": "There is no requirement or test case covering the scenario where the email address is invalid or incorrectly formatted."
+     },
+     "terms": [],
+     "ref": "REF-01",
+     "refs": [],
+     "topic": "qatask.ai.category.missing_scenario"
+    },
+    {
+     "key": "qatask.ai.problem",
+     "params": {
+      "text": "There is no requirement or test case covering the scenario where the account is locked and the user tries to log in again."
+     },
+     "terms": [],
+     "ref": "REF-04",
+     "refs": [],
+     "topic": "qatask.ai.category.missing_scenario"
+    },
+    {
+     "key": "qatask.ai.problem",
+     "params": {
+      "text": "There is no requirement or test case covering the scenario where the account is locked after 3 failed login attempts."
+     },
+     "terms": [],
+     "ref": "REF-18",
+     "refs": [],
+     "topic": "qatask.ai.category.missing_scenario"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Test case TC-017 checks for a minimum password length of 8 characters, but requirement REF-12 specifies 12 characters.",
+      "quote": "The new password must be at least 12 characters long."
+     },
+     "terms": [],
+     "ref": "TC-017",
+     "refs": [
+      "REF-12"
+     ],
+     "topic": "qatask.ai.category.test_gap"
+    },
+    {
+     "key": "qatask.ai.problem_quote",
+     "params": {
+      "text": "Test case TC-020 checks for a minimum password length of 12 characters, but requirement REF-11 specifies 8 characters.",
+      "quote": "The new password must be at least 8 characters long."
+     },
+     "terms": [],
+     "ref": "TC-020",
+     "refs": [
+      "REF-11"
+     ],
+     "topic": "qatask.ai.category.test_gap"
+    }
+   ],
+   "unknowns": [
+    {
+     "key": "qatask.ai.question",
+     "params": {
+      "text": "Which minimum password length should take precedence: 8 characters or 12 characters?"
+     },
+     "terms": [],
+     "ref": "REF-11",
+     "refs": [
+      "REF-12"
+     ],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.question",
+     "params": {
+      "text": "Should admins be able to export the audit log or not?"
+     },
+     "terms": [],
+     "ref": "REF-13",
+     "refs": [
+      "REF-14"
+     ],
+     "topic": ""
+    }
+   ],
+   "recommendations": [
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Clarify the minimum password length requirement to avoid ambiguity between REF-11 and REF-12."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Resolve the contradiction between REF-13 and REF-14 regarding admin audit log export."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Add test cases for scenarios where the email address is invalid or incorrectly formatted."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Add test cases for scenarios where the account is locked after 3 failed login attempts."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Add test cases for scenarios where the account is locked and the user tries to log in again."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  }
+ ],
+ "action": null,
+ "approval": {
+  "key": "qatask.approval.summary_ids",
+  "params": {
+   "draft": "32",
+   "total": "32",
+   "ids": "REF-01, REF-02, REF-03, REF-04, REF-05, REF-06, REF-07, REF-08, REF-09, REF-10, REF-11, REF-12, REF-13, REF-14, REF-15, REF-16, REF-17, REF-18, REF-19, REF-20"
+  },
+  "terms": [
+   "qatask.tool.coverage",
+   "qatask.tool.traceability",
+   "qatask.tool.suites"
+  ],
+  "ref": "",
+  "refs": [],
+  "topic": ""
+ }
+}

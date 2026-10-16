@@ -1,0 +1,51 @@
+{
+ "description": "Few-shot examples for the AI review: three Grill eval cases that do not overlap with the five QA Agent eval documents (one per language). Inputs are the documents' own requirements and the test cases the app generates for them (common.full_message). Answers contain only the requirement problems of each case's Grill gold (gold.issues; must_not_ask entries are left unreported); 'source' says which gold entry each item restates and is never sent to the model. The Grill gold has no test case labels, so the answers say nothing about the example test cases (the prompt says so).",
+ "selection": "08_en_irrelevant_traps: restraint (6 requirements that only look like input/boundary problems) + one input without error/result. 21_ru_duplicates_ai: a contradiction across units (200 мс vs 1 секунда) + a missing result. 29_uk_hallucinations_api: a time limit without a value + input without error/result + expired link. No example shows equal values in other units (the 1 МБ = 1024 КБ trap) or another scope (the admin session trap), so those traps measure generalization.",
+ "examples": [
+  {
+   "case": "08_en_irrelevant_traps",
+   "language": "en",
+   "answer": {
+    "problems": [
+     {"category": "missing_scenario", "ids": ["REQ-7"], "description": "No requirement says what happens when the delivery address is empty or invalid.", "quote": "The user enters a delivery address in the checkout form.", "source": "gold.issues[0] missing_error_handling: invalid or missing address"},
+     {"category": "missing_scenario", "ids": ["REQ-7"], "description": "The observable result of entering the address is not stated (is it validated, saved, shown in the order?).", "quote": "enters a delivery address", "source": "gold.issues[1] missing_expected_result: what happens with the entered address"}
+    ],
+    "questions": [
+     {"ids": ["REQ-7"], "question": "What must the checkout form show when the delivery address is empty or invalid?", "source": "gold.issues[0]"}
+    ],
+    "recommendations": []
+   }
+  },
+  {
+   "case": "21_ru_duplicates_ai",
+   "language": "ru",
+   "answer": {
+    "problems": [
+     {"category": "contradiction", "ids": ["REQ-1", "REQ-2"], "description": "Для одного и того же API заданы разные пределы времени ответа: 200 мс и 1 секунда (1000 мс).", "quote": "не должно превышать 200 мс", "source": "gold.issues[0] contradiction, gold.contradictions[0]"},
+     {"category": "missing_scenario", "ids": ["REQ-3"], "description": "Не указан наблюдаемый результат отмены заказа: что видит пользователь и что происходит с заказом.", "quote": "Пользователь может отменить заказ.", "source": "gold.issues[1] missing_expected_result: результат отмены"}
+    ],
+    "questions": [
+     {"ids": ["REQ-1", "REQ-2"], "question": "Какой предел времени ответа API действует: 200 мс или 1 секунда?", "source": "gold.issues[0]"},
+     {"ids": ["REQ-3"], "question": "Можно ли отменить заказ, который уже отправлен?", "source": "gold.issues[2] (no topic): можно ли отменить отправленный заказ"}
+    ],
+    "recommendations": []
+   }
+  },
+  {
+   "case": "29_uk_hallucinations_api",
+   "language": "uk",
+   "answer": {
+    "problems": [
+     {"category": "ambiguity", "ids": ["REQ-3"], "description": "Не вказано, скільки саме діє посилання: «обмежений час» без значення не можна перевірити.", "quote": "діє обмежений час", "source": "gold.issues[2] missing_boundary: скільки діє посилання"},
+     {"category": "missing_scenario", "ids": ["REQ-3"], "description": "Не описано, що бачить користувач, коли відкриває протерміноване посилання.", "quote": "Посилання з листа діє обмежений час.", "source": "gold.issues[3] (no topic): відкриття протермінованого посилання"},
+     {"category": "missing_scenario", "ids": ["REQ-2"], "description": "Не описано, що відбувається, якщо користувач вводить некоректний email.", "quote": "Користувач вводить email під час реєстрації.", "source": "gold.issues[0] missing_error_handling: невірний email"},
+     {"category": "missing_scenario", "ids": ["REQ-2"], "description": "Не вказано результат введення email: що бачить користувач після цього.", "quote": "вводить email", "source": "gold.issues[1] missing_expected_result: що відбувається після введення email"}
+    ],
+    "questions": [
+     {"ids": ["REQ-3"], "question": "Скільки часу діє посилання з листа?", "source": "gold.issues[2]"}
+    ],
+    "recommendations": []
+   }
+  }
+ ]
+}

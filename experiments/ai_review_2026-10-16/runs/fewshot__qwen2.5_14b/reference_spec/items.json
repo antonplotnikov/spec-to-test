@@ -1,0 +1,177 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REF-11",
+   "REF-12"
+  ],
+  "description": "Two requirements specify different minimum password lengths: 8 characters and 12 characters.",
+  "quote": "The new password must be at least 8 characters long."
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REF-13",
+   "REF-14"
+  ],
+  "description": "Two requirements contradict each other: admins must be able to export the audit log and must not export the audit log.",
+  "quote": "Admins must be able to export the audit log."
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-02"
+  ],
+  "description": "No requirement covers what happens if the email address is registered.",
+  "quote": "If the email address is not registered, the system must display the message"
+ },
+ {
+  "kind": "problem",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-08"
+  ],
+  "description": "No requirement specifies the observable result of changing the password.",
+  "quote": "The user can change the password."
+ },
+ {
+  "kind": "problem",
+  "n": 4,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-10"
+  ],
+  "description": "No requirement specifies the observable result of entering the new password twice.",
+  "quote": "The user enters the new password twice."
+ },
+ {
+  "kind": "problem",
+  "n": 5,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-17"
+  ],
+  "description": "No requirement specifies the observable result of uploading an avatar.",
+  "quote": "Користувач може завантажити аватар."
+ },
+ {
+  "kind": "problem",
+  "n": 6,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-18"
+  ],
+  "description": "No requirement specifies the observable result of locking the account after 3 failed login attempts.",
+  "quote": "Система должна заблокировать учетную запись после 3 неудачных попыток входа."
+ },
+ {
+  "kind": "problem",
+  "n": 7,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-19"
+  ],
+  "description": "No requirement specifies the observable result of the limited number of attempts.",
+  "quote": "Количество попыток ограничено."
+ },
+ {
+  "kind": "problem",
+  "n": 8,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-20"
+  ],
+  "description": "No requirement specifies the observable result of entering the email in the form.",
+  "quote": "Пользователь вводит email в форму."
+ },
+ {
+  "kind": "problem",
+  "n": 9,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "TC-017",
+   "REF-12"
+  ],
+  "description": "Test case TC-017 checks for a minimum password length of 8 characters, but requirement REF-12 specifies 12 characters.",
+  "quote": "The new password must be at least 12 characters long."
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REF-11",
+   "REF-12"
+  ],
+  "question": "What is the minimum password length requirement?"
+ },
+ {
+  "kind": "question",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REF-13",
+   "REF-14"
+  ],
+  "question": "Can admins export the audit log?"
+ },
+ {
+  "kind": "recommendation",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the minimum password length requirement and update the conflicting test cases."
+ },
+ {
+  "kind": "recommendation",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Resolve the contradiction between REF-13 and REF-14 regarding admin access to the audit log."
+ }
+]

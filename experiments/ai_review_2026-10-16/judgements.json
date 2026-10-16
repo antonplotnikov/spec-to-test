@@ -1,0 +1,151 @@
+{
+ "description": "Manual judgement of every AI problem line (accepted by ai_review.to_step), in reply order (n = index in review.problems). Judged by meaning against qa_agent_gold.json, the same way as the 2026-10-16 judgement of the old run. Questions and recommendations are not scored (the eval never counts Unknowns as found).",
+ "verdicts": {
+  "tp": "matches a required gold problem (gold = '<kind> <ids>'); the first line per gold problem",
+  "dup": "restates a problem already credited in the same reply (the other side of a contradiction, the same item again)",
+  "optional": "matches an optional (debatable) gold problem: neutral",
+  "outside": "not in the gold, checked by hand and a real problem of the text: counts against eval precision, for manual precision",
+  "disputed": "not in the gold, debatable: counts against eval precision, left out of manual precision",
+  "fp": "wrong claim; 'trap' names the must_not entry it falls into"
+ },
+ "variants": {
+  "baseline_old": {
+   "password_reset": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-4,REQ-7"},
+    {"n": 1, "verdict": "tp", "gold": "ambiguous_wording REQ-5", "category_ok": false, "note": "labelled test_gap"},
+    {"n": 2, "verdict": "tp", "gold": "missing_boundary REQ-6", "category_ok": false, "note": "labelled test_gap"}
+   ],
+   "qa_demo": [
+    {"n": 0, "verdict": "optional", "gold": "missing_error_handling REQ-2", "note": "invalid email at sign-in"},
+    {"n": 1, "verdict": "tp", "gold": "missing_expected_result REQ-5"},
+    {"n": 2, "verdict": "fp", "note": "invents a 'not signed in' case for a link rule"}
+   ],
+   "reference_spec": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REF-13,REF-14"},
+    {"n": 1, "verdict": "tp", "gold": "contradiction REF-11,REF-12", "category_ok": false, "note": "labelled ambiguity"},
+    {"n": 2, "verdict": "fp", "trap": "requirement REF-01", "note": "invalid email is REF-20's input, REF-01 is a clear requirement"},
+    {"n": 3, "verdict": "fp", "trap": "requirement REF-04", "note": "clear requirement"},
+    {"n": 4, "verdict": "fp", "trap": "requirement REF-18", "note": "says no test case covers REF-18; TC-030 does"},
+    {"n": 5, "verdict": "fp", "note": "TC-017 traces REF-11 correctly"},
+    {"n": 6, "verdict": "fp", "note": "TC-020 traces REF-12 correctly"}
+   ],
+   "checkout_ru": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-3,REQ-4"},
+    {"n": 1, "verdict": "fp", "note": "TC-006 traces REQ-4 correctly"},
+    {"n": 2, "verdict": "fp", "note": "same claim with REQ-3"}
+   ],
+   "uk_units_ranges": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-1,REQ-2"},
+    {"n": 1, "verdict": "fp", "trap": "contradiction REQ-3,REQ-4", "note": "1 МБ = 1024 КБ"},
+    {"n": 2, "verdict": "fp", "note": "128 characters rejected is correct for 8–64"},
+    {"n": 3, "verdict": "fp", "note": "20 characters accepted is correct for ≥ 10"},
+    {"n": 4, "verdict": "fp", "note": "2048 КБ rejected is correct"},
+    {"n": 5, "verdict": "fp", "note": "2048 КБ rejected is correct"}
+   ]
+  },
+  "baseline_rerun": {
+   "password_reset": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-4,REQ-7"},
+    {"n": 1, "verdict": "tp", "gold": "ambiguous_wording REQ-5", "category_ok": false, "note": "labelled test_gap"},
+    {"n": 2, "verdict": "tp", "gold": "missing_boundary REQ-6", "category_ok": false, "note": "labelled test_gap"}
+   ],
+   "qa_demo": [
+    {"n": 0, "verdict": "optional", "gold": "missing_error_handling REQ-2", "note": "invalid email at sign-in"},
+    {"n": 1, "verdict": "fp", "note": "a wrong password is REQ-3"},
+    {"n": 2, "verdict": "tp", "gold": "missing_expected_result REQ-5"},
+    {"n": 3, "verdict": "fp", "note": "invents a 'not signed in' case for a link rule"}
+   ],
+   "reference_spec": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REF-13,REF-14"},
+    {"n": 1, "verdict": "tp", "gold": "missing_boundary REF-09", "note": "rule miss found"},
+    {"n": 2, "verdict": "fp", "trap": "requirement REF-01", "note": "invalid email is REF-20's input"},
+    {"n": 3, "verdict": "fp", "trap": "requirement REF-04", "note": "clear requirement"},
+    {"n": 4, "verdict": "fp", "trap": "requirement REF-15", "note": "clear requirement"},
+    {"n": 5, "verdict": "fp", "note": "7 characters is TC-018's rejected probe, not a mismatch"},
+    {"n": 6, "verdict": "fp", "note": "11 characters is TC-021's rejected probe, not a mismatch"}
+   ],
+   "checkout_ru": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-3,REQ-4"},
+    {"n": 1, "verdict": "fp", "note": "TC-006 traces REQ-4 correctly"},
+    {"n": 2, "verdict": "fp", "note": "same claim with REQ-3"}
+   ],
+   "uk_units_ranges": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-1,REQ-2"},
+    {"n": 1, "verdict": "fp", "trap": "contradiction REQ-3,REQ-4", "note": "1 МБ = 1024 КБ"},
+    {"n": 2, "verdict": "fp", "note": "128 characters rejected is correct for 8–64"},
+    {"n": 3, "verdict": "fp", "note": "20 characters accepted is correct for ≥ 10"},
+    {"n": 4, "verdict": "fp", "note": "2048 КБ rejected is correct"},
+    {"n": 5, "verdict": "fp", "note": "2048 КБ rejected is correct"}
+   ]
+  },
+  "full": {
+   "password_reset": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-4,REQ-7"},
+    {"n": 1, "verdict": "tp", "gold": "ambiguous_wording REQ-5", "category_ok": false, "note": "labelled test_gap"},
+    {"n": 2, "verdict": "tp", "gold": "missing_boundary REQ-6"},
+    {"n": 3, "verdict": "disputed", "note": "'generic message' has no exact text; but REQ-8 is deliberately generic and its purpose (not revealing accounts) is testable"}
+   ],
+   "qa_demo": [
+    {"n": 0, "verdict": "optional", "gold": "missing_error_handling REQ-2", "note": "invalid email at sign-in"},
+    {"n": 1, "verdict": "dup", "note": "another sign-in failure (unregistered user): the same optional REQ-2 item"},
+    {"n": 2, "verdict": "fp", "note": "REQ-5 is about a signed-in user; deleting while signed out is invented"},
+    {"n": 3, "verdict": "fp", "note": "invents a 'not signed in' case for a link rule"}
+   ],
+   "reference_spec": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REF-13,REF-14"},
+    {"n": 1, "verdict": "tp", "gold": "missing_boundary REF-09", "note": "rule miss found"},
+    {"n": 2, "verdict": "fp", "trap": "requirement REF-01", "note": "an unregistered address is REF-02"},
+    {"n": 3, "verdict": "fp", "note": "TC-017 traces REF-11 correctly"},
+    {"n": 4, "verdict": "dup", "note": "REF-13/14 contradiction again, through TC-024"}
+   ],
+   "checkout_ru": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-3,REQ-4"},
+    {"n": 1, "verdict": "dup", "note": "REQ-3/4 contradiction again; names TC-006, not the conflicting TC-004/TC-008"}
+   ],
+   "uk_units_ranges": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-1,REQ-2"},
+    {"n": 1, "verdict": "fp", "trap": "contradiction REQ-3,REQ-4", "note": "1 МБ = 1024 КБ"},
+    {"n": 2, "verdict": "fp", "note": "TC-004 traces REQ-2 correctly"},
+    {"n": 3, "verdict": "fp", "note": "TC-001 traces REQ-1 correctly"}
+   ]
+  },
+  "fewshot": {
+   "password_reset": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-4,REQ-7"},
+    {"n": 1, "verdict": "tp", "gold": "missing_boundary REQ-6"},
+    {"n": 2, "verdict": "fp", "note": "TC-011 quotes REQ-7 verbatim"}
+   ],
+   "qa_demo": [
+    {"n": 0, "verdict": "optional", "gold": "missing_error_handling REQ-2", "note": "invalid email at sign-in"},
+    {"n": 1, "verdict": "fp", "note": "a wrong email or password is REQ-3 ('Invalid email or password')"},
+    {"n": 2, "verdict": "tp", "gold": "missing_expected_result REQ-5"},
+    {"n": 3, "verdict": "disputed", "note": "REQ-6 states the result (stays inside the shop); only the exact destination is open, close to the optional REQ-6 ambiguity"}
+   ],
+   "reference_spec": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REF-11,REF-12"},
+    {"n": 1, "verdict": "tp", "gold": "contradiction REF-13,REF-14"},
+    {"n": 2, "verdict": "fp", "trap": "requirement REF-02", "note": "a registered address is REF-01"},
+    {"n": 3, "verdict": "tp", "gold": "missing_expected_result REF-08"},
+    {"n": 4, "verdict": "tp", "gold": "missing_expected_result REF-10"},
+    {"n": 5, "verdict": "tp", "gold": "missing_expected_result REF-17"},
+    {"n": 6, "verdict": "fp", "trap": "requirement REF-18", "note": "the lock is the stated result"},
+    {"n": 7, "verdict": "tp", "gold": "missing_expected_result REF-19", "note": "not the missing number (missing_boundary REF-19 stays missed)"},
+    {"n": 8, "verdict": "tp", "gold": "missing_expected_result REF-20"},
+    {"n": 9, "verdict": "fp", "note": "TC-017 traces REF-11 correctly"}
+   ],
+   "checkout_ru": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-3,REQ-4"},
+    {"n": 1, "verdict": "outside", "note": "checkout with an empty cart: a real negative flow REQ-1 does not cover; low severity"},
+    {"n": 2, "verdict": "tp", "gold": "missing_error_handling REQ-5", "note": "empty phone number"}
+   ],
+   "uk_units_ranges": [
+    {"n": 0, "verdict": "tp", "gold": "contradiction REQ-1,REQ-2"},
+    {"n": 1, "verdict": "fp", "trap": "contradiction REQ-3,REQ-4", "note": "1 МБ = 1024 КБ"},
+    {"n": 2, "verdict": "fp", "note": "9 characters is valid for 8–64"},
+    {"n": 3, "verdict": "tp", "gold": "expectation_conflict TC-002,TC-005", "category_ok": false, "note": "TC-002 accepts 9 characters, REQ-2 rejects them; labelled test_gap"},
+    {"n": 4, "verdict": "fp", "note": "1024 КБ = 1 МБ is accepted, correct"},
+    {"n": 5, "verdict": "fp", "note": "1024 КБ is accepted, correct"}
+   ]
+  }
+ }
+}
