@@ -337,6 +337,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "column.scenarios_missing": {"en": "Missing scenarios", "uk": "Відсутні сценарії", "ru": "Отсутствующие сценарии"},
     "column.scenario_coverage": {"en": "Scenario coverage", "uk": "Покриття сценаріїв", "ru": "Покрытие сценариев"},
     "column.scenario_reason": {"en": "Applicability rationale", "uk": "Обґрунтування застосовності", "ru": "Обоснование применимости"},
+    "column.scenario_unchecked": {
+        "en": "Conditions no test case names", "uk": "Умови, яких не називає жоден тест-кейс",
+        "ru": "Условия, которые не называет ни один тест-кейс",
+    },
     "scenario.happy_path": {"en": "Happy Path", "uk": "Основний сценарій", "ru": "Основной сценарий"},
     "scenario.negative": {"en": "Negative", "uk": "Негативний", "ru": "Негативный"},
     "scenario.boundary": {"en": "Boundary", "uk": "Граничні значення", "ru": "Граничные значения"},
@@ -620,6 +624,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Title, at least one step and the expected result are required.",
         "uk": "Потрібні назва, хоча б один крок і очікуваний результат.",
         "ru": "Нужны название, хотя бы один шаг и ожидаемый результат.",
+    },
+    # IDs of the previous version: the same ID may now be another requirement or test case.
+    "impact.previous_ids": {
+        "en": "{ids} (previous version)", "uk": "{ids} (попередня версія)", "ru": "{ids} (предыдущая версия)",
     },
     "impact.previous": {"en": "“{title}” from {date}", "uk": "«{title}» від {date}", "ru": "«{title}» от {date}"},
     "impact.unknown_previous": {
@@ -933,6 +941,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Для деяких комбінацій умов вимога не вказує результат. Запитайте автора, а не припускайте.",
         "ru": "Для некоторых комбинаций условий требование не указывает результат. Спросите автора, а не предполагайте.",
     },
+    "design.partial_check": {
+        "en": "Partial check: only “{phrase}” is varied. {req} also states other conditions that these values do not check: {conditions}. Each test value must meet them, otherwise the expectation above does not apply.",
+        "uk": "Часткова перевірка: змінюється лише «{phrase}». {req} містить й інші умови, які ці значення не перевіряють: {conditions}. Кожне тестове значення має їм відповідати, інакше очікування вище не застосовується.",
+        "ru": "Частичная проверка: меняется только «{phrase}». {req} содержит и другие условия, которые эти значения не проверяют: {conditions}. Каждое тестовое значение должно им соответствовать, иначе ожидание выше не применяется.",
+    },
+    "design.partial_check_unnamed": {
+        "en": "Partial check: only “{phrase}” is varied. {req} also states other conditions that these values do not check. Each test value must meet them, otherwise the expectation above does not apply.",
+        "uk": "Часткова перевірка: змінюється лише «{phrase}». {req} містить й інші умови, які ці значення не перевіряють. Кожне тестове значення має їм відповідати, інакше очікування вище не застосовується.",
+        "ru": "Частичная проверка: меняется только «{phrase}». {req} содержит и другие условия, которые эти значения не проверяют. Каждое тестовое значение должно им соответствовать, иначе ожидание выше не применяется.",
+    },
+    "design.quote": {"en": "“{text}”", "uk": "«{text}»", "ru": "«{text}»"},
     # --- Bug reports -----------------------------------------------------------
     "bugs.explainer": {
         "en": "Bug reports describe problems in the requirements (not in the product). Generate them from open findings, then edit freely.",

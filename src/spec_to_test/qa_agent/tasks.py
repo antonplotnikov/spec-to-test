@@ -134,6 +134,9 @@ class Item(BaseModel):
     ref: str = ""  # the requirement or test case it is about
     refs: list[str] = Field(default_factory=list)  # further IDs of the same line (see _merge)
     topic: str = ""  # translation key of a short label shown before the line
+    # Its IDs (own and the "ids" parameter) are of the previous version of the document (Change Impact):
+    # there the same ID may now be another requirement or test case, so they are shown marked.
+    previous_version: bool = False
 
     @property
     def ids(self) -> list[str]:
@@ -356,6 +359,7 @@ def _coverage(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> S
     full = 0
     incomplete = []
     gaps = []
+    conditions = []
     for req in requirements:
         tests = ws.tests_for(req.id)
         coverage = scenario_coverage(req, tests)
@@ -373,6 +377,11 @@ def _coverage(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> S
                                           terms=[f"scenario.{c.value}" for c in pending]))
         elif coverage.percent is not None:
             full += 1
+        if coverage.unchecked_conditions:
+            conditions.append(req.id)
+            step.problems.append(Item(key="qatask.coverage.unchecked_condition", ref=req.id, params={
+                "conditions": ", ".join(f"“{c}”" for c in coverage.unchecked_conditions),
+            }))
         if coverage.percent is None:
             step.unknowns.append(Item(key="qatask.coverage.unknown", ref=req.id))
         elif coverage.unknown:
@@ -383,6 +392,8 @@ def _coverage(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> S
     })
     if gaps:
         step.recommendations.append(Item(key="qatask.rec.coverage", params={"ids": ", ".join(gaps)}))
+    if conditions:
+        step.recommendations.append(Item(key="qatask.rec.coverage_condition", params={"ids": ", ".join(conditions)}))
     return step
 
 
@@ -402,14 +413,16 @@ def _impact(_plan: AgentPlan, _ws: Workspace, impact: ChangeImpact | None) -> St
     for tc in impact.test_cases:
         step.problems.append(Item(key="qatask.impact.test_case", ref=tc.test_case_id,
                                   params={"req": tc.requirement_id},
-                                  terms=[f"review.{tc.review_status.value}", f"impact.reason.{tc.reason}"]))
+                                  terms=[f"review.{tc.review_status.value}", f"impact.reason.{tc.reason}"],
+                                  previous_version=True))
     for change in impact.changes:
         if change.kind == "unknown":
-            step.unknowns.append(Item(key="qatask.impact.change_unknown", ref=change.new_id or change.old_id))
+            step.unknowns.append(Item(key="qatask.impact.change_unknown", ref=change.new_id or change.old_id,
+                                      previous_version=not change.new_id))
     if impact.test_cases:
         step.recommendations.append(Item(key="qatask.rec.impact_review", params={
             "ids": ", ".join(tc.test_case_id for tc in impact.test_cases),
-        }))
+        }, previous_version=True))
     if added := [c.new_id for c in impact.changes if c.kind == "added"]:
         step.recommendations.append(Item(key="qatask.rec.impact_added", params={"ids": ", ".join(added)}))
     return step
@@ -496,7 +509,7 @@ def _merge(items: list[Item]) -> list[Item]:
             if pair in pairs:
                 continue
             pairs.add(pair)
-        text = (item.key, item.topic, tuple(item.terms), tuple(sorted(item.params.items())))
+        text = (item.key, item.topic, tuple(item.terms), tuple(sorted(item.params.items())), item.previous_version)
         if item.ref and (first := by_text.get(text)) is not None:
             first.refs += [i for i in item.ids if i not in first.ids]
             continue
@@ -524,6 +537,11 @@ def _approval_summary(steps: list[StepResult], plan: AgentPlan, ws: Workspace) -
 # ---------------------------------------------------------------------------
 # What a report line refers to
 # ---------------------------------------------------------------------------
+
+def shown_ids(lang: str, item: Item, ids: str) -> str:
+    """IDs of `item` as a report shows them: marked when they are of the previous version."""
+    return t("impact.previous_ids", lang, ids=ids) if ids and item.previous_version else ids
+
 
 # A quoted requirement text or test case title is cut to this many characters.
 REFERENCE_TEXT_LENGTH = 160

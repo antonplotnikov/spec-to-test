@@ -6,12 +6,21 @@ import json
 import pytest
 from streamlit.testing.v1 import AppTest
 
+import qa_task_ui
 from conftest import PROJECT_ROOT, goto, home
 from spec_to_test.evaluation.cases import FIXTURES_DIR
 from spec_to_test.evaluation.qa_agent_eval import load_gold
 from spec_to_test.input_parser import extract_requirements
-from spec_to_test.models import ChangeImpact, ClarificationStatus, ReviewStatus, Source, TestCaseImpact, Workspace
-from spec_to_test.qa_agent import tasks
+from spec_to_test.models import (
+    ChangeImpact,
+    ClarificationStatus,
+    RequirementChange,
+    ReviewStatus,
+    Source,
+    TestCaseImpact,
+    Workspace,
+)
+from spec_to_test.qa_agent import on_change, tasks
 from spec_to_test.qa_agent.on_change import build_workspace
 from spec_to_test.qa_agent.tasks import AgentResult, Item, ProposedAction, apply_action, plan_task, run_task
 from spec_to_test.rule_engine import analyze_requirements
@@ -414,6 +423,40 @@ def test_references_name_test_cases_and_skip_what_the_document_lacks(ws):
     assert tasks.references(Item(key="qatask.impact.test_case", ref="TC-001"), ws) == []
 
 
+@pytest.mark.parametrize("render", [on_change._line, qa_task_ui._line])
+def test_change_impact_ids_are_never_matched_to_this_version(ws, render):
+    """The previous version's TC-002 has no reliable counterpart here: this version has another TC-002, and
+    its title is shared by two test cases. The line names it as an ID of the previous version, unmatched."""
+    ws.test_cases[2].title = ws.test_cases[1].title
+    ws.change_impact = ChangeImpact(previous_title="Password reset", changes=[
+        RequirementChange(kind="unknown", new_id="REQ-2", new_text=ws.requirements[1].text),
+        RequirementChange(kind="unknown", old_id="REQ-9", old_text="Old wording"),
+    ], test_cases=[
+        TestCaseImpact(test_case_id="TC-002", requirement_id="REQ-9", review_status=ReviewStatus.APPROVED,
+                       reason="unknown"),
+    ])
+    step = run_task("what changed?", ws).steps[0]
+    [problem] = step.problems
+    assert render("en", problem) == (
+        "- **TC-002 (previous version)**: test case linked to REQ-9 of the previous version: "
+        "Approved, Unknown — the requirement has no reliable match in the new version")
+    assert render("ru", problem).startswith("- **TC-002 (предыдущая версия)**: тест-кейс, связанный с REQ-9 "
+                                            "предыдущей версии")
+    assert tasks.references(problem, ws) == []
+    # An Unknown change names the new ID when there is one; the old ID only of a requirement left without one.
+    # The two are separate lines, never merged under one heading.
+    assert [render("en", i) for i in step.unknowns] == [
+        "- **REQ-2**: no reliable counterpart in the other version",
+        "- **REQ-9 (previous version)**: no reliable counterpart in the other version",
+    ]
+    [review] = [r for r in step.recommendations if r.key == "qatask.rec.impact_review"]
+    assert render("uk", review) == ("- Перегляньте тест-кейси попередньої версії перед повторним використанням: "
+                                    "TC-002 (попередня версія).")
+    # Lines of this version are shown as before.
+    assert render("en", Item(key="qatask.rec.impact_added", params={"ids": "REQ-10"})) == (
+        "- Write test cases for the new requirements: REQ-10.")
+
+
 def test_a_line_on_many_test_cases_quotes_only_the_first_ones(ws):
     ids = [tc.id for tc in ws.test_cases[:tasks.MAX_REFERENCES + 3]]
     lines = tasks.reference_lines("en", Item(key="critic.step_generic", ref=ids[0], refs=ids[1:]), ws)
@@ -563,7 +606,8 @@ def test_page_shows_what_an_edit_of_the_document_resolved(example_text):
     _rerun(at, "  Full   check ")  # the same task, spaced differently
     assert "Since the previous run" in [s.value for s in at.subheader]
     summary = next(w.value for w in at.warning if "previous check" in w.value)  # warning: there are new problems
-    assert "resolved 2, still open 16, new 2; could not be compared 1 before / 1 now" in summary
+    # Still open includes REQ-4's condition no test case names ("contain one digit"), in both runs.
+    assert "resolved 2, still open 17, new 2; could not be compared 1 before / 1 now" in summary
     lines = next(m.value for m in at.markdown if m.value.startswith("**Resolved (2)**"))
     resolved, new = lines.split("**New (2)**")
     assert "**REQ-4 · Possible contradiction**: conflicts with REQ-7" in resolved
@@ -609,3 +653,38 @@ def test_rerun_identity_of_document_and_task():
     assert not _same_document(untitled, "default", Workspace(document_hash="h2"))
     assert _same_task("Full check", " Full\n check ")
     assert not _same_task("Full check", "full check of REQ-1")
+
+
+def test_full_check_names_the_condition_no_test_case_names(ws):
+    result = run_task("Full check", ws)
+    [line] = [i for i in result.problems if i.key == "qatask.coverage.unchecked_condition"]
+    # REQ-4: "at least 8 characters long and contain one digit"; its test cases vary only the length.
+    assert (line.ids, line.params) == (["REQ-4"], {"conditions": "“contain one digit”"})
+    assert qa_task_ui._line("en", line).replace("\\", "") == (
+        "- **REQ-4**: condition not covered: no test case names “contain one digit”; the boundary and equivalence"
+        " values vary only the numeric limit (found by wording, not by meaning)"
+    )
+    coverage = next(step for step in result.steps if step.tool == "coverage")
+    assert Item(key="qatask.rec.coverage_condition", params={"ids": "REQ-4"}) in coverage.recommendations
+    # The contradiction of the two length limits is still reported as before.
+    assert any(i.key == "qatask.requirements.contradiction" and {"REQ-4", "REQ-7"} <= i.mentions
+               for i in result.problems)
+    # A test case that names the digit, even a Draft, clears the line; nothing is generated for it.
+    digit = ws.test_cases[0].model_copy(update={
+        "id": "TC-100", "requirement_id": "REQ-4", "title": "REQ-4: a 9-character password without a digit",
+        "steps": ["Enter “abcdefghi”."], "expected_result": "The password is rejected."})
+    after = run_task("Full check", ws.model_copy(update={"test_cases": [*ws.test_cases, digit]}))
+    assert not any(i.key == "qatask.coverage.unchecked_condition" for i in after.problems)
+    assert len(ws.test_cases) == len(generate_test_cases(ws, "en"))
+
+
+def test_rerun_compares_the_condition_line_like_any_problem(ws):
+    first = run_task("Full check", ws)
+    same = tasks.compare_problems(first, run_task("Full check", ws))
+    assert (same.resolved, same.new, same.still_open) == ([], [], same.still_open) and same.still_open > 0
+    digit = ws.test_cases[0].model_copy(update={
+        "id": "TC-100", "requirement_id": "REQ-4", "title": "REQ-4: a 9-character password without a digit",
+        "steps": ["Enter “abcdefghi”."], "expected_result": "The password is rejected."})
+    after = tasks.compare_problems(first, run_task("Full check", ws.model_copy(update={
+        "test_cases": [*ws.test_cases, digit]})))
+    assert [(i.key, i.ids) for i in after.resolved] == [("qatask.coverage.unchecked_condition", ["REQ-4"])]

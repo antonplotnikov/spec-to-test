@@ -78,6 +78,7 @@ from spec_to_test.qa_agent.tasks import (
     next_step_lines,
     reference_lines,
     run_task,
+    shown_ids,
 )
 from spec_to_test.rule_engine import analyze_requirements
 from spec_to_test.test_generator import generate_test_cases
@@ -371,6 +372,8 @@ def handle_action(request: Request, result: AgentResult, saved: bool) -> tuple[A
 
 def _text(lang: str, item: Item) -> str:
     params: dict[str, object] = dict(item.params)
+    if "ids" in params:
+        params["ids"] = shown_ids(lang, item, item.params["ids"])
     if item.terms:
         params["names"] = ", ".join(t(term, lang) for term in item.terms)
     try:
@@ -380,7 +383,8 @@ def _text(lang: str, item: Item) -> str:
 
 
 def _line(lang: str, item: Item) -> str:
-    head = " · ".join(part for part in (", ".join(item.ids), t(item.topic, lang) if item.topic else "") if part)
+    ids = shown_ids(lang, item, ", ".join(item.ids))
+    head = " · ".join(part for part in (ids, t(item.topic, lang) if item.topic else "") if part)
     text = escape_markdown(_text(lang, item))
     return f"- **{escape_markdown(head)}**: {text}" if head else f"- {text}"
 

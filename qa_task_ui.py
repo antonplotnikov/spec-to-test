@@ -77,6 +77,8 @@ class Rerun:
 
 def _text(lang: str, item: Item) -> str:
     params: dict[str, Any] = dict(item.params)
+    if "ids" in params:
+        params["ids"] = tasks.shown_ids(lang, item, item.params["ids"])
     if item.terms:
         params["names"] = ", ".join(t(term, lang) for term in item.terms)
     try:
@@ -86,7 +88,8 @@ def _text(lang: str, item: Item) -> str:
 
 
 def _line(lang: str, item: Item) -> str:
-    head = " · ".join(part for part in (", ".join(item.ids), t(item.topic, lang) if item.topic else "") if part)
+    ids = tasks.shown_ids(lang, item, ", ".join(item.ids))
+    head = " · ".join(part for part in (ids, t(item.topic, lang) if item.topic else "") if part)
     text = escape_markdown(_text(lang, item))
     return f"- **{escape_markdown(head)}**: {text}" if head else f"- {text}"
 

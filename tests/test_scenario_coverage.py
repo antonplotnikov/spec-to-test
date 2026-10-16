@@ -1,7 +1,10 @@
+import pytest
+
 from spec_to_test.models import Requirement, ReviewStatus, TestCase, TestType, Workspace
 from spec_to_test.rtm import Coverage, build_rtm
 from spec_to_test.scenario_coverage import ScenarioCategory as C
 from spec_to_test.scenario_coverage import categories_of_test_case, scenario_coverage
+from spec_to_test.test_generator import _short
 
 
 def req(text: str) -> Requirement:
@@ -118,3 +121,34 @@ def test_limit_with_a_value_but_no_known_unit_is_boundary_not_unknown():
         assert C.BOUNDARY in sc.applicable and C.BOUNDARY not in sc.unknown, text
         assert sc.reasons[C.BOUNDARY] == phrase
         assert sc.percent == 50.0  # a happy path alone is not full coverage
+
+
+COMPOUND = "The new password must be at least 8 characters long and contain one digit."
+
+
+def test_condition_no_test_case_names_is_listed_without_changing_coverage():
+    r = req(COMPOUND)
+    cases = [tc(TestType.POSITIVE, title=f"REQ-1: {_short(COMPOUND)}", expected=COMPOUND),
+             tc(TestType.BOUNDARY, title="REQ-1: boundary values for “at least 8 characters”",
+                expected="7 characters → rejected (invalid)\n8 characters → accepted (valid)", n=2)]
+    sc = scenario_coverage(r, cases)
+    # Lengths vary, the digit does not: the boundary values say nothing about it.
+    assert sc.unchecked_conditions == ["contain one digit"]
+    # Statuses stay as they were: the condition is listed, not counted.
+    assert (sc.applicable, sc.covered, sc.percent) == ([C.HAPPY_PATH, C.BOUNDARY], [C.HAPPY_PATH, C.BOUNDARY], 100.0)
+    # A test case that names the digit (in any status) clears the line; wording only, not meaning.
+    digit = tc(TestType.NEGATIVE, title="Password of 9 characters without digits is rejected", n=3,
+               status=ReviewStatus.DRAFT)
+    assert scenario_coverage(r, [*cases, digit]).unchecked_conditions == []
+
+
+@pytest.mark.parametrize("text", [
+    "The new password must be at least 8 characters long.",
+    "The new password must be between 8 and 64 characters.",
+])
+def test_plain_numeric_requirement_has_no_unchecked_condition(text):
+    assert scenario_coverage(req(text), [tc(TestType.BOUNDARY)]).unchecked_conditions == []
+
+
+def test_no_unchecked_condition_without_test_cases():
+    assert scenario_coverage(req(COMPOUND), []).unchecked_conditions == []

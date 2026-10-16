@@ -288,6 +288,14 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "no Approved test case for: {names}", "немає затвердженого тест-кейсу для: {names}",
         "нет утверждённого тест-кейса для: {names}",
     ),
+    "qatask.coverage.unchecked_condition": _e(
+        "condition not covered: no test case names {conditions}; the boundary and equivalence values vary only"
+        " the numeric limit (found by wording, not by meaning)",
+        "умову не покрито: жоден тест-кейс не називає {conditions}; граничні значення та класи еквівалентності"
+        " змінюють лише числове обмеження (визначено за формулюванням, а не за змістом)",
+        "условие не покрыто: ни один тест-кейс не называет {conditions}; граничные значения и классы"
+        " эквивалентности меняют только числовое ограничение (определено по формулировке, а не по смыслу)",
+    ),
     "qatask.coverage.unknown": _e(
         "the text is not enough to tell which scenarios apply", "тексту недостатньо, щоб визначити потрібні сценарії",
         "текста недостаточно, чтобы определить нужные сценарии",
@@ -300,9 +308,9 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "несколько документов «{title}» одинаково новые",
     ),
     "qatask.impact.test_case": _e(
-        "test case of the previous version, linked to {req}: {names}",
-        "тест-кейс попередньої версії, пов'язаний з {req}: {names}",
-        "тест-кейс предыдущей версии, связанный с {req}: {names}",
+        "test case linked to {req} of the previous version: {names}",
+        "тест-кейс, пов'язаний з {req} попередньої версії: {names}",
+        "тест-кейс, связанный с {req} предыдущей версии: {names}",
     ),
     "qatask.impact.change_unknown": _e(
         "no reliable counterpart in the other version", "немає надійної відповідності в іншій версії",
@@ -348,6 +356,14 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "Add and approve test cases for the missing scenarios of {ids}.",
         "Додайте й затвердьте тест-кейси для пропущених сценаріїв {ids}.",
         "Добавьте и утвердите тест-кейсы для пропущенных сценариев {ids}.",
+    ),
+    "qatask.rec.coverage_condition": _e(
+        "Add a test case for each condition of {ids} that no test case names: a value that meets the numeric"
+        " limit but breaks that condition.",
+        "Додайте тест-кейс для кожної умови {ids}, якої не називає жоден тест-кейс: значення, що відповідає"
+        " числовому обмеженню, але порушує цю умову.",
+        "Добавьте тест-кейс для каждого условия {ids}, которое не называет ни один тест-кейс: значение,"
+        " которое соответствует числовому ограничению, но нарушает это условие.",
     ),
     "qatask.rec.impact_compare_manually": _e(
         "Open the Analysis page and check which document is the previous version.",

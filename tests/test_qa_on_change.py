@@ -79,6 +79,38 @@ def test_a_changed_document_is_analyzed_reported_and_journaled(docs, out, capsys
     assert not (out / on_change.LOCK_FILE).exists()
 
 
+def test_change_impact_marks_the_ids_of_the_previous_version(tmp_path, out):
+    """v1 → v2 (REQ-5 and REQ-7 changed, REQ-10 added): Change Impact names test cases of v1. There TC-012
+    tests REQ-7, in v2 it is a test case of REQ-6, so the IDs are marked and nothing of v2 is quoted for them."""
+    text = EXAMPLE.read_text(encoding="utf-8")
+    v2 = (text.replace("should load fast and be user-friendly", "must load within 2 seconds")
+          .replace("at least 10 characters", "at least 12 characters")
+          + "- REQ-10: The user receives a confirmation email after the password is changed.\n")
+    old, new = tmp_path / "v1.md", tmp_path / "v2.md"
+    old.write_text(text, encoding="utf-8")
+    new.write_text(v2, encoding="utf-8")
+    before, after = ({tc.id: tc for tc in build_workspace(source, name, "en").test_cases}
+                     for source, name in ((text, old.name), (v2, new.name)))
+    assert (before["TC-012"].requirement_id, after["TC-012"].requirement_id) == ("REQ-7", "REQ-6")
+
+    assert main(["--document", str(new), "--previous", str(old), "--out", str(out)]) == 0
+    [entry] = _journal(out)
+    report = (out / "runs" / entry["run_id"] / "report.md").read_text(encoding="utf-8")
+    assert "1 added, 2 modified, 0 removed, 0 unknown" in report
+    lines = report.splitlines()
+    impact = [i for i, line in enumerate(lines) if "linked to REQ-" in line]
+    assert [lines[i] for i in impact] == [
+        "- **TC-009 (previous version)**: test case linked to REQ-5 of the previous version: "
+        "Draft, the requirement text changed",
+        "- **TC-011, TC-012, TC-013 (previous version)**: test case linked to REQ-7 of the previous version: "
+        "Draft, the requirement text changed",
+    ]
+    assert not [lines[i + 1] for i in impact if lines[i + 1].startswith("  - ")]  # no v2 test case quoted
+    assert ("- Review the test cases of the previous version before reusing them: "
+            "TC-009, TC-011, TC-012, TC-013 (previous version).") in lines
+    assert "- Write test cases for the new requirements: REQ-10." in lines  # an ID of v2: not marked
+
+
 def test_the_report_uses_the_chosen_language(docs, out):
     _, new = docs
     entry = run_on_change(Request(document=new, out=out, lang="ru"))

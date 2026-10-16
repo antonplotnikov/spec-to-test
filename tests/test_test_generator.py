@@ -4,7 +4,8 @@ from spec_to_test.i18n import UNIT_FORMS, t
 from spec_to_test.input_parser import extract_requirements
 from spec_to_test.models import ReviewStatus, Source, TestType, Workspace
 from spec_to_test.rule_engine import analyze_requirements
-from spec_to_test.test_generator import generate_test_cases, next_test_case_id
+from spec_to_test.test_design import design_tests
+from spec_to_test.test_generator import generate_test_cases, is_partial_check, next_test_case_id, other_conditions
 
 
 def workspace_for(text: str) -> Workspace:
@@ -210,3 +211,17 @@ def test_partition_step_keeps_the_unit_in_the_number_form():
     assert steps == ["Класс ≤ 2: используйте значение 1 неделя.", "Класс > 2: используйте значение 4 недели."]
     steps = [s for c in generate_test_cases(ws, "uk") if c.test_type == TestType.EQUIVALENCE for s in c.steps]
     assert steps == ["Клас ≤ 2: використайте значення 1 тиждень.", "Клас > 2: використайте значення 4 тижні."]
+
+
+@pytest.mark.parametrize(("text", "conditions"), [
+    ("REQ-1: The new password must be at least 8 characters long and contain one digit.", ["contain one digit"]),
+    ("REQ-1: The new password must be at least 8 characters long.", []),
+    ("REQ-1: The new password must be between 8 and 64 characters.", []),  # its "and" is the range
+    ("REQ-1: The new password must be at least 8 characters and at most 64 characters.", []),
+    ("REQ-1: The reset page should load fast and be user-friendly.", []),  # no numeric limit to vary
+])
+def test_other_conditions_are_the_parts_a_partial_check_leaves_out(text, conditions):
+    [req] = workspace_for(text).requirements
+    design = design_tests(req)
+    assert is_partial_check(req.text, design) == bool(conditions)
+    assert other_conditions(req.text, design) == conditions

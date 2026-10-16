@@ -29,8 +29,10 @@ Scoring:
   Approved yet) say nothing about the texts: the agent sums them up apart from the
   problems (AgentResult.approval) and they are counted there; a status line still
   among the problems is status noise, outside precision;
-- scenarios that no generated test case covers (qatask.coverage.no_test_case) are
-  not in the gold: they are neither true nor false positives;
+- scenarios that no generated test case covers (qatask.coverage.no_test_case) and
+  conditions of a numeric requirement that no test case names
+  (qatask.coverage.unchecked_condition) are not in the gold: they are neither true
+  nor false positives;
 - a test case problem with `expect` (probe value → whether the requirement's
   statement holds there: accepted, in time, still in effect, the change has
   happened) is resolved when the generated test cases give every listed value
@@ -93,8 +95,9 @@ PROBLEM_KINDS = {
     "critic.expectation_conflict": "expectation_conflict",
     "critic.duplicate": "duplicate_test_case",
 }
-# Problem lines the gold does not judge: scenarios no generated test case covers.
-UNJUDGED_KEYS = frozenset({"qatask.coverage.no_test_case"})
+# Problem lines the gold does not judge: scenarios no generated test case covers, and
+# conditions no test case names.
+UNJUDGED_KEYS = frozenset({"qatask.coverage.no_test_case", "qatask.coverage.unchecked_condition"})
 # Lines about review status (only Approved test cases count there), not about the texts.
 STATUS_KEYS = frozenset({
     "qatask.coverage.missing", "qatask.trace.not_approved", "qatask.suites.no_approved",

@@ -56,19 +56,48 @@ def _user_action(text: str) -> str | None:
     return action
 
 
-def _has_other_conditions(text: str, phrases: list[str]) -> bool:
-    """Whether the requirement joins more to its numeric limits with "and"/"or"
-    ("at least 8 characters long and contain one digit"). Boundary values vary only
-    the number, so such cases check part of the requirement."""
+def _without_limits(text: str, phrases: list[str], mark: str = " ") -> str:
+    """The requirement with each numeric limit phrase replaced by `mark`."""
     text = _normalize(text)
     for phrase in phrases:
         parts = phrase.split(" … ")  # a merged range: "at least 8 characters … at most 64 characters"
         if len(parts) == 2:  # its own "and" is not another condition
             for first, second in (parts, parts[::-1]):
-                text = re.sub(rf"{re.escape(first)}{_AND.pattern}{re.escape(second)}", " ", text, flags=re.IGNORECASE)
+                text = re.sub(rf"{re.escape(first)}{_AND.pattern}{re.escape(second)}", mark, text, flags=re.IGNORECASE)
         for part in parts:
-            text = text.replace(part, " ")
+            text = text.replace(part, mark)
+    return text
+
+
+def _has_other_conditions(text: str, phrases: list[str]) -> bool:
+    """Whether the requirement joins more to its numeric limits with "and"/"or"
+    ("at least 8 characters long and contain one digit"). Boundary values vary only
+    the number, so such cases check part of the requirement."""
+    text = _without_limits(text, phrases)
     return bool(_AND.search(text) or _OR.search(text))
+
+
+def is_partial_check(text: str, design: TestDesign) -> bool:
+    """Whether the boundary and equivalence cases of `design` vary only part of the requirement."""
+    phrases = [b.constraint.phrase for b in design.boundaries]
+    return bool(phrases) and _has_other_conditions(text, phrases)
+
+
+_LIMIT_MARK = "\x00"
+
+
+def other_conditions(text: str, design: TestDesign) -> list[str]:
+    """The parts of a partial-check requirement joined to its numeric limits, quoted:
+    "contain one digit". Split at "and"/"or" only, so a part may carry more words
+    than the condition itself; empty when no part is left without a limit."""
+    if not is_partial_check(text, design):
+        return []
+    text = _without_limits(text, [b.constraint.phrase for b in design.boundaries], f" {_LIMIT_MARK} ")
+    parts = re.split(f"{_AND.pattern}|{_OR.pattern}", text, flags=re.IGNORECASE)
+    return [
+        clean for part in parts
+        if _LIMIT_MARK not in part and (clean := " ".join(part.split()).strip(" .,;:!?"))
+    ]
 
 
 def _value_line(value: str, unit: str, expectation: str, lang: str) -> str:
