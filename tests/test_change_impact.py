@@ -110,7 +110,9 @@ def test_reupload_of_changed_document_shows_impact_without_changing_statuses():
     assert not at.exception
     goto(at, "analysis")
     warning = "\n".join(w.value for w in at.warning)
-    assert "modified 1" in warning and "REQ-1: the requirement text changed" in warning
+    assert "modified 1" in warning
+    # IDs of the previous version are marked: the same ID may now be another test case.
+    assert "- TC-001 (previous version), Draft — REQ-1 (previous version): the requirement text changed" in warning
     assert "Review statuses were not changed" in warning
     assert all(tc.review_status == ReviewStatus.DRAFT for tc in old_ws.test_cases)
     assert at.session_state["workspace"].change_impact.changes[0].kind == "modified"

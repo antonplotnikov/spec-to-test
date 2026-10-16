@@ -39,6 +39,13 @@ def test_steps_must_be_concrete():
     assert issue.code == "step_generic" and issue.params == {"steps": "1, 2, 3"}
 
 
+def test_quoted_capability_step_is_not_generic():
+    stated = t("tc.step_perform_stated", req="REQ-1", action="request a password reset from the login page")
+    ws = Workspace(requirements=[REQ], test_cases=[tc(steps=[t("tc.step_prepare", req="REQ-1"), stated])])
+    [issue] = [i for i in critique(ws.test_cases[0], ws) if i.criterion == "steps"]
+    assert issue.code == "step_generic" and issue.params == {"steps": "1"}
+
+
 def test_expected_result_must_be_checkable():
     assert "expected_placeholder" in codes(tc(expected=t("tests.new_expected")))
     assert "expected_vague" in codes(tc(expected="The form works properly."))
@@ -146,6 +153,15 @@ def test_conflicts_from_the_evaluation_are_found(source, pair, value):
     [issue] = [i for i in critique(case, ws) if i.criterion == "conflict"]
     assert issue.code == "expectation_conflict" and not issue.unknown
     assert issue.params == {"ids": b, "values": value}
+
+
+def test_partial_check_keeps_the_conflict_with_another_requirement():
+    # The partial-check note is an assumption, not a precondition, so the cases stay comparable.
+    ws = _analyzed("REQ-1: The new password must be at least 8 characters long and contain one digit.\n"
+                   "REQ-2: The new password must be at most 7 characters long.")
+    assert [f for f in ws.findings if f.type == FindingType.CONTRADICTION]
+    assert any(c.assumptions for c in ws.test_cases if c.requirement_id == "REQ-1")
+    assert _conflicts(ws)["TC-002"] == {"TC-005": ["7 characters", "8 characters"]}
 
 
 def _probe(n: int, expected: str, requirement_id: str = "REQ-1", preconditions=()) -> TestCase:

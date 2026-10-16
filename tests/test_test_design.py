@@ -48,6 +48,32 @@ def test_ranges_in_all_languages(text):
     assert [p.name for p in design.partitions[0].partitions] == ["below", "inside", "above"]
 
 
+@pytest.mark.parametrize(("text", "phrase"), [
+    ("The new password must be 8 or more characters long.", "8 or more characters"),
+    ("The new password must contain 8 characters or more.", "8 characters or more"),
+    ("Пароль должен содержать 8 и более символов.", "8 и более символов"),
+    ("Пароль должен содержать 8 символов или более.", "8 символов или более"),
+    ("Пароль має містити 8 або більше символів.", "8 або більше символів"),
+])
+def test_or_more_with_an_obligation_is_an_inclusive_lower_limit(text, phrase):
+    # Before: no boundary at all ("8 or more characters") or an exact 8 with 7 and 9 "unspecified".
+    [boundary] = design_tests(Requirement(id="R", text=text)).boundaries
+    assert (boundary.constraint.kind, boundary.constraint.phrase) == ("min", phrase)
+    assert values(boundary) == [("7", "invalid"), ("8", "valid"), ("9", "valid")]
+
+
+@pytest.mark.parametrize("text", [
+    "Passwords of 65 or more characters are rejected.",
+    "The system must reject passwords with 65 or more characters.",
+    "The password must not be 65 or more characters long.",
+])
+def test_or_more_without_an_obligation_on_the_value_is_not_guessed(text):
+    # Here "65 or more" may be the rejected side: only the stated value keeps its outcome.
+    [boundary] = design_tests(Requirement(id="R", text=text)).boundaries
+    assert boundary.constraint.kind == "exact"
+    assert values(boundary) == [("64", "unspecified"), ("65", "stated"), ("66", "unspecified")]
+
+
 def test_exact_value_does_not_invent_neighbour_behavior():
     design = design_tests(Requirement(id="R", text="The discount is 10%."))
     assert values(design.boundaries[0]) == [("9", "unspecified"), ("10", "stated"), ("11", "unspecified")]

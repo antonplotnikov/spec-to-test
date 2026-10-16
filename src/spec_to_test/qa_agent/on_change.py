@@ -35,6 +35,10 @@ finished run is skipped; --force runs it again. One run per --out folder at a
 time (<out>/.run.lock; a lock older than 15 minutes is treated as left over
 unless its process still runs on this machine).
 
+The report and the journal compare the problems with the previous finished run
+of the same document, project and task in this --out folder (its result.json):
+resolved, still open and new (tasks.compare_problems).
+
 Exit code: 0 the analysis finished or was skipped as a repeat, 1 it failed in
 part or whole or a permitted change was not applied, 2 a usage or input error
 or another run in progress.
@@ -68,9 +72,13 @@ from spec_to_test.qa_agent.tasks import (
     MAX_TASK_LENGTH,
     AgentResult,
     Item,
+    ProblemComparison,
     apply_action,
+    compare_problems,
+    next_step_lines,
     reference_lines,
     run_task,
+    shown_ids,
 )
 from spec_to_test.rule_engine import analyze_requirements
 from spec_to_test.test_generator import generate_test_cases
@@ -139,6 +147,16 @@ class JournalEntry(BaseModel):
     action_test_case_ids: list[str] = Field(default_factory=list)
     action_status: str = ""
     changed_test_case_ids: list[str] = Field(default_factory=list)
+    # The previous run of the same document, project and task, and its problems now (tasks.compare_problems).
+    compared_with: str = ""
+    compared_at: str = ""
+    # Counted per requirement or test case of a line (tasks.ProblemComparison).
+    resolved: int = 0
+    still_open: int = 0
+    new_problems: int = 0
+    # Problems of test cases that cannot be told apart, in the previous run and in this one.
+    unmatched_before: int = 0
+    unmatched_now: int = 0
     report: str = ""
 
 
@@ -168,6 +186,20 @@ class Journal:
 
     def finished(self, key: str) -> JournalEntry | None:
         return next((e for e in reversed(self.entries()) if e.key == key and e.status in FINISHED), None)
+
+    def previous_run(self, out: Path, entry: JournalEntry) -> tuple[JournalEntry, AgentResult] | None:
+        """The latest run of the same document, project and task that left a readable result."""
+        document = os.path.normpath(entry.document)
+        for earlier in reversed(self.entries()):
+            if (earlier.status not in ("done", "partial") or os.path.normpath(earlier.document) != document
+                    or earlier.project_id != entry.project_id or earlier.task != entry.task):
+                continue
+            try:
+                result = (out / "runs" / earlier.run_id / "result.json").read_text(encoding="utf-8")
+                return earlier, AgentResult.model_validate_json(result)
+            except (OSError, ValueError):
+                continue  # removed or damaged: try an older one
+        return None
 
     def append(self, entry: JournalEntry) -> None:
         with self.path.open("a", encoding="utf-8") as handle:
@@ -340,6 +372,8 @@ def handle_action(request: Request, result: AgentResult, saved: bool) -> tuple[A
 
 def _text(lang: str, item: Item) -> str:
     params: dict[str, object] = dict(item.params)
+    if "ids" in params:
+        params["ids"] = shown_ids(lang, item, item.params["ids"])
     if item.terms:
         params["names"] = ", ".join(t(term, lang) for term in item.terms)
     try:
@@ -349,7 +383,8 @@ def _text(lang: str, item: Item) -> str:
 
 
 def _line(lang: str, item: Item) -> str:
-    head = " · ".join(part for part in (", ".join(item.ids), t(item.topic, lang) if item.topic else "") if part)
+    ids = shown_ids(lang, item, ", ".join(item.ids))
+    head = " · ".join(part for part in (ids, t(item.topic, lang) if item.topic else "") if part)
     text = escape_markdown(_text(lang, item))
     return f"- **{escape_markdown(head)}**: {text}" if head else f"- {text}"
 
@@ -363,7 +398,46 @@ _ACTION_NOTES = {
 }
 
 
-def markdown_report(entry: JournalEntry, workspace: Workspace, result: AgentResult, lang: str) -> str:
+def _previous_lines(lang: str, entry: JournalEntry, comparison: ProblemComparison, items: list[Item]) -> list[str]:
+    """Lines of the previous run, each with the title its test cases had then."""
+    lines = []
+    for item in items:
+        lines.append(_line(lang, item))
+        for i in item.ids:
+            if (title := comparison.previous_titles.get(i)) is not None:
+                text = t("qatask.compare.previous_test_case", lang, id=i, run=entry.compared_with, text=title)
+                lines.append(f"  - {escape_markdown(text)}")
+    return lines
+
+
+def _comparison_lines(lang: str, entry: JournalEntry, comparison: ProblemComparison) -> list[str]:
+    lines = [f"## {t('qatask.compare.heading', lang)}", "",
+             escape_markdown(t("qatask.compare.summary", lang, run=entry.compared_with, at=entry.compared_at,
+                               resolved=comparison.resolved_count, open=comparison.still_open,
+                               new=comparison.new_count))]
+    if comparison.resolved:
+        lines += ["", f"### {t('qatask.compare.resolved', lang, count=comparison.resolved_count)}", ""]
+        lines += _previous_lines(lang, entry, comparison, comparison.resolved)
+    if comparison.new:
+        lines += ["", f"### {t('qatask.compare.new', lang, count=comparison.new_count)}", ""]
+        lines += [_line(lang, i) for i in comparison.new]
+    if comparison.unmatched_before or comparison.unmatched_now:
+        heading = t("qatask.compare.unmatched", lang, before=comparison.unmatched_before_count,
+                    run=entry.compared_with, now=comparison.unmatched_now_count)
+        lines += ["", f"### {heading}", "", f"_{t('qatask.compare.unmatched_why', lang)}_", ""]
+        lines += _previous_lines(lang, entry, comparison, comparison.unmatched_before)
+        for item in comparison.unmatched_now:
+            lines.append(_line(lang, item))
+            lines += [f"  - {escape_markdown(t('qatask.compare.current_test_case', lang, id=i, text=title))}"
+                      for i in item.ids if (title := comparison.current_titles.get(i)) is not None]
+    if comparison.not_compared:
+        names = ", ".join(t(f"qatask.tool.{tool}", lang) for tool in comparison.not_compared)
+        lines += ["", f"_{t('qatask.compare.not_compared', lang, names=names)}_"]
+    return lines
+
+
+def markdown_report(entry: JournalEntry, workspace: Workspace, result: AgentResult, lang: str,
+                    comparison: ProblemComparison | None = None) -> str:
     impact = workspace.change_impact
     previous = (f"{escape_markdown(impact.previous_title)} ({impact.previous_document_hash or 'unknown'})"
                 if impact is not None else "none")
@@ -394,9 +468,12 @@ def markdown_report(entry: JournalEntry, workspace: Workspace, result: AgentResu
             lines.append(f"- {t('qatask.step_failed', lang, tool=name, error=step.error)}")
         elif step.summary is not None:
             lines.append(f"- **{name}**: {escape_markdown(_text(lang, step.summary))}")
+    if comparison is not None:
+        lines += ["", *_comparison_lines(lang, entry, comparison)]
     problems, unknowns, recommendations = result.problems, result.unknowns, result.recommendations
     lines += ["", f"## {t('qatask.heading.problems', lang, count=len(problems))}", ""]
-    lines += [line for i in problems for line in (_line(lang, i), *reference_lines(lang, i, workspace))] or [
+    lines += [line for i in problems
+              for line in (_line(lang, i), *reference_lines(lang, i, workspace), *next_step_lines(lang, i))] or [
         t("qatask.no_problems", lang)]
     if unknowns:
         lines += ["", f"## {t('qatask.heading.unknowns', lang, count=len(unknowns))}", ""]
@@ -476,12 +553,20 @@ def _run(request: Request, journal: Journal, entry: JournalEntry) -> None:
         entry.action_test_case_ids = list(result.action.test_case_ids)
         entry.action_status = result.action.status.value
     entry.action, entry.action_reason, entry.changed_test_case_ids = handle_action(request, result, saved)
+    comparison = None
+    if result.status in ("done", "partial") and (last := journal.previous_run(request.out, entry)) is not None:
+        last_entry, last_result = last
+        comparison = compare_problems(last_result, result)
+        entry.compared_with, entry.compared_at = last_entry.run_id, last_entry.started_at
+        entry.resolved, entry.still_open = comparison.resolved_count, comparison.still_open
+        entry.new_problems = comparison.new_count
+        entry.unmatched_before, entry.unmatched_now = comparison.unmatched_before_count, comparison.unmatched_now_count
 
     run_dir = request.out / "runs" / entry.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "result.json").write_text(result.model_dump_json(indent=1), encoding="utf-8")
     report = run_dir / "report.md"
-    report.write_text(markdown_report(entry, workspace, result, request.lang), encoding="utf-8")
+    report.write_text(markdown_report(entry, workspace, result, request.lang, comparison), encoding="utf-8")
     entry.report = str(report)
 
 
@@ -533,6 +618,11 @@ def main(argv: list[str] | None = None) -> int:
         line += f"; same inputs as run {entry.duplicate_of} (use --force to run again)"
     elif entry.status not in ("input_error", "crashed"):
         line += f"; problems {entry.problems}, unknowns {entry.unknowns}, recommendations {entry.recommendations}"
+        if entry.compared_with:
+            line += (f"; since run {entry.compared_with}: resolved {entry.resolved}, still open {entry.still_open},"
+                     f" new {entry.new_problems}")
+            if entry.unmatched_before or entry.unmatched_now:
+                line += f", not comparable {entry.unmatched_before} before / {entry.unmatched_now} now"
     if entry.ai_error:
         line += f"; AI review failed: {t(f'ai.error.{entry.ai_error}', request.lang)}"
     elif entry.ai and entry.status not in ("skipped", "input_error", "crashed"):

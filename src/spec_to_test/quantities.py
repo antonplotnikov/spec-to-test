@@ -13,7 +13,9 @@ when a known unit or currency is written next to it.
   compared (no exchange rates are assumed).
 - Comparators: min ("at least", "не менее", "щонайменше"), max ("up to",
   "не более", "не більше", "must not exceed", "не повинен перевищувати"), strict gt ("more than", "свыше", "понад") and lt
-  ("less than", "менее", "менше"), or exact.
+  ("less than", "менее", "менше"), or exact. "N or more" ("8 и более", "8 або
+  більше") is a min only after an obligation ("must contain 8 or more
+  characters"); otherwise it may name the rejected side and stays exact.
 - Ranges: "between 8 and 64 characters", "8-64 characters", "от 8 до 64
   символов", "від 8 до 64 символів", "from $10 to $50".
 - Number formats: "1 000", "1,000", "1 000,50", "2.5", "2,5".
@@ -77,9 +79,22 @@ _SUFFIX_ANY = "|".join(f"(?:{suffix})" for suffix in UNITS.values())
 _PREFIX_ANY = "|".join(f"(?:{prefix})" for _, _, _, prefix in _UNIT_TABLE.values() if prefix)
 _END = r"(?![\w$€£₽₴%])"
 
+# "8 or more characters", "8 символов и более", "8 або більше символів".
+OR_MORE_WORDS = r"or more|(?:и|или) (?:более|больше)|(?:або|і|й|та|чи) більше"
+# An obligation right before the number: "must be / must contain / должен содержать / має містити".
+# Only then is "N or more" the valid side; "passwords of 65 or more characters are rejected" is not.
+_OBLIGATION_BEFORE = re.compile(
+    r"(?<!\w)(?:must|shall|should|has to|have to|needs? to)\s+(?:be|have|contain|consist of|include)\s*$|"
+    r"(?<!\w)(?:долж(?:ен|на|но|ны)|обязан\w*)\s+(?:быть|содержать|состоять из|иметь|включать)\s*$|"
+    r"(?<!\w)(?:ма(?:є|ють)|повин(?:ен|на|но|ні)|мус(?:ить|ять))\s+(?:бути|містити|складатися з|мати|включати)\s*$",
+    re.IGNORECASE,
+)
+
 _QUANTITY = re.compile(
     rf"(?:(?<!\w)(?P<min>{MIN_WORDS})|(?<!\w)(?P<max>{MAX_WORDS})|(?<!\w)(?P<gt>{GT_WORDS})|(?<!\w)(?P<lt>{LT_WORDS}))?"
-    rf"\s*(?:(?P<prefix>{_PREFIX_ANY})\s?(?P<pnum>{NUMBER})|(?<![\w.,])(?P<num>{NUMBER})\s*(?P<suffix>{_SUFFIX_ANY})){_END}",
+    rf"\s*(?:(?P<prefix>{_PREFIX_ANY})\s?(?P<pnum>{NUMBER})|"
+    rf"(?<![\w.,])(?P<num>{NUMBER})(?:\s+(?P<more_inner>{OR_MORE_WORDS}))?\s*(?P<suffix>{_SUFFIX_ANY}))"
+    rf"(?:\s+(?P<more>{OR_MORE_WORDS}))?{_END}",
     re.IGNORECASE,
 )
 _RANGE = re.compile(
@@ -191,6 +206,11 @@ def find_quantities(text: str, *, skip_ranges: bool = True) -> list[Quantity]:
         if unit is None or value is None:
             continue
         comparator = next((c for c in ("min", "max", "gt", "lt") if match.group(c)), "exact")
+        # "Must be 8 or more characters" is a lower limit. Without the obligation the sentence may
+        # describe the rejected side, so the value stays exact.
+        or_more = match.group("more_inner") or match.group("more")
+        if or_more and comparator == "exact" and _OBLIGATION_BEFORE.search(text[:match.start()]):
+            comparator = "min"
         bare_start = match.start("prefix") if match.group("prefix") else match.start("num")
         found.append(Quantity(
             unit=unit, comparator=comparator, value=value, phrase=match.group(0).strip(),

@@ -133,9 +133,15 @@ def jira_defects_csv(defects: list[DefectReport]) -> str:
 def testrail_csv(workspace: Workspace, only_approved: bool = False) -> str:
     rows = []
     for tc in exportable_test_cases(workspace, only_approved):
-        preconditions = list(tc.preconditions)
+        # The Text template has no description field, so the requirement wording and open
+        # questions go into Preconditions: a tester in TestRail sees what the case verifies.
+        req = workspace.requirement(tc.requirement_id)
+        preconditions = [f"Requirement {tc.requirement_id}: {req.text if req else ''}"]
+        preconditions += tc.preconditions
         if tc.assumptions:
             preconditions += [f"Assumption (not confirmed): {a}" for a in tc.assumptions]
+        if tc.clarification_questions:
+            preconditions += [f"Open question: {q}" for q in tc.clarification_questions]
         rows.append(
             [
                 tc.title,

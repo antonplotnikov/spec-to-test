@@ -13,9 +13,9 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     # --- Page -----------------------------------------------------------------
     "qaagent.mode.task": _e("QA task", "QA-задача", "QA-задача"),
     "qatask.explainer": _e(
-        "Describe a QA task in plain words. The agent picks the matching checks (requirements analysis, Test Case Critic, Scenario Coverage, Change Impact, Traceability, Suite Planner), runs them on the open document and sums up the result. It only reads: test case statuses change only after you confirm.",
-        "Опишіть QA-задачу звичайними словами. Агент вибере відповідні перевірки (аналіз вимог, критик тест-кейсів, покриття сценаріїв, вплив змін, трасування, планувальник наборів), виконає їх на відкритому документі й підсумує результат. Агент лише читає: статуси тест-кейсів змінюються тільки після вашого підтвердження.",
-        "Опишите QA-задачу обычными словами. Агент выберет подходящие проверки (анализ требований, критик тест-кейсов, покрытие сценариев, влияние изменений, трассировка, планировщик наборов), выполнит их на открытом документе и подведёт итог. Агент только читает: статусы тест-кейсов меняются только после вашего подтверждения.",
+        "Describe a QA task in plain words. The agent picks the matching checks (requirements analysis, Test Case Critic, Scenario Coverage, Change Impact, Traceability, Suite Planner), runs them on the open document and sums up the result. It only reads: test case statuses change only after you confirm, and missing test cases are added only when you click Generate missing test cases.",
+        "Опишіть QA-задачу звичайними словами. Агент вибере відповідні перевірки (аналіз вимог, критик тест-кейсів, покриття сценаріїв, вплив змін, трасування, планувальник наборів), виконає їх на відкритому документі й підсумує результат. Агент лише читає: статуси тест-кейсів змінюються тільки після вашого підтвердження, а відсутні тест-кейси додаються лише за кнопкою «Згенерувати відсутні тест-кейси».",
+        "Опишите QA-задачу обычными словами. Агент выберет подходящие проверки (анализ требований, критик тест-кейсов, покрытие сценариев, влияние изменений, трассировка, планировщик наборов), выполнит их на открытом документе и подведёт итог. Агент только читает: статусы тест-кейсов меняются только после вашего подтверждения, а недостающие тест-кейсы добавляются только по кнопке «Сгенерировать недостающие тест-кейсы».",
     ),
     "qatask.input": _e("Task", "Задача", "Задача"),
     "qatask.placeholder": _e(
@@ -77,6 +77,76 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qatask.ref.test_case": _e("{id} ({status}, tests {req}): “{text}”", "{id} ({status}, перевіряє {req}): «{text}»",
                                "{id} ({status}, проверяет {req}): «{text}»"),
     "qatask.ref.more": _e("…and {count} more", "…і ще {count}", "…и ещё {count}"),
+    # Under a problem whose own line does not say how to resolve it (tasks.next_step_lines).
+    "qatask.next.label": _e("Next step", "Наступний крок", "Следующий шаг"),
+    "qatask.next.ask": _e("ask the document author: “{question}”", "запитайте в автора документа: «{question}»",
+                          "спросите у автора документа: «{question}»"),
+    "qatask.next.contradiction": _e(
+        "agree on one wording of {ids} with the document author; approve their test cases only after that.",
+        "узгодьте з автором документа єдине формулювання {ids}; затверджуйте їхні тест-кейси лише після цього.",
+        "согласуйте с автором документа единую формулировку {ids}; утверждайте их тест-кейсы только после этого.",
+    ),
+    # The previous run of the same document and task compared with this one (tasks.compare_problems).
+    "qatask.compare.heading": _e("Since the previous run", "Після попереднього запуску", "После предыдущего запуска"),
+    # Counted per requirement or test case: a line naming two test cases is two problems.
+    "qatask.compare.summary": _e(
+        "Compared with run {run} ({at}), each requirement or test case of a line counted separately: "
+        "resolved {resolved}, still open {open}, new {new}.",
+        "Порівняно із запуском {run} ({at}), кожна вимога чи тест-кейс рядка рахується окремо: "
+        "усунено {resolved}, залишилось {open}, нових {new}.",
+        "По сравнению с запуском {run} ({at}), каждое требование или тест-кейс строки считается отдельно: "
+        "устранено {resolved}, осталось {open}, новых {new}.",
+    ),
+    "qatask.compare.unmatched": _e(
+        "Could not be compared ({before} in run {run}, {now} now)",
+        "Не вдалося порівняти ({before} у запуску {run}, {now} зараз)",
+        "Не удалось сравнить ({before} в запуске {run}, {now} сейчас)",
+    ),
+    "qatask.compare.unmatched_why": _e(
+        "Their test cases share a title with another test case, got another title under the same ID (renamed "
+        "or replaced), or the previous run did not keep test case titles: whether they were fixed is unknown.",
+        "Їхні тест-кейси мають ту саму назву, що й інший тест-кейс, отримали іншу назву під тим самим ID "
+        "(перейменовано або замінено) або попередній запуск не зберіг назви тест-кейсів: невідомо, чи їх виправлено.",
+        "Их тест-кейсы называются так же, как другой тест-кейс, получили другое название под тем же ID "
+        "(переименованы или заменены) или предыдущий запуск не сохранил названия тест-кейсов: неизвестно, "
+        "исправлены ли они.",
+    ),
+    "qatask.compare.resolved": _e("Resolved ({count})", "Усунено ({count})", "Устранено ({count})"),
+    "qatask.compare.previous_test_case": _e("{id} in run {run}: “{text}”", "{id} у запуску {run}: «{text}»",
+                                            "{id} в запуске {run}: «{text}»"),
+    "qatask.compare.current_test_case": _e("{id} now: “{text}”", "{id} зараз: «{text}»", "{id} сейчас: «{text}»"),
+    "qatask.compare.new": _e("New ({count})", "Нові ({count})", "Новые ({count})"),
+    "qatask.compare.not_compared": _e("Not compared: {names}.", "Не порівнюються: {names}.",
+                                      "Не сравниваются: {names}."),
+    # The QA task page: compared with the previous run of this session (same project, document title and task).
+    "qatask.rerun.summary": _e(
+        "Compared with the previous check of this document and task ({at}), each requirement or test case "
+        "counted separately: resolved {resolved}, still open {open}, new {new}; could not be compared "
+        "{before} before / {now} now.",
+        "Порівняно з попередньою перевіркою цього документа й задачі ({at}), кожна вимога чи тест-кейс "
+        "рахується окремо: усунено {resolved}, залишилось {open}, нових {new}; не вдалося порівняти "
+        "{before} до / {now} зараз.",
+        "По сравнению с предыдущей проверкой этого документа и задачи ({at}), каждое требование или тест-кейс "
+        "считается отдельно: устранено {resolved}, осталось {open}, новых {new}; не удалось сравнить "
+        "{before} до / {now} сейчас.",
+    ),
+    "qatask.rerun.unmatched": _e(
+        "Could not be compared ({before} before, {now} now)", "Не вдалося порівняти ({before} до, {now} зараз)",
+        "Не удалось сравнить ({before} до, {now} сейчас)",
+    ),
+    "qatask.rerun.previous_test_case": _e("{id} at the previous check: “{text}”",
+                                          "{id} під час попередньої перевірки: «{text}»",
+                                          "{id} при предыдущей проверке: «{text}»"),
+    "qatask.rerun.other_document": _e(
+        "Not compared with the previous check: it was of another document or project.",
+        "Не порівнюється з попередньою перевіркою: вона була іншого документа чи проєкту.",
+        "Не сравнивается с предыдущей проверкой: она была для другого документа или проекта.",
+    ),
+    "qatask.rerun.other_task": _e(
+        "Not compared with the previous check: it had another task.",
+        "Не порівнюється з попередньою перевіркою: у неї була інша задача.",
+        "Не сравнивается с предыдущей проверкой: у неё была другая задача.",
+    ),
     "qatask.status.done": _e("Done", "Виконано", "Выполнено"),
     "qatask.status.partial": _e(
         "Done in part: some checks failed.", "Виконано частково: деякі перевірки не вдалися.",
@@ -218,6 +288,14 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "no Approved test case for: {names}", "немає затвердженого тест-кейсу для: {names}",
         "нет утверждённого тест-кейса для: {names}",
     ),
+    "qatask.coverage.unchecked_condition": _e(
+        "condition not covered: no test case names {conditions}; the boundary and equivalence values vary only"
+        " the numeric limit (found by wording, not by meaning)",
+        "умову не покрито: жоден тест-кейс не називає {conditions}; граничні значення та класи еквівалентності"
+        " змінюють лише числове обмеження (визначено за формулюванням, а не за змістом)",
+        "условие не покрыто: ни один тест-кейс не называет {conditions}; граничные значения и классы"
+        " эквивалентности меняют только числовое ограничение (определено по формулировке, а не по смыслу)",
+    ),
     "qatask.coverage.unknown": _e(
         "the text is not enough to tell which scenarios apply", "тексту недостатньо, щоб визначити потрібні сценарії",
         "текста недостаточно, чтобы определить нужные сценарии",
@@ -230,9 +308,9 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "несколько документов «{title}» одинаково новые",
     ),
     "qatask.impact.test_case": _e(
-        "test case of the previous version, linked to {req}: {names}",
-        "тест-кейс попередньої версії, пов'язаний з {req}: {names}",
-        "тест-кейс предыдущей версии, связанный с {req}: {names}",
+        "test case linked to {req} of the previous version: {names}",
+        "тест-кейс, пов'язаний з {req} попередньої версії: {names}",
+        "тест-кейс, связанный с {req} предыдущей версии: {names}",
     ),
     "qatask.impact.change_unknown": _e(
         "no reliable counterpart in the other version", "немає надійної відповідності в іншій версії",
@@ -278,6 +356,14 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "Add and approve test cases for the missing scenarios of {ids}.",
         "Додайте й затвердьте тест-кейси для пропущених сценаріїв {ids}.",
         "Добавьте и утвердите тест-кейсы для пропущенных сценариев {ids}.",
+    ),
+    "qatask.rec.coverage_condition": _e(
+        "Add a test case for each condition of {ids} that no test case names: a value that meets the numeric"
+        " limit but breaks that condition.",
+        "Додайте тест-кейс для кожної умови {ids}, якої не називає жоден тест-кейс: значення, що відповідає"
+        " числовому обмеженню, але порушує цю умову.",
+        "Добавьте тест-кейс для каждого условия {ids}, которое не называет ни один тест-кейс: значение,"
+        " которое соответствует числовому ограничению, но нарушает это условие.",
     ),
     "qatask.rec.impact_compare_manually": _e(
         "Open the Analysis page and check which document is the previous version.",
@@ -415,4 +501,58 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qatask.ai.category.missing_scenario": _e("AI · Missing scenario", "AI · Відсутній сценарій", "AI · Нет сценария"),
     "qatask.ai.category.change_risk": _e("AI · Change risk", "AI · Ризик зміни", "AI · Риск изменения"),
     "qatask.ai.category.test_gap": _e("AI · Test gap", "AI · Прогалина в тестах", "AI · Пробел в тестах"),
+    # --- Missing test cases (spec_to_test.qa_agent.missing_cases) ---------------
+    "qamissing.heading": _e("Missing test cases", "Відсутні тест-кейси", "Недостающие тест-кейсы"),
+    "qamissing.explainer": _e(
+        "Requirements without test cases, or with scenarios no test case exercises yet: {ids}. The rule-based generator of the Test cases page adds only the cases that are missing, as Draft and linked to their requirement. Existing test cases are not changed.",
+        "Вимоги без тест-кейсів або зі сценаріями, які ще не перевіряє жоден тест-кейс: {ids}. Генератор на основі правил (як на сторінці тест-кейсів) додасть лише відсутні кейси — як чернетки з прив'язкою до вимоги. Наявні тест-кейси не змінюються.",
+        "Требования без тест-кейсов или со сценариями, которые ещё не проверяет ни один тест-кейс: {ids}. Генератор на основе правил (как на странице тест-кейсов) добавит только недостающие кейсы — как черновики с привязкой к требованию. Существующие тест-кейсы не меняются.",
+    ),
+    "qamissing.generate": _e("Generate missing test cases", "Згенерувати відсутні тест-кейси",
+                             "Сгенерировать недостающие тест-кейсы"),
+    "qamissing.created": _e(
+        "Created {count} test case(s) as Draft: {ids}",
+        "Створено тест-кейсів (чернетки): {count} — {ids}",
+        "Создано тест-кейсов (черновики): {count} — {ids}",
+    ),
+    "qamissing.nothing": _e(
+        "Nothing added: the generator has no new case for these gaps. They need test cases written by hand (see below).",
+        "Нічого не додано: генератор не має нових кейсів для цих прогалин. Для них потрібні тест-кейси, написані вручну (див. нижче).",
+        "Ничего не добавлено: у генератора нет новых кейсов для этих пробелов. Для них нужны тест-кейсы, написанные вручную (см. ниже).",
+    ),
+    "qamissing.expected_unclear": _e(
+        "Not defined yet: {req} needs clarification first ({reasons}). Answer the clarification questions, then write the expected result.",
+        "Ще не визначено: {req} спершу потребує уточнення ({reasons}). Дайте відповіді на уточнювальні запитання, потім запишіть очікуваний результат.",
+        "Пока не определено: {req} сначала требует уточнения ({reasons}). Ответьте на уточняющие вопросы, затем запишите ожидаемый результат.",
+    ),
+    "qamissing.cases_heading": _e("Created test cases", "Створені тест-кейси", "Созданные тест-кейсы"),
+    "qamissing.case": _e("{id} · {req} · {type}: {title}", "{id} · {req} · {type}: {title}",
+                         "{id} · {req} · {type}: {title}"),
+    "qamissing.case_expected": _e("Expected result: {text}", "Очікуваний результат: {text}",
+                                  "Ожидаемый результат: {text}"),
+    "qamissing.case_unclear": _e("⚠ needs clarification", "⚠ потребує уточнення", "⚠ требует уточнения"),
+    "qamissing.coverage_heading": _e("Coverage after generation", "Покриття після генерації",
+                                     "Покрытие после генерации"),
+    "qamissing.coverage_line": _e(
+        "{req}: test cases {before} → {after}; scenarios without a test case: {missing_before} → {missing_after}; Approved coverage: {percent}",
+        "{req}: тест-кейсів {before} → {after}; сценарії без тест-кейсу: {missing_before} → {missing_after}; покриття затвердженими: {percent}",
+        "{req}: тест-кейсов {before} → {after}; сценарии без тест-кейса: {missing_before} → {missing_after}; покрытие утверждёнными: {percent}",
+    ),
+    "qamissing.none": _e("none", "немає", "нет"),
+    "qamissing.not_applicable": _e("n/a", "н/д", "н/д"),
+    "qamissing.by_hand": _e(
+        "{req}: the generator has no case for {names}; write it by hand.",
+        "{req}: генератор не має кейсу для {names}; напишіть його вручну.",
+        "{req}: у генератора нет кейса для {names}; напишите его вручную.",
+    ),
+    "qamissing.unclear": _e(
+        "{req}: expected results of the new test cases are left undefined until it is clarified ({reasons}).",
+        "{req}: очікувані результати нових тест-кейсів не визначено до уточнення вимоги ({reasons}).",
+        "{req}: ожидаемые результаты новых тест-кейсов не определены до уточнения требования ({reasons}).",
+    ),
+    "qamissing.approved_note": _e(
+        "Draft test cases count toward coverage only once they are Approved. Run the check again to update the result above.",
+        "Чернетки враховуються в покритті лише після затвердження. Запустіть перевірку ще раз, щоб оновити результат вище.",
+        "Черновики учитываются в покрытии только после утверждения. Запустите проверку ещё раз, чтобы обновить результат выше.",
+    ),
 }

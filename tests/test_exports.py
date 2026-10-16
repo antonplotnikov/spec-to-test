@@ -65,6 +65,23 @@ def test_testrail_columns(example_text):
     assert record["Expected Result"] == tc.expected_result
 
 
+def test_testrail_preconditions_quote_requirement_and_open_questions():
+    ws = make_workspace(
+        "REQ-4: The new password must be at least 8 characters long.\n"
+        "REQ-7: The new password must be at least 10 characters long."
+    )
+    boundary = next(tc for tc in ws.test_cases if tc.requirement_id == "REQ-4" and tc.test_type == TestType.BOUNDARY)
+    assert boundary.clarification_questions  # the 8 vs 10 conflict
+    rows = parse(build_testrail_csv(ws))
+    record = next(dict(zip(rows[0], row, strict=True)) for row in rows[1:] if row[0] == boundary.title)
+    lines = record["Preconditions"].splitlines()
+    assert lines[0] == "Requirement REQ-4: The new password must be at least 8 characters long."
+    assert lines[1:1 + len(boundary.preconditions)] == boundary.preconditions
+    assert lines[-len(boundary.clarification_questions):] == [
+        f"Open question: {q}" for q in boundary.clarification_questions
+    ]
+
+
 def test_only_approved_filter(example_text):
     ws = make_workspace(example_text)
     ws.test_cases[2].review_status = ReviewStatus.APPROVED

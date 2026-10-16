@@ -12,6 +12,12 @@ Only Approved test cases count as coverage. A test case covers a category
 through its test type, or through what its own text says (the requirement
 quote is ignored, so restating the requirement is not coverage). Test cases
 that cannot be classified cover nothing.
+
+Conditions are not analyzed one by one. The one exception is a numeric limit joined
+to other conditions ("at least 8 characters long and contain one digit"): boundary
+and equivalence cases vary only the number, so the other parts are listed in
+`unchecked_conditions` when no test case of the requirement (in any status) names
+a word of them in its own text. That is a check of wording, not of meaning.
 """
 
 import re
@@ -33,6 +39,8 @@ from spec_to_test.rule_engine import (
     _normalize,
     _quantities,
 )
+from spec_to_test.test_design import design_tests
+from spec_to_test.test_generator import _short, other_conditions
 
 
 class ScenarioCategory(StrEnum):
@@ -111,6 +119,8 @@ class ScenarioCoverage(BaseModel):
     unknown: list[ScenarioCategory]
     # Category -> the requirement wording it was derived from.
     reasons: dict[ScenarioCategory, str]
+    # Parts of the requirement no test case names: see unchecked_conditions.
+    unchecked_conditions: list[str] = []
 
     @property
     def missing(self) -> list[ScenarioCategory]:
@@ -186,6 +196,51 @@ def categories_of_test_case(test_case: TestCase, requirement: Requirement) -> se
     return found
 
 
+# Words that say how a condition applies, not what it is about.
+_FUNCTION_WORDS = frozenset({
+    "must", "should", "shall", "will", "have", "also", "with", "that", "this", "than", "then", "from",
+    "должен", "должна", "должно", "должны", "может", "также", "повинен", "повинна", "повинно", "повинні",
+    "може", "також",
+})
+_WORD = re.compile(r"[^\W\d_]{4,}")
+
+
+def _stems(text: str) -> set[str]:
+    return {word[:5] for word in _WORD.findall(_normalize(text).lower()) if word not in _FUNCTION_WORDS}
+
+
+def unchecked_conditions(requirement: Requirement, test_cases: list[TestCase]) -> list[str]:
+    """Parts of a numeric requirement that its boundary and equivalence cases do not vary
+    (test_generator.other_conditions) and that no test case names. A test case names a part
+    when its own text (title, preconditions, steps, expected result, without the requirement
+    quote) has a word of it, compared by the first five letters; words the rest of the
+    requirement also uses do not count. Empty without test cases: then nothing is covered anyway."""
+    if not test_cases:
+        return []
+    conditions = other_conditions(requirement.text, design_tests(requirement))
+    if not conditions:
+        return []
+    quotes = (requirement.text, _short(requirement.text))  # a positive case's title quotes it shortened
+    named: set[str] = set()
+    for tc in test_cases:
+        own_text = "\n".join([tc.title, *tc.preconditions, *tc.steps, tc.expected_result])
+        for quote in quotes:
+            own_text = own_text.replace(quote, "")
+        named |= {word[:5] for word in _WORD.findall(_normalize(own_text).lower())}
+    unchecked = []
+    for condition in conditions:
+        rest = _stems(_normalize(requirement.text).replace(condition, " "))
+        if (stems := _stems(condition) - rest) and not stems & named:
+            unchecked.append(condition)
+    return unchecked
+
+
+def categories_without_test_case(requirement: Requirement, test_cases: list[TestCase]) -> list[ScenarioCategory]:
+    """Applicable categories that no test case exercises, whatever its review status."""
+    return scenario_coverage(requirement, [tc.model_copy(update={"review_status": ReviewStatus.APPROVED})
+                                           for tc in test_cases]).missing
+
+
 def scenario_coverage(requirement: Requirement, test_cases: list[TestCase]) -> ScenarioCoverage:
     applicable, unknown, reasons = applicable_categories(requirement)
     approved = [tc for tc in test_cases if tc.review_status == ReviewStatus.APPROVED]
@@ -195,4 +250,5 @@ def scenario_coverage(requirement: Requirement, test_cases: list[TestCase]) -> S
         covered=[c for c in applicable if c in exercised],
         unknown=unknown,
         reasons=reasons,
+        unchecked_conditions=unchecked_conditions(requirement, test_cases),
     )

@@ -204,6 +204,34 @@ def test_test_design_tab_shows_boundaries(analyzed):
     assert any("no outcome" in w.value for w in at.warning)
 
 
+PARTIAL_DESIGN = (
+    "Partial check: only “at least 8 characters” is varied. REQ-4 also states other conditions that these values "
+    "do not check: “contain one digit”. Each test value must meet them, otherwise the expectation above does not apply."
+)
+
+
+def test_test_design_marks_values_that_check_part_of_the_requirement(analyzed):
+    at = analyzed
+    design = next(sb for sb in at.selectbox if sb.key == "design_req")
+    # REQ-4: "at least 8 characters long and contain one digit". Before: the length values with no caveat,
+    # while its boundary and equivalence test cases already carried the partial-check assumption.
+    design.select("REQ-4").run()
+    warnings = [w.value.replace("\\", "") for w in at.warning]
+    assert warnings.count(PARTIAL_DESIGN) == 2  # under the boundary values and under the classes
+    # REQ-7: "at least 10 characters long" has nothing else to check.
+    design.select("REQ-7").run()
+    assert any("Boundary value analysis" in md.value for md in at.markdown)
+    assert not any("Partial check" in w.value for w in at.warning)
+
+
+def test_rtm_names_the_condition_no_test_case_names(analyzed):
+    rtm = table_with_column(goto(analyzed, "rtm"), "Conditions no test case names")
+    unchecked = dict(zip(rtm["ID"], rtm["Conditions no test case names"], strict=True))
+    assert unchecked == {**{f"REQ-{n}": "—" for n in range(1, 10)}, "REQ-4": "“contain one digit”"}
+    # Statuses stay as they were.
+    assert set(rtm["Coverage"]) == {"🟡 Partially covered"}
+
+
 def test_work_is_restored_in_a_new_session(analyzed, example_text):
     button(analyzed, "bug_generate").click().run()
     at = new_app()  # simulates reopening the app

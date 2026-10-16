@@ -15,10 +15,23 @@ Project memory (spec_to_test.qa_agent.memory) is shown beside a result when it
 is relevant to it, and is managed in the "Project memory" panel: rules the
 user confirmed and the user's ratings of results. Nothing is saved without an
 explicit click.
+
+A run is compared (tasks.compare_problems, as on_change does) with the previous
+finished run of this browser session when both checked the same document (same
+project and document title, the app's rule for a new version, or the same
+content) with the same task. Only that one previous run is kept, in the session
+state; nothing about it is saved.
+
+When the result names requirements missing test cases, "Generate missing test
+cases" (spec_to_test.qa_agent.missing_cases) adds the generator's cases for those
+gaps as Drafts, saves the document and shows the new cases with the coverage
+after them. The result above is not rerun: it stays the one of the check.
 """
 
+import time
 from collections.abc import Callable
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import streamlit as st
 
@@ -28,13 +41,17 @@ from spec_to_test.i18n import t
 from spec_to_test.llm.config import AIConfig
 from spec_to_test.llm.providers import ConfiguredProvider
 from spec_to_test.models import ChangeImpact, Workspace
-from spec_to_test.qa_agent import memory, tasks
+from spec_to_test.qa_agent import memory, missing_cases, tasks
 from spec_to_test.qa_agent.ai_review import add_ai_step, ai_review, failed_step
 from spec_to_test.qa_agent.memory import MemoryEntry, MemoryEntryError, MemoryStore, Rating
-from spec_to_test.qa_agent.tasks import AgentResult, Item, ProposedAction
+from spec_to_test.qa_agent.missing_cases import MissingGeneration
+from spec_to_test.qa_agent.tasks import AgentResult, Item, ProblemComparison, ProposedAction
+from spec_to_test.scenario_coverage import ScenarioCategory
 
 TASK = "qa_task_text"
 RESULT = "qa_task_result"
+PREVIOUS = "qa_task_previous"  # PreviousCheck: the latest finished run, compared with the next one
+RERUN = "qa_task_rerun"  # Rerun of the shown result
 CONFIRM = "qa_task_confirm"
 MESSAGE = "qa_task_message"
 RATED = "qa_task_rated"
@@ -45,11 +62,31 @@ RULE_CONFIRM = "qa_memory_rule_confirm"
 PICK = "qa_memory_pick"
 AI_CONSENT = "qa_task_ai_consent"
 AI_PENDING = "qa_task_ai_pending"
+GENERATION = "qa_task_generation"  # MissingGeneration of the shown result
 RATING_ICONS = {"useful": "👍", "not_useful": "👎"}
+
+
+@dataclass(frozen=True)
+class PreviousCheck:
+    project_id: str
+    title: str
+    result: AgentResult
+    at: str  # time of the run, shown in the comparison
+
+
+@dataclass(frozen=True)
+class Rerun:
+    """How the shown result relates to the previous check: compared, or why not."""
+
+    comparison: ProblemComparison | None = None
+    at: str = ""
+    not_compared: Literal["", "other_document", "other_task"] = ""
 
 
 def _text(lang: str, item: Item) -> str:
     params: dict[str, Any] = dict(item.params)
+    if "ids" in params:
+        params["ids"] = tasks.shown_ids(lang, item, item.params["ids"])
     if item.terms:
         params["names"] = ", ".join(t(term, lang) for term in item.terms)
     try:
@@ -59,25 +96,60 @@ def _text(lang: str, item: Item) -> str:
 
 
 def _line(lang: str, item: Item) -> str:
-    head = " · ".join(part for part in (", ".join(item.ids), t(item.topic, lang) if item.topic else "") if part)
+    ids = tasks.shown_ids(lang, item, ", ".join(item.ids))
+    head = " · ".join(part for part in (ids, t(item.topic, lang) if item.topic else "") if part)
     text = escape_markdown(_text(lang, item))
     return f"- **{escape_markdown(head)}**: {text}" if head else f"- {text}"
 
 
 def _lines_with_references(lang: str, items: list[Item], workspace: Workspace) -> str:
-    """Each line followed by the text of the requirements and test cases it names."""
+    """Each line followed by the text of the requirements and test cases it names and, if known, the next step."""
     return "\n".join(line for item in items
-                     for line in (_line(lang, item), *tasks.reference_lines(lang, item, workspace)))
+                     for line in (_line(lang, item), *tasks.reference_lines(lang, item, workspace),
+                                  *tasks.next_step_lines(lang, item)))
+
+
+def _same_document(previous: PreviousCheck, project_id: str, workspace: Workspace) -> bool:
+    """The same project and document title (change_impact's rule for a new version), or, untitled, the same content."""
+    if previous.project_id != project_id:
+        return False
+    if previous.title or workspace.title:
+        return previous.title == workspace.title
+    return previous.result.document_hash == workspace.document_hash
+
+
+def _same_task(a: str, b: str) -> bool:
+    return " ".join(a.split()) == " ".join(b.split())
+
+
+def _remember_check(result: AgentResult, workspace: Workspace) -> None:
+    """Compare a finished run with the previous one, then keep it for the next run."""
+    state = st.session_state
+    state.pop(RERUN, None)
+    if result.status not in ("done", "partial"):
+        return  # nothing checked: the previous check stays the one to compare with
+    project_id = active_project_id()
+    previous: PreviousCheck | None = state.get(PREVIOUS)
+    if previous is not None:
+        if not _same_document(previous, project_id, workspace):
+            state[RERUN] = Rerun(not_compared="other_document")
+        elif not _same_task(previous.result.task, result.task):
+            state[RERUN] = Rerun(not_compared="other_task")
+        else:
+            state[RERUN] = Rerun(tasks.compare_problems(previous.result, result), previous.at)
+    state[PREVIOUS] = PreviousCheck(project_id, workspace.title, result, time.strftime("%H:%M:%S"))
 
 
 def _on_run(workspace: Workspace, previous_impact: Callable[[Workspace], ChangeImpact | None] | None) -> None:
     result = tasks.run_task(st.session_state.get(TASK, ""), workspace, previous_impact)
     st.session_state[RESULT] = result
+    _remember_check(result, workspace)
     # The AI review runs below the form (with a spinner) and only with this run's consent.
     st.session_state[AI_PENDING] = bool(st.session_state.get(AI_CONSENT)) and result.status in ("done", "partial")
     st.session_state[AI_CONSENT] = False  # asked again before the next run
     st.session_state.pop(CONFIRM, None)
     st.session_state.pop(RATED, None)
+    st.session_state.pop(GENERATION, None)
 
 
 def _run_ai(lang: str, result: AgentResult, workspace: Workspace, ai_config: AIConfig | None,
@@ -144,17 +216,67 @@ def render_task(
     project_id = active_project_id()
     result: AgentResult | None = st.session_state.get(RESULT)
     if result is not None and result.document_hash != workspace.document_hash:
-        st.session_state.pop(RESULT, None)  # a result for another document
+        st.session_state.pop(RESULT, None)  # a result for another document (kept as PREVIOUS for the next run)
+        st.session_state.pop(RERUN, None)
+        st.session_state.pop(GENERATION, None)
         result = None
     if result is not None and st.session_state.pop(AI_PENDING, False):
         _run_ai(lang, result, workspace, ai_config, previous_impact)
     if result is not None:
-        _result(lang, result, workspace, persist)
+        _result(lang, result, workspace, persist, st.session_state.get(RERUN))
         _related_memory(lang, result, store, project_id)
     _memory_panel(lang, store, project_id)
 
 
-def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None] | None) -> None:
+def _previous_lines(lang: str, comparison: ProblemComparison, items: list[Item]) -> list[str]:
+    """Lines of the previous check, each with the title its test cases had then (the ID may now be another one)."""
+    lines = []
+    for item in items:
+        lines.append(_line(lang, item))
+        lines += [f"  - {escape_markdown(t('qatask.rerun.previous_test_case', lang, id=i, text=title))}"
+                  for i in item.ids if (title := comparison.previous_titles.get(i)) is not None]
+    return lines
+
+
+def _comparison(lang: str, rerun: Rerun) -> None:
+    if rerun.comparison is None:
+        st.caption(t(f"qatask.rerun.{rerun.not_compared}", lang))
+        return
+    c = rerun.comparison
+    st.subheader(t("qatask.compare.heading", lang), anchor=False)
+    summary = t("qatask.rerun.summary", lang, at=rerun.at, resolved=c.resolved_count, open=c.still_open,
+                new=c.new_count, before=c.unmatched_before_count, now=c.unmatched_now_count)
+    if c.new_count:
+        st.warning(summary, icon=":material/compare_arrows:")
+    elif c.resolved_count:
+        st.success(summary, icon=":material/compare_arrows:")
+    else:
+        st.info(summary, icon=":material/compare_arrows:")
+    lines: list[str] = []
+    if c.resolved:
+        lines += [f"**{t('qatask.compare.resolved', lang, count=c.resolved_count)}**", "",
+                  *_previous_lines(lang, c, c.resolved), ""]
+    if c.new:
+        lines += [f"**{t('qatask.compare.new', lang, count=c.new_count)}**", "", *(_line(lang, i) for i in c.new)]
+    if lines:
+        st.markdown("\n".join(lines))
+    if c.unmatched_before or c.unmatched_now:
+        heading = t("qatask.rerun.unmatched", lang, before=c.unmatched_before_count, now=c.unmatched_now_count)
+        with st.expander(heading, icon=":material/help:"):
+            st.caption(t("qatask.compare.unmatched_why", lang))
+            unmatched = _previous_lines(lang, c, c.unmatched_before)
+            for item in c.unmatched_now:
+                unmatched.append(_line(lang, item))
+                unmatched += [f"  - {escape_markdown(t('qatask.compare.current_test_case', lang, id=i, text=title))}"
+                              for i in item.ids if (title := c.current_titles.get(i)) is not None]
+            st.markdown("\n".join(unmatched))
+    if c.not_compared:
+        st.caption(t("qatask.compare.not_compared", lang,
+                     names=", ".join(t(f"qatask.tool.{tool}", lang) for tool in c.not_compared)))
+
+
+def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None] | None,
+            rerun: Rerun | None = None) -> None:
     plan = result.plan
     if result.status == "error" and not result.steps:
         ids = ", ".join(plan.unknown_ids) if plan else ""
@@ -199,6 +321,8 @@ def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Calla
     st.markdown("\n".join(conclusions))
     if any(step.tool == "ai" and step.status == "ok" for step in result.steps):
         st.info(t("qatask.ai.disclaimer", lang), icon=":material/smart_toy:")
+    if rerun is not None:
+        _comparison(lang, rerun)
 
     problems, unknowns = result.problems, result.unknowns
     st.subheader(t("qatask.heading.problems", lang, count=len(problems)), anchor=False)
@@ -219,8 +343,75 @@ def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Calla
     st.markdown("\n".join(_line(lang, item) for item in recommendations) if recommendations
                 else t("qatask.no_recommendations", lang))
 
+    if persist is not None:
+        _missing_cases(lang, result, workspace, persist)
     if result.action is not None and persist is not None:
         _action(lang, result, workspace, persist)
+
+
+def _on_generate(lang: str, workspace: Workspace, persist: Callable[[Workspace], None],
+                 requirement_ids: list[str]) -> None:
+    generation = missing_cases.generate_missing(workspace, requirement_ids, lang)
+    if generation.created:
+        workspace.test_cases.extend(generation.created)
+        persist(workspace)
+    st.session_state[GENERATION] = generation
+
+
+def _missing_cases(lang: str, result: AgentResult, workspace: Workspace,
+                   persist: Callable[[Workspace], None]) -> None:
+    """The button that adds the missing test cases, and what it added."""
+    generation: MissingGeneration | None = st.session_state.get(GENERATION)
+    ids = missing_cases.gap_requirements(result, workspace)
+    if not ids and generation is None:
+        return
+    with st.container(border=True, key="qa_task_missing"):
+        st.markdown(f"**{t('qamissing.heading', lang)}**")
+        if generation is None:
+            st.caption(escape_markdown(t("qamissing.explainer", lang, ids=", ".join(ids))))
+            st.button(t("qamissing.generate", lang), key="qa_task_generate", icon=":material/auto_awesome:",
+                      on_click=_on_generate, args=(lang, workspace, persist, ids))
+            return
+        _generation(lang, generation)
+
+
+def _categories(lang: str, categories: list[ScenarioCategory]) -> str:
+    return ", ".join(t(f"scenario.{c.value}", lang) for c in categories) or t("qamissing.none", lang)
+
+
+def _generation(lang: str, generation: MissingGeneration) -> None:
+    created = generation.created
+    if created:
+        st.success(escape_markdown(t("qamissing.created", lang, count=len(created),
+                                     ids=", ".join(tc.id for tc in created))), icon=":material/add_task:")
+        unclear = {tc.id for r in generation.requirements if r.unclear for tc in created
+                   if tc.requirement_id == r.requirement_id}
+        lines = [f"**{t('qamissing.cases_heading', lang)}**", ""]
+        for tc in created:
+            line = t("qamissing.case", lang, id=tc.id, req=tc.requirement_id,
+                     type=t(f"test_type.{tc.test_type.value}", lang), title=tc.title)
+            mark = f" — {t('qamissing.case_unclear', lang)}" if tc.id in unclear else ""
+            lines.append(f"- {escape_markdown(line + mark)}")
+            expected = " ".join(tc.expected_result.split())
+            lines.append(f"  - {escape_markdown(t('qamissing.case_expected', lang, text=expected))}")
+        st.markdown("\n".join(lines))
+    else:
+        st.info(t("qamissing.nothing", lang))
+    lines = [f"**{t('qamissing.coverage_heading', lang)}**", ""]
+    for r in generation.requirements:
+        percent = t("qamissing.not_applicable", lang) if r.approved_percent is None else f"{r.approved_percent:g}%"
+        coverage = t("qamissing.coverage_line", lang, req=r.requirement_id, before=r.tests_before,
+                     after=r.tests_after, missing_before=_categories(lang, r.missing_before),
+                     missing_after=_categories(lang, r.missing_after), percent=percent)
+        lines.append(f"- {escape_markdown(coverage)}")
+        if r.missing_after:
+            by_hand = t("qamissing.by_hand", lang, req=r.requirement_id, names=_categories(lang, r.missing_after))
+            lines.append(f"  - {escape_markdown(by_hand)}")
+        if r.unclear:
+            reasons = ", ".join(t(f"finding.{kind.value}", lang) for kind in r.unclear)
+            lines.append(f"  - {escape_markdown(t('qamissing.unclear', lang, req=r.requirement_id, reasons=reasons))}")
+    st.markdown("\n".join(lines))
+    st.caption(t("qamissing.approved_note", lang))
 
 
 def _action(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None]) -> None:

@@ -57,6 +57,7 @@ from spec_to_test.models import (
     DefectReport,
     Finding,
     FindingEvent,
+    Requirement,
     ReviewStatus,
     Severity,
     TestCase,
@@ -80,8 +81,8 @@ from spec_to_test.scenario_coverage import ScenarioCategory, categories_of_test_
 from spec_to_test.storage import document_hash, persistence_enabled
 from spec_to_test.suites import SuiteKind, plan_suites, suite_workspace
 from spec_to_test.test_critic import CriticIssue, critique
-from spec_to_test.test_design import design_tests, format_value
-from spec_to_test.test_generator import generate_test_cases, next_test_case_id
+from spec_to_test.test_design import TestDesign, design_tests, format_value
+from spec_to_test.test_generator import generate_test_cases, is_partial_check, next_test_case_id, other_conditions
 
 SEVERITY_BADGES = {"high": "🔴", "medium": "🟠", "low": "🟡"}
 SEVERITY_TONES = {"high": "danger", "medium": "warning", "low": "neutral"}
@@ -310,8 +311,8 @@ def _change_impact_note(lang: str, ws: Workspace) -> None:
     if impact.test_cases:
         lines += ["", t("impact.review_heading", lang)]
         lines += [
-            f"- {tc.test_case_id} ({t(f'review.{tc.review_status.value}', lang)}) — "
-            f"{tc.requirement_id}: {t(f'impact.reason.{tc.reason}', lang)}"
+            f"- {t('impact.previous_ids', lang, ids=tc.test_case_id)}, {t(f'review.{tc.review_status.value}', lang)}"
+            f" — {t('impact.previous_ids', lang, ids=tc.requirement_id)}: {t(f'impact.reason.{tc.reason}', lang)}"
             for tc in impact.test_cases
         ]
         lines += ["", t("impact.statuses_kept", lang)]
@@ -573,7 +574,8 @@ def _design_tab(lang: str, ws: Workspace) -> None:
         t("quality.select", lang), [r.id for r in ws.requirements],
         format_func=lambda v: _req_label(ws, v), key="design_req",
     )
-    design = design_tests(next(r for r in ws.requirements if r.id == design_req))
+    req = next(r for r in ws.requirements if r.id == design_req)
+    design = design_tests(req)
     if design.is_empty:
         st.info(t("design.not_applicable", lang))
     for boundary in design.boundaries:
@@ -589,6 +591,7 @@ def _design_tab(lang: str, ws: Workspace) -> None:
                 for v in boundary.values
             ]
         )
+        _partial_check_warning(lang, req, design, boundary.constraint.phrase)
     for classes in design.partitions:
         st.markdown(f"**{t('design.ep', lang)}** — “{escape_markdown(classes.constraint.phrase)}”")
         show_table(
@@ -601,6 +604,7 @@ def _design_tab(lang: str, ws: Workspace) -> None:
                 for part in classes.partitions
             ]
         )
+        _partial_check_warning(lang, req, design, classes.constraint.phrase)
     if table := design.decision_table:
         st.markdown(f"**{t('design.dt', lang)}** ({t(f'design.connector_{table.connector}', lang)})")
         rows = []
@@ -613,6 +617,19 @@ def _design_tab(lang: str, ws: Workspace) -> None:
         show_table(rows)
         if any(rule.outcome is None for rule in table.rules):
             st.warning(t("design.unspecified_warning", lang))
+
+
+def _partial_check_warning(lang: str, req: Requirement, design: TestDesign, phrase: str) -> None:
+    """Under values that vary one numeric limit: the requirement's other conditions they do not check,
+    as the boundary and equivalence test cases note it (tc.assumption_partial_check)."""
+    if not is_partial_check(req.text, design):
+        return
+    if conditions := other_conditions(req.text, design):
+        quoted = ", ".join(t("design.quote", lang, text=c) for c in conditions)
+        text = t("design.partial_check", lang, phrase=phrase, req=req.id, conditions=quoted)
+    else:
+        text = t("design.partial_check_unnamed", lang, phrase=phrase, req=req.id)
+    st.warning(escape_markdown(text), icon=":material/rule:")
 
 
 def _defects_tab(p: Page, ws: Workspace) -> None:
@@ -1128,6 +1145,9 @@ def _scenario_cells(lang: str, row: RTMRow) -> dict:
         t("column.scenarios_missing", lang): names(sc.missing),
         t("column.scenario_coverage", lang): unknown if sc.percent is None else f"{sc.percent:g}%",
         t("column.scenario_reason", lang): "; ".join(reasons) or "—",
+        t("column.scenario_unchecked", lang): (
+            ", ".join(t("design.quote", lang, text=c) for c in sc.unchecked_conditions) or "—"
+        ),
     }
 
 

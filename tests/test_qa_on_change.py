@@ -79,10 +79,72 @@ def test_a_changed_document_is_analyzed_reported_and_journaled(docs, out, capsys
     assert not (out / on_change.LOCK_FILE).exists()
 
 
+def test_change_impact_marks_the_ids_of_the_previous_version(tmp_path, out):
+    """v1 → v2 (REQ-5 and REQ-7 changed, REQ-10 added): Change Impact names test cases of v1. There TC-012
+    tests REQ-7, in v2 it is a test case of REQ-6, so the IDs are marked and nothing of v2 is quoted for them."""
+    text = EXAMPLE.read_text(encoding="utf-8")
+    v2 = (text.replace("should load fast and be user-friendly", "must load within 2 seconds")
+          .replace("at least 10 characters", "at least 12 characters")
+          + "- REQ-10: The user receives a confirmation email after the password is changed.\n")
+    old, new = tmp_path / "v1.md", tmp_path / "v2.md"
+    old.write_text(text, encoding="utf-8")
+    new.write_text(v2, encoding="utf-8")
+    before, after = ({tc.id: tc for tc in build_workspace(source, name, "en").test_cases}
+                     for source, name in ((text, old.name), (v2, new.name)))
+    assert (before["TC-012"].requirement_id, after["TC-012"].requirement_id) == ("REQ-7", "REQ-6")
+
+    assert main(["--document", str(new), "--previous", str(old), "--out", str(out)]) == 0
+    [entry] = _journal(out)
+    report = (out / "runs" / entry["run_id"] / "report.md").read_text(encoding="utf-8")
+    assert "1 added, 2 modified, 0 removed, 0 unknown" in report
+    lines = report.splitlines()
+    impact = [i for i, line in enumerate(lines) if "linked to REQ-" in line]
+    assert [lines[i] for i in impact] == [
+        "- **TC-009 (previous version)**: test case linked to REQ-5 of the previous version: "
+        "Draft, the requirement text changed",
+        "- **TC-011, TC-012, TC-013 (previous version)**: test case linked to REQ-7 of the previous version: "
+        "Draft, the requirement text changed",
+    ]
+    assert not [lines[i + 1] for i in impact if lines[i + 1].startswith("  - ")]  # no v2 test case quoted
+    assert ("- Review the test cases of the previous version before reusing them: "
+            "TC-009, TC-011, TC-012, TC-013 (previous version).") in lines
+    assert "- Write test cases for the new requirements: REQ-10." in lines  # an ID of v2: not marked
+
+
 def test_the_report_uses_the_chosen_language(docs, out):
     _, new = docs
     entry = run_on_change(Request(document=new, out=out, lang="ru"))
     assert "## Выводы" in (out / "runs" / entry.run_id / "report.md").read_text(encoding="utf-8")
+
+
+def test_a_rerun_after_a_fix_shows_what_was_resolved(docs, out, capsys):
+    _, new = docs
+    assert main(["--document", str(new), "--out", str(out)]) == 0
+    first_report = (out / "runs" / _journal(out)[0]["run_id"] / "report.md").read_text(encoding="utf-8")
+    assert "Since the previous run" not in first_report  # nothing to compare with
+    new.write_text(new.read_text(encoding="utf-8").replace(
+        "should load fast and be user-friendly", "loads within 2 seconds"), encoding="utf-8")
+    # Another task is another question: not compared.
+    run_on_change(Request(document=new, out=out, task="Check the quality of the test cases"))
+    capsys.readouterr()
+
+    assert main(["--document", str(new), "--out", str(out)]) == 0
+    first, _, rerun = _journal(out)
+    assert rerun["compared_with"] == first["run_id"]
+    # REQ-5 got two more test cases, which moves the later IDs: they are not reported as new.
+    # Its own test case TC-009 was regenerated under a new title: renamed or replaced is unknown,
+    # so its old problem is not reported as resolved.
+    assert (rerun["resolved"], rerun["new_problems"], rerun["unmatched_before"], rerun["unmatched_now"]) == (1, 0, 1, 1)
+    assert f"since run {first['run_id']}: resolved 1, still open {rerun['still_open']}, new 0, " \
+           "not comparable 1 before / 1 now" in capsys.readouterr().out
+    report = (out / "runs" / rerun["run_id"] / "report.md").read_text(encoding="utf-8")
+    section = report.split("## Since the previous run")[1].split("## Problems")[0]
+    assert "counted separately: resolved 1, still open" in section and "### New" not in section
+    assert "### Resolved (1)\n\n- **REQ-5 · Ambiguous wording**: vague wording: fast, user-friendly\n" in section
+    assert f"### Could not be compared (1 in run {first['run_id']}, 1 now)" in section
+    assert f"TC-009 in run {first['run_id']}: “REQ-5: The reset page should load fast" in section
+    assert "TC-009 now: “REQ-5: The reset page loads within 2 seconds" in section
+    assert "_Not compared: Change Impact._" in section
 
 
 def test_a_repeat_with_the_same_inputs_is_skipped_unless_forced(docs, out, capsys):
@@ -343,9 +405,12 @@ def test_the_report_keeps_not_approved_apart_from_the_problems(docs, out):
     problems, approval = report.split(f"## {t('qatask.heading.approval', 'en')}")
     assert "has test cases, but none is Approved" not in problems
     assert "of 15 test cases are not Approved yet" in approval
-    assert "**TC-001, TC-002, " in problems  # the same remark on several test cases: one line
+    assert "**TC-002, TC-003, " in problems  # the same remark on several test cases: one line
+    # TC-001 and TC-015 quote the user's action in step 2, so their remark names only steps 1 and 3.
+    assert "**TC-001, TC-015 · Steps**" in problems
     # Under a problem: what the requirement it names says, and where it is in the document.
     assert "\n  - REQ-6 (line 14): “After too many failed attempts, the account is locked.”" in problems
+    assert "\n  - **Next step:** ask the document author: “What measurable criteria replace: many?”" in problems
 
 
 def test_allow_write_refuses_a_document_not_saved_in_the_project(docs, out):

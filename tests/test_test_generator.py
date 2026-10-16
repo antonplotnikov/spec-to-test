@@ -4,7 +4,8 @@ from spec_to_test.i18n import UNIT_FORMS, t
 from spec_to_test.input_parser import extract_requirements
 from spec_to_test.models import ReviewStatus, Source, TestType, Workspace
 from spec_to_test.rule_engine import analyze_requirements
-from spec_to_test.test_generator import generate_test_cases, next_test_case_id
+from spec_to_test.test_design import design_tests
+from spec_to_test.test_generator import generate_test_cases, is_partial_check, next_test_case_id, other_conditions
 
 
 def workspace_for(text: str) -> Workspace:
@@ -45,6 +46,55 @@ def test_boundary_and_equivalence_cases_from_numbers():
     assert "7 characters → rejected (invalid)" in boundary.expected_result
 
 
+PARTIAL_CHECK = (
+    "Partial check: only “at least 8 characters” is varied. REQ-1 also states other conditions that this case "
+    "does not check; each test value must meet them, otherwise the expected result does not apply."
+)
+
+
+def test_length_with_another_condition_is_marked_as_a_partial_check():
+    ws = workspace_for("REQ-1: The new password must be at least 8 characters long and contain one digit.")
+    _, boundary, equivalence = generate_test_cases(ws)
+    # Before: "8 characters → accepted (valid)" with no caveat, so "abcdefgh" (no digit) passed as valid.
+    assert "8 characters → accepted (valid)" in boundary.expected_result
+    assert boundary.assumptions == equivalence.assumptions == [PARTIAL_CHECK]
+    assert boundary.clarification_questions == equivalence.clarification_questions == []
+
+
+@pytest.mark.parametrize("text", [
+    "REQ-1: The new password must be at least 8 characters long.",
+    "REQ-1: The new password must be at least 8 characters and at most 64 characters.",  # one range
+    "REQ-1: The new password must be between 8 and 64 characters.",
+])
+def test_plain_numeric_requirement_is_not_marked_partial(text):
+    ws = workspace_for(text)
+    _, boundary, equivalence = generate_test_cases(ws)
+    assert "8 characters → accepted (valid)" in boundary.expected_result
+    assert boundary.assumptions == equivalence.assumptions == []
+
+
+def test_or_more_lower_limit_gets_concrete_boundary_outcomes():
+    ws = workspace_for("REQ-1: The new password must contain 8 characters or more.")
+    _, boundary, equivalence = generate_test_cases(ws)
+    # Before: "boundary values for “8 characters”" with 7 and 9 "not specified — needs clarification".
+    assert boundary.title == "REQ-1: boundary values for “8 characters or more”"
+    assert boundary.expected_result == (
+        "7 characters → rejected (invalid)\n8 characters → accepted (valid)\n9 characters → accepted (valid)"
+    )
+    assert equivalence.expected_result == "4 characters → rejected (invalid)\n16 characters → accepted (valid)"
+    assert boundary.clarification_questions == equivalence.clarification_questions == []
+
+
+def test_or_more_on_the_rejected_side_keeps_its_clarification_question():
+    ws = workspace_for("REQ-1: Passwords of 65 or more characters are rejected.")
+    _, boundary, _ = generate_test_cases(ws)
+    assert "64 characters → not specified — needs clarification" in boundary.expected_result
+    assert "65 characters → as stated in the requirement" in boundary.expected_result
+    assert boundary.clarification_questions == [
+        "What should happen just before and just after “65 or more characters”?"
+    ]
+
+
 def test_decision_table_cases_only_for_specified_outcomes():
     ws = workspace_for("REQ-8: If the email address is not registered, the system shows a generic message.")
     cases = generate_test_cases(ws)
@@ -57,6 +107,55 @@ def test_generated_text_follows_language():
     ws = workspace_for("REQ-1: The system must save drafts.")
     [case] = generate_test_cases(ws, "uk")
     assert "Система поводиться" in case.expected_result
+
+
+def test_user_capability_step_quotes_the_action():
+    ws = workspace_for(
+        "REQ-1: The user can request a password reset from the login page by entering their email address."
+    )
+    [case] = generate_test_cases(ws)
+    # Before: the generic "Perform the action described in the requirement."
+    assert t("tc.step_perform") not in case.steps
+    assert case.steps == [
+        t("tc.step_prepare", req="REQ-1"),
+        "Perform the action stated in REQ-1: “request a password reset from the login page by entering their "
+        "email address”.",
+        t("tc.step_observe"),
+    ]
+    assert "“The user can request a password reset" in case.expected_result  # expected result is unchanged
+
+
+@pytest.mark.parametrize(
+    ("text", "lang", "action"),
+    [
+        ("REQ-9: The user is able to set a new password.", "en", "set a new password"),
+        ("REQ-1: Registered users can export reports as CSV.", "en", "export reports as CSV"),
+        ("REQ-1: Пользователь может удалить черновик.", "ru", "удалить черновик"),
+        ("REQ-1: Користувач може змінити email.", "uk", "змінити email"),
+    ],
+)
+def test_user_capability_action_in_each_language(text, lang, action):
+    [case] = generate_test_cases(workspace_for(text), lang)
+    assert case.steps[1] == t("tc.step_perform_stated", lang, req=text[:5], action=action)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "REQ-1: The system can send a reminder email.",  # the actor is not a user
+        "REQ-1: The user is not able to delete the account.",  # negated
+        "REQ-1: The user may not change the email address.",
+        "REQ-1: Пользователь не может удалить чужой комментарий.",
+        "REQ-1: The user cannot export reports.",
+        "REQ-1: When logged in, the user can export reports.",  # condition before the actor
+        "REQ-1: The system must send a reset link to the registered email address.",  # no capability
+    ],
+)
+def test_other_requirements_keep_the_generic_step(text):
+    cases = generate_test_cases(workspace_for(text))
+    positive = [tc for tc in cases if tc.test_type == TestType.POSITIVE]
+    assert all(t("tc.step_perform") in tc.steps for tc in positive)
+    assert not any("stated in" in step for tc in cases for step in tc.steps)
 
 
 def test_next_id_continues_after_existing():
@@ -112,3 +211,17 @@ def test_partition_step_keeps_the_unit_in_the_number_form():
     assert steps == ["Класс ≤ 2: используйте значение 1 неделя.", "Класс > 2: используйте значение 4 недели."]
     steps = [s for c in generate_test_cases(ws, "uk") if c.test_type == TestType.EQUIVALENCE for s in c.steps]
     assert steps == ["Клас ≤ 2: використайте значення 1 тиждень.", "Клас > 2: використайте значення 4 тижні."]
+
+
+@pytest.mark.parametrize(("text", "conditions"), [
+    ("REQ-1: The new password must be at least 8 characters long and contain one digit.", ["contain one digit"]),
+    ("REQ-1: The new password must be at least 8 characters long.", []),
+    ("REQ-1: The new password must be between 8 and 64 characters.", []),  # its "and" is the range
+    ("REQ-1: The new password must be at least 8 characters and at most 64 characters.", []),
+    ("REQ-1: The reset page should load fast and be user-friendly.", []),  # no numeric limit to vary
+])
+def test_other_conditions_are_the_parts_a_partial_check_leaves_out(text, conditions):
+    [req] = workspace_for(text).requirements
+    design = design_tests(req)
+    assert is_partial_check(req.text, design) == bool(conditions)
+    assert other_conditions(req.text, design) == conditions
