@@ -16,6 +16,8 @@ APP_PATH = str(PROJECT_ROOT / "app.py")
 SAME_IN_ALL_LANGUAGES = {
     "app.title", "column.id", "tc.title_positive", "tc.value_expectation",
     "unit.megabytes", "unit.percent", "suites.smoke", "ai.configured", "export.mapping_body", "projects.document_option",
+    # the model's own text, already in the report language
+    "qatask.ai.problem", "qatask.ai.question", "qatask.ai.recommendation",
 }
 KEY_PREFIXES = sorted({key.split(".")[0] for key in TRANSLATIONS}, key=len, reverse=True)
 RAW_KEY = re.compile(rf"(?<![\w/-])(?:{'|'.join(KEY_PREFIXES)})\.[a-z_]+(?:\.[a-z_]+)?(?![\w.])")
@@ -155,7 +157,7 @@ def test_design_tab_names_every_unit(lang):
         "months": "The subscription must last at most 6 months.",
         "years": "The user must be at least 18 years old.",
         "kilobytes": "The avatar must be at most 512 KB.",
-        "gigabytes": "The upload must be at most 2 GB.",
+        "gigabytes": "The upload must be at most 200 GB.",  # 2 GB is probed in MB
         "percent": "The discount must be at most 50%.",
         "items": "The cart must contain at most 10 items.",
     }

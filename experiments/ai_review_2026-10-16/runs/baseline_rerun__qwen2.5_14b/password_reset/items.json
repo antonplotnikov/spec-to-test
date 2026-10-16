@@ -1,0 +1,105 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REQ-4",
+   "REQ-7"
+  ],
+  "description": "The requirements specify different minimum lengths for the new password.",
+  "quote": "The new password must be at least 8 characters long and contain one digit."
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "REQ-5",
+   "TC-009"
+  ],
+  "description": "The test case does not specify how to measure 'fast' or 'user-friendly'.",
+  "quote": "The reset page should load fast and be user-friendly."
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "REQ-6",
+   "TC-010"
+  ],
+  "description": "The test case does not specify how many 'too many' failed attempts are.",
+  "quote": "After too many failed attempts, the account is locked."
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-4",
+   "REQ-7"
+  ],
+  "question": "Which minimum length should be enforced for the new password?"
+ },
+ {
+  "kind": "question",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-5"
+  ],
+  "question": "How should 'fast' and 'user-friendly' be defined for the reset page?"
+ },
+ {
+  "kind": "question",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-6"
+  ],
+  "question": "How many failed attempts constitute 'too many'?"
+ },
+ {
+  "kind": "recommendation",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the minimum password length requirement."
+ },
+ {
+  "kind": "recommendation",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Define specific criteria for 'fast' and 'user-friendly' in the reset page test case."
+ },
+ {
+  "kind": "recommendation",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Specify the exact number of failed attempts that lock an account."
+ }
+]

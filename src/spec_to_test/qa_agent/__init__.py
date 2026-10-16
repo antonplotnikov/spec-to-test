@@ -12,4 +12,6 @@ store     where plans and runs are kept
 ai        optional: LLM-proposed steps (data, reviewed before use)
 tasks     QA tasks in plain text, answered with the existing Critic, Coverage,
           Change Impact, Traceability and Suite Planner
+on_change automation: the task agent for a changed requirements document,
+          with a run journal, repeat skipping and write permission
 """

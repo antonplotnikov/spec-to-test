@@ -1,0 +1,17 @@
+{
+ "model": "qwen2.5:14b",
+ "created_at": "2026-10-16T09:43:36.072991Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\"problems\": [{\"category\": \"contradiction\", \"ids\": [\"REQ-3\", \"REQ-4\"], \"description\": \"Для суммы заказа заданы разные минимальные значения: 500 рублей и 1000 рублей.\", \"quote\": \"Сумма заказа должна быть не менее 1000 рублей.\"}, {\"category\": \"missing_scenario\", \"ids\": [\"REQ-1\"], \"description\": \"Не указано, что происходит, если в корзине нет товаров.\", \"quote\": \"Пользователь может оформить заказ из корзины.\"}, {\"category\": \"missing_scenario\", \"ids\": [\"REQ-5\"], \"description\": \"Не указано, что происходит, если пользователь не вводит номер телефона.\", \"quote\": \"Пользователь вводит номер телефона в форме заказа.\"}], \"questions\": [{\"ids\": [\"REQ-3\", \"REQ-4\"], \"question\": \"Какое минимальное значение суммы заказа действует: 500 рублей или 1000 рублей?\"}], \"recommendations\": []}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 43964056375,
+ "load_duration": 2139750,
+ "prompt_eval_count": 6911,
+ "prompt_eval_cached_count": 322,
+ "prompt_eval_duration": 32481909000,
+ "eval_count": 238,
+ "eval_duration": 10570210000
+}

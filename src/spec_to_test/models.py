@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 # Version of the saved workspace format (see spec_to_test.migrations).
 WORKSPACE_SCHEMA_VERSION = 2
@@ -287,6 +287,15 @@ class Workspace(BaseModel):
     finding_history: list[FindingEvent] = Field(default_factory=list)
     # Differences from the previous version, set when a new version is analyzed; older saves have None.
     change_impact: ChangeImpact | None = None
+    # Digest of the saved file this copy was read from or written to (set by spec_to_test.storage);
+    # a save is refused when the file changed meanwhile, so another writer's edits are not lost.
+    _stored_digest: str | None = PrivateAttr(default=None)
+
+    def __eq__(self, other: object) -> bool:
+        # Equal content is equal, wherever the copy was read from (pydantic also compares private attributes).
+        if not isinstance(other, Workspace):
+            return NotImplemented
+        return type(self) is type(other) and self.__dict__ == other.__dict__
 
     @property
     def analysis(self) -> AnalysisResult:

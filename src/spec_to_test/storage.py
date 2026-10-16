@@ -109,12 +109,35 @@ def _write_atomic(path: Path, content: str) -> None:
 
 # --- Workspaces (one per document) ---------------------------------------------------
 
-def save_workspace(workspace: Workspace, project_id: str = DEFAULT_PROJECT_ID) -> None:
-    """Write the workspace to disk; does nothing in "session" mode."""
+class WorkspaceConflict(ValueError):
+    """The saved file changed after this copy was read (another tab, or the QA on-change run)."""
+
+
+def _digest(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def save_workspace(workspace: Workspace, project_id: str = DEFAULT_PROJECT_ID, remember: bool = True) -> None:
+    """Write the workspace to disk; does nothing in "session" mode.
+
+    `remember` also makes it the last opened document; writes from outside the app pass False.
+    Raises WorkspaceConflict when the copy was read from or saved to a file that has changed since.
+    """
     if not persistence_enabled():
         return
-    _write_atomic(_workspace_path(workspace.document_hash, project_id), workspace.model_dump_json(indent=2))
-    save_pointer(project_id, workspace.document_hash)
+    path = _workspace_path(workspace.document_hash, project_id)
+    if workspace._stored_digest is not None:
+        try:
+            current = _digest(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            current = workspace._stored_digest  # deleted meanwhile: saving restores it, as before
+        if current != workspace._stored_digest:
+            raise WorkspaceConflict(f"{workspace.document_hash} changed on disk")
+    content = workspace.model_dump_json(indent=2)
+    _write_atomic(path, content)
+    workspace._stored_digest = _digest(content)
+    if remember:
+        save_pointer(project_id, workspace.document_hash)
 
 
 def load_workspace(doc_hash: str, project_id: str = DEFAULT_PROJECT_ID) -> Workspace | None:
@@ -123,9 +146,12 @@ def load_workspace(doc_hash: str, project_id: str = DEFAULT_PROJECT_ID) -> Works
         return None
     try:
         path = _workspace_path(doc_hash, project_id)
-        return Workspace.model_validate(migrate_workspace_data(json.loads(path.read_text(encoding="utf-8"))))
+        content = path.read_text(encoding="utf-8")
+        workspace = Workspace.model_validate(migrate_workspace_data(json.loads(content)))
     except (OSError, ValueError, ValidationError):
         return None
+    workspace._stored_digest = _digest(content)
+    return workspace
 
 
 def delete_workspace(doc_hash: str, project_id: str = DEFAULT_PROJECT_ID) -> None:

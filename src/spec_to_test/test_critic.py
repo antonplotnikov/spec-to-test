@@ -8,12 +8,19 @@ Checks one test case against its requirement and the other test cases:
 - requirement_match: the test case talks about what its requirement says
 - duplicate:         no other test case of the requirement has the same
                      steps and expected result
+- conflict:          no other test case expects the opposite outcome
+                     ("9 characters → accepted" vs "→ rejected") for the same
+                     input value under the same preconditions, among the test
+                     cases of the requirement and of the requirements the
+                     analyzer reported as contradicting it
 - unsupported:       the expected result does not add values or messages
                      the requirement never states
 
 Only the texts at hand are used. Where they are not enough to judge (no
 requirement, a requirement without an expected result, an outcome the
 requirement leaves open) the issue is reported as Unknown instead of guessed.
+Conflicts are found only between explicit "value → accepted / rejected" lines;
+other contradictions in meaning are not guessed.
 """
 
 import re
@@ -25,7 +32,7 @@ from spec_to_test.i18n import TRANSLATIONS
 from spec_to_test.models import ClarificationStatus, FindingType, TestCase, TestType, Workspace
 from spec_to_test.rule_engine import _AMBIGUOUS, _OUTCOME, _QUOTED, STOPWORDS, _compile, _normalize, _stems
 
-Criterion = Literal["steps", "expected_result", "requirement_match", "duplicate", "unsupported"]
+Criterion = Literal["steps", "expected_result", "requirement_match", "duplicate", "conflict", "unsupported"]
 
 # Steps shorter than this many words cannot say what to do and with what.
 MIN_STEP_WORDS = 2
@@ -39,6 +46,8 @@ _WORD = re.compile(r"\w+")
 _TOKEN = re.compile(r"(?<!\w)[-−](?=\d)|\w+|[<>≤≥=≠]")
 # Test design derives its own probe values (limit ± 1, class representatives).
 _DERIVED_VALUES = {TestType.BOUNDARY, TestType.EQUIVALENCE}
+# One line of an expected result: "9 characters → rejected (invalid)".
+_PROBE = re.compile(r"^(.+?)\s*(?:→|->)\s*(.+?)\s*$")
 
 
 def _all_languages(key: str, **params: object) -> set[str]:
@@ -64,6 +73,48 @@ def _normalized(text: str) -> str:
 
 def _signature(tc: TestCase) -> tuple[str, ...]:
     return (*(_normalized(s) for s in tc.steps), _normalized(tc.expected_result))
+
+
+def _probe_outcomes(tc: TestCase) -> dict[str, bool]:
+    """Input value → whether it is accepted, from the expected result's explicit "value → outcome" lines."""
+    valid, invalid = _all_languages("design.valid"), _all_languages("design.invalid")
+    outcomes = {}
+    for line in tc.expected_result.splitlines():
+        if (match := _PROBE.match(line.strip())) and (outcome := match.group(2).lower()) in valid | invalid:
+            outcomes[_normalized(match.group(1))] = outcome in valid
+    return outcomes
+
+
+def _own_preconditions(tc: TestCase) -> set[str]:
+    """Preconditions other than the generated pointer to the requirement."""
+    reference = _all_languages("tc.pre_reference", req=tc.requirement_id)
+    return {_normalized(p) for p in tc.preconditions if p.strip().lower() not in reference}
+
+
+def expectation_conflicts(tc: TestCase, workspace: Workspace) -> dict[str, list[str]]:
+    """Other test case ID → input values for which it expects the opposite outcome to `tc`.
+
+    Compared are the test cases of the same requirement and of the requirements a
+    contradiction finding links to it, with the same preconditions of their own.
+    """
+    own = _probe_outcomes(tc)
+    if not own:
+        return {}
+    related = {tc.requirement_id}
+    for f in workspace.findings:
+        if f.type == FindingType.CONTRADICTION:
+            linked = {f.requirement_id, *f.related_requirement_ids}
+            if tc.requirement_id in linked:
+                related |= linked
+    conditions = _own_preconditions(tc)
+    conflicts = {}
+    for other in workspace.test_cases:
+        if other.id == tc.id or other.requirement_id not in related or _own_preconditions(other) != conditions:
+            continue
+        theirs = _probe_outcomes(other)
+        if values := [value for value, accepted in own.items() if value in theirs and theirs[value] != accepted]:
+            conflicts[other.id] = values
+    return conflicts
 
 
 def _step_issues(tc: TestCase) -> list[CriticIssue]:
@@ -136,6 +187,11 @@ def critique(tc: TestCase, workspace: Workspace) -> list[CriticIssue]:
     ]
     if duplicates:
         issues.append(CriticIssue(criterion="duplicate", code="duplicate", params={"ids": ", ".join(duplicates)}))
+
+    if conflicts := expectation_conflicts(tc, workspace):
+        values = dict.fromkeys(value for found in conflicts.values() for value in found)
+        issues.append(CriticIssue(criterion="conflict", code="expectation_conflict",
+                                  params={"ids": ", ".join(conflicts), "values": ", ".join(values)}))
 
     if req is not None:
         source = _normalize(req.text).lower()

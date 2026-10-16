@@ -1,0 +1,54 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REQ-3",
+   "REQ-4"
+  ],
+  "description": "Для суммы заказа заданы разные минимальные значения: 500 рублей и 1000 рублей.",
+  "quote": "Сумма заказа должна быть не менее 1000 рублей."
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-1"
+  ],
+  "description": "Не указано, что происходит, если в корзине нет товаров.",
+  "quote": "Пользователь может оформить заказ из корзины."
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-5"
+  ],
+  "description": "Не указано, что происходит, если пользователь не вводит номер телефона.",
+  "quote": "Пользователь вводит номер телефона в форме заказа."
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-3",
+   "REQ-4"
+  ],
+  "question": "Какое минимальное значение суммы заказа действует: 500 рублей или 1000 рублей?"
+ }
+]

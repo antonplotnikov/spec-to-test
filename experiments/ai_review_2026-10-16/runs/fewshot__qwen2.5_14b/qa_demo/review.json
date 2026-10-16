@@ -1,0 +1,72 @@
+{
+ "problems": [
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-2"
+   ],
+   "description": "The requirement does not specify what happens if the user signs in with an invalid email.",
+   "quote": "A registered user must be able to sign in with a valid email and password"
+  },
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-2"
+   ],
+   "description": "The requirement does not specify what the user sees if the email or password is incorrect.",
+   "quote": "see \"Welcome, Demo User\" on the dashboard"
+  },
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-5"
+   ],
+   "description": "The requirement does not specify what happens after the user deletes their account.",
+   "quote": "A signed-in user must be able to delete their account from the account page"
+  },
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-6"
+   ],
+   "description": "The requirement does not specify what happens if the user clicks the \"go elsewhere\" link.",
+   "quote": "The \"go elsewhere\" link must keep the user inside the shop"
+  }
+ ],
+ "questions": [
+  {
+   "ids": [
+    "REQ-2"
+   ],
+   "question": "What happens if the user signs in with an invalid email?"
+  },
+  {
+   "ids": [
+    "REQ-2"
+   ],
+   "question": "What does the user see if the email or password is incorrect?"
+  },
+  {
+   "ids": [
+    "REQ-5"
+   ],
+   "question": "What happens after the user deletes their account?"
+  },
+  {
+   "ids": [
+    "REQ-6"
+   ],
+   "question": "What happens if the user clicks the \"go elsewhere\" link?"
+  }
+ ],
+ "recommendations": [
+  {
+   "ids": [],
+   "text": "Clarify the expected behavior for invalid email sign-in and incorrect email/password scenarios."
+  },
+  {
+   "ids": [],
+   "text": "Specify the observable result after account deletion and clicking the \"go elsewhere\" link."
+  }
+ ]
+}

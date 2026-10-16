@@ -18,11 +18,12 @@ import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from typing import Any, TypeVar
+from pathlib import Path
+from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, SecretStr, ValidationError
 
-from spec_to_test.llm.config import DEFAULT_TIMEOUT_S, AIConfig
+from spec_to_test.llm.config import DEFAULT_TIMEOUT_S, ENV_FILE, AIConfig, load_settings
 
 T = TypeVar("T", bound=BaseModel)
 ClientFactory = Callable[[AIConfig], Any]
@@ -303,3 +304,53 @@ def check_connection(config: AIConfig, client_factory: ClientFactory = default_c
         client_factory,
         max_tokens=2000,  # room for models that reason before answering
     )
+
+
+# ---------------------------------------------------------------------------
+# Provider interface for features
+# ---------------------------------------------------------------------------
+
+class StructuredProvider(Protocol):
+    """What a feature needs from a model: one request answered with JSON validated against `output`.
+
+    Implementations raise AIError on every failure. Features depend on this
+    interface only, so another provider or model needs no change in them.
+    """
+
+    @property
+    def label(self) -> str: ...
+
+    def request(self, system: str, user: str, output: type[T], max_tokens: int) -> T: ...
+
+
+class ConfiguredProvider:
+    """The StructuredProvider for one AIConfig (any provider of `spec_to_test.llm.config`)."""
+
+    def __init__(self, config: AIConfig, client_factory: ClientFactory = default_client_factory) -> None:
+        self.config = config
+        self._client_factory = client_factory
+
+    @property
+    def label(self) -> str:
+        return f"{self.config.provider_name} · {self.config.model}"
+
+    def request(self, system: str, user: str, output: type[T], max_tokens: int) -> T:
+        return request_structured(self.config, system, user, output, self._client_factory, max_tokens)
+
+
+def load_provider(environ: dict[str, str] | None = None, env_file: Path | None = ENV_FILE,
+                  client_factory: ClientFactory = default_client_factory) -> ConfiguredProvider:
+    """The AI_PROVIDER provider from the environment (or .env).
+
+    Raises AIError("not_configured") when AI_PROVIDER is unset or "none", and
+    AIError(<problem>) when it cannot be used: key_missing, url_missing,
+    model_missing, invalid_url, insecure_url or unsupported_provider.
+    """
+    settings = load_settings(environ, env_file)
+    config = settings.default()
+    if config is not None:
+        return ConfiguredProvider(config, client_factory)
+    if not settings.problems:
+        raise AIError("not_configured")
+    problem = settings.problems.get(settings.default_provider) or next(iter(settings.problems.values()))
+    raise AIError("unsupported_provider" if problem == "unknown_provider" else problem)

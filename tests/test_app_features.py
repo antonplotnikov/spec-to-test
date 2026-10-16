@@ -5,7 +5,7 @@ from streamlit.testing.v1 import AppTest
 
 from conftest import PROJECT_ROOT, goto, home
 from spec_to_test.models import ReviewStatus
-from spec_to_test.storage import load_latest
+from spec_to_test.storage import load_latest, load_pointer, save_workspace
 
 APP_PATH = str(PROJECT_ROOT / "app.py")
 PAGES = [
@@ -121,6 +121,27 @@ def test_edit_and_approve_test_case_updates_rtm_and_persists(analyzed):
     row = rtm[rtm["ID"] == edited.requirement_id].iloc[0]
     assert edited.id in row["Approved tests"]
     assert row["Coverage"] == "✅ Covered"
+
+
+def test_an_edit_does_not_overwrite_a_change_saved_elsewhere(analyzed):
+    at = goto(analyzed, "tests")
+    elsewhere = load_latest()  # e.g. the QA on-change run with --allow-write
+    approved = elsewhere.test_cases[0].id
+    elsewhere.test_cases[0].review_status = ReviewStatus.APPROVED
+    save_workspace(elsewhere, load_pointer()[0], remember=False)
+    count = len(elsewhere.test_cases)
+
+    button(at, "tc_add").click().run()  # the app still holds the older copy
+    assert not at.exception
+    assert any("changed elsewhere" in toast.value for toast in at.toast)
+    saved = load_latest()
+    assert len(saved.test_cases) == count
+    assert saved.test_cases[0].review_status == ReviewStatus.APPROVED
+    # The app now shows the saved version, so the next edit keeps the change.
+    button(at, "tc_add").click().run()
+    saved = load_latest()
+    assert len(saved.test_cases) == count + 1
+    assert next(tc for tc in saved.test_cases if tc.id == approved).review_status == ReviewStatus.APPROVED
 
 
 def test_invalid_edit_is_rejected(analyzed):

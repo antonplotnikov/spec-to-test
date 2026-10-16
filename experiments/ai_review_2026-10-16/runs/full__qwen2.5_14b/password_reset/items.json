@@ -1,0 +1,138 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REQ-4",
+   "REQ-7"
+  ],
+  "description": "The requirements specify different minimum lengths for the new password.",
+  "quote": "The new password must be at least 8 characters long and contain one digit."
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "REQ-5",
+   "TC-009"
+  ],
+  "description": "The test case does not specify how to measure 'fast' or 'user-friendly'.",
+  "quote": "The reset page should load fast and be user-friendly."
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REQ-6"
+  ],
+  "description": "The requirement does not specify how many failed attempts constitute 'too many'.",
+  "quote": "After too many failed attempts, the account is locked."
+ },
+ {
+  "kind": "problem",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "REQ-8",
+   "TC-014"
+  ],
+  "description": "The test case does not specify what constitutes a 'generic message'.",
+  "quote": "If the email address is not registered, the system shows a generic message to avoid revealing which accounts exist."
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-4",
+   "REQ-7"
+  ],
+  "question": "Which minimum length should be enforced for the new password?"
+ },
+ {
+  "kind": "question",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-5"
+  ],
+  "question": "How should 'fast' and 'user-friendly' be defined for the reset page?"
+ },
+ {
+  "kind": "question",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-6"
+  ],
+  "question": "How many failed attempts constitute 'too many'?"
+ },
+ {
+  "kind": "question",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-8"
+  ],
+  "question": "What constitutes a 'generic message'?"
+ },
+ {
+  "kind": "recommendation",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the minimum password length requirement (REQ-4 and REQ-7) with the author."
+ },
+ {
+  "kind": "recommendation",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Define specific criteria for 'fast' and 'user-friendly' in REQ-5."
+ },
+ {
+  "kind": "recommendation",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Specify the number of failed attempts that lock an account in REQ-6."
+ },
+ {
+  "kind": "recommendation",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Define what constitutes a 'generic message' in REQ-8."
+ }
+]

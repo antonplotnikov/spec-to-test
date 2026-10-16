@@ -1,0 +1,76 @@
+{
+ "problems": [
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-2"
+   ],
+   "description": "The requirement does not specify what happens if the user enters an invalid email.",
+   "quote": ""
+  },
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-2"
+   ],
+   "description": "The requirement does not specify what happens if the user enters an invalid password.",
+   "quote": ""
+  },
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-5"
+   ],
+   "description": "The requirement does not specify what happens after the user deletes their account.",
+   "quote": ""
+  },
+  {
+   "category": "missing_scenario",
+   "ids": [
+    "REQ-6"
+   ],
+   "description": "The requirement does not specify what happens if the user clicks the \"go elsewhere\" link while not signed in.",
+   "quote": ""
+  }
+ ],
+ "questions": [
+  {
+   "ids": [
+    "REQ-2"
+   ],
+   "question": "What should happen if a registered user tries to sign in with an invalid email?"
+  },
+  {
+   "ids": [
+    "REQ-2"
+   ],
+   "question": "What should happen if a registered user tries to sign in with an invalid password?"
+  },
+  {
+   "ids": [
+    "REQ-5"
+   ],
+   "question": "What should happen after a signed-in user deletes their account?"
+  },
+  {
+   "ids": [
+    "REQ-6"
+   ],
+   "question": "What should happen if the user clicks the \"go elsewhere\" link while not signed in?"
+  }
+ ],
+ "recommendations": [
+  {
+   "ids": [],
+   "text": "Clarify the expected behavior for invalid email and password scenarios in REQ-2."
+  },
+  {
+   "ids": [],
+   "text": "Clarify the expected behavior after account deletion in REQ-5."
+  },
+  {
+   "ids": [],
+   "text": "Clarify the expected behavior when clicking the \"go elsewhere\" link while not signed in in REQ-6."
+  }
+ ]
+}

@@ -88,7 +88,7 @@ UNIT_REQUIREMENTS = {
     "months": "The subscription must last at most 6 months.",
     "years": "The user must be at least 18 years old.",
     "kilobytes": "The avatar must be at most 512 KB.",
-    "gigabytes": "The upload must be at most 2 GB.",
+    "gigabytes": "The upload must be at most 200 GB.",  # 2 GB is probed in MB
     "percent": "The discount must be at most 50%.",
     "items": "The cart must contain at most 10 items.",
 }

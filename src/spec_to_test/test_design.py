@@ -5,6 +5,16 @@ Only facts written in the requirement are used. A technique is applied only
 where the requirement gives what it needs (a number with a unit, or an
 explicit if/when condition). Outcomes the requirement does not state are
 marked "unspecified" instead of being guessed.
+
+"At least" / "at most" / "не повинен перевищувати" include their limit. A
+single time or attempt count is read by its preposition: "within 60 seconds"
+is a deadline (60 s is still in time), "expires after 30 minutes" / "через
+15 хвилин" a delay (the change has not happened at 29 and has at 31; "after
+5 attempts" happens on the 5th, "after more than 5 attempts" on the 6th),
+"locked for 15 minutes" a duration (still locked at 14, over at 16). Without
+such a word the value stays exact, and so do "more than" / "less than": which
+side of them is valid depends on the sentence ("passwords longer than 64
+characters are rejected").
 """
 
 import re
@@ -15,11 +25,20 @@ from typing import Literal
 from pydantic import BaseModel
 
 from spec_to_test.models import Requirement
-from spec_to_test.quantities import find_ranges, parse_number
-from spec_to_test.rule_engine import _normalize, _quantities
+from spec_to_test.quantities import Quantity, dimension, find_quantities, find_ranges, to_base
+from spec_to_test.rule_engine import _normalize
 
-Expectation = Literal["valid", "invalid", "stated", "unspecified"]
+Expectation = Literal[
+    "valid", "invalid", "stated", "unspecified",
+    # Deadline ("within 60 seconds"): in time up to the limit, too late after it.
+    "in_time", "too_late",
+    # Delay ("expires after 30 minutes"): the stated change has not happened yet / has happened.
+    "not_yet", "happened",
+    # Duration ("locked for 15 minutes"): the stated state still holds / is over.
+    "in_effect", "ended",
+]
 ConstraintKind = Literal["min", "max", "exact", "range"]
+Timing = Literal["deadline", "delay", "duration"]
 
 MAX_DECISION_CONDITIONS = 3
 
@@ -29,6 +48,10 @@ class Constraint(BaseModel):
     kind: ConstraintKind
     low: Decimal | None = None
     high: Decimal | None = None
+    # How an exact time or attempt count is meant ("within", "after", "for"); None = plain equality.
+    timing: Timing | None = None
+    # "After more than 5 attempts": the limit itself is not reached yet.
+    strict: bool = False
     # Original wording, used as the source reference.
     phrase: str
 
@@ -90,15 +113,36 @@ class TestDesign(BaseModel):
 # Numeric constraints
 # ---------------------------------------------------------------------------
 
-def _number(text: str) -> Decimal:
-    value = parse_number(text)
-    if value is None:
-        raise ValueError(f"not a number: {text!r}")
-    return value
+# Words right before an exact time ("within 60 seconds", "через 15 хвилин", "locked for 15 minutes")
+# or right after it ("30 minutes after it is generated").
+_DEADLINE_BEFORE = re.compile(
+    r"(?<!\w)(?:within|протягом|впродовж|упродовж|в течение|в течении|в пределах|за)\s*$", re.IGNORECASE
+)
+_DELAY_BEFORE = re.compile(
+    r"(?<!\w)(?:after|через|після|после|спустя|по истечении|(?:expires?|expiring|times? out|ends?)\s+in)\s*$",
+    re.IGNORECASE,
+)
+_DURATION_BEFORE = re.compile(r"(?<!\w)(?:for|на)\s*$", re.IGNORECASE)
+_DELAY_AFTER = re.compile(r"^\s*(?:after|later|після|после|спустя)(?!\w)", re.IGNORECASE)
+# Units a timing word applies to: "after 5 attempts" is a delay too.
+_TIMED_UNITS = frozenset({"attempts"})
+
+
+def _timing(text: str, quantity: Quantity) -> Timing | None:
+    if quantity.dimension != "time" and quantity.unit not in _TIMED_UNITS:
+        return None
+    before = text[:quantity.start]
+    if _DEADLINE_BEFORE.search(before):
+        return "deadline"
+    if _DELAY_BEFORE.search(before) or _DELAY_AFTER.match(text[quantity.end:]):
+        return "delay"
+    if _DURATION_BEFORE.search(before):
+        return "duration"
+    return None
 
 
 def extract_constraints(text: str) -> list[Constraint]:
-    """Return numeric limits stated in the text, merging min+max into a range."""
+    """Return numeric limits stated in the text, merging a lower and an upper limit into a range."""
     text = _normalize(text)
     constraints: list[Constraint] = []
     ranged_units: set[str] = set()
@@ -111,26 +155,34 @@ def extract_constraints(text: str) -> list[Constraint]:
             ))
             ranged_units.add(found_range.unit)
 
-    by_unit: dict[str, dict[str, tuple[str, str]]] = {}
-    for (unit, comparator), quantity in _quantities(text).items():
-        if unit not in ranged_units:
-            by_unit.setdefault(unit, {})[comparator] = quantity
+    # The first lower limit, upper limit and exact value per unit. Strict comparators count as the
+    # exact number ("more than 5 attempts" → 5 attempts), as in the rule engine.
+    by_unit: dict[str, dict[str, Quantity]] = {}
+    for quantity in find_quantities(text, skip_ranges=False):
+        if quantity.unit not in ranged_units:
+            side = "exact" if quantity.comparator in ("gt", "lt") else quantity.comparator
+            by_unit.setdefault(quantity.unit, {}).setdefault(side, quantity)
 
     for unit, found in by_unit.items():
         if "min" in found and "max" in found:
-            low, high = _number(found["min"][0]), _number(found["max"][0])
+            low, high = found["min"].value, found["max"].value
             if low < high:
-                phrase = f"{found['min'][1]} … {found['max'][1]}"
+                phrase = f"{found['min'].phrase} … {found['max'].phrase}"
                 constraints.append(Constraint(unit=unit, kind="range", low=low, high=high, phrase=phrase))
                 continue
-        for comparator, (number, phrase) in found.items():
-            value = _number(number)
-            if comparator == "min":
-                constraints.append(Constraint(unit=unit, kind="min", low=value, phrase=phrase))
-            elif comparator == "max":
-                constraints.append(Constraint(unit=unit, kind="max", high=value, phrase=phrase))
+        for side, quantity in found.items():
+            if side == "min":
+                constraints.append(Constraint(unit=unit, kind="min", low=quantity.value, phrase=quantity.phrase))
+            elif side == "max":
+                constraints.append(Constraint(unit=unit, kind="max", high=quantity.value, phrase=quantity.phrase))
             else:
-                constraints.append(Constraint(unit=unit, kind="exact", low=value, high=value, phrase=phrase))
+                timing = _timing(text, quantity)
+                strict = quantity.comparator == "gt" and timing == "delay"
+                if quantity.comparator in ("gt", "lt") and not strict:
+                    timing = None  # "less than 2 seconds", "longer than 64 characters are rejected"
+                phrase = quantity.bare if quantity.comparator in ("gt", "lt") and not strict else quantity.phrase
+                constraints.append(Constraint(unit=unit, kind="exact", low=quantity.value, high=quantity.value,
+                                              timing=timing, strict=strict, phrase=phrase))
     return constraints
 
 
@@ -138,6 +190,24 @@ def _step(*values: Decimal | None) -> Decimal:
     """Smallest meaningful change: 1 for integers, 0.1 for one decimal place, ..."""
     places = max((-int(v.as_tuple().exponent) for v in values if v is not None), default=0)
     return Decimal(1).scaleb(-max(places, 0))
+
+
+# Outcome below / at / above an exact timed value.
+_TIMED_OUTCOMES: dict[str, tuple[Expectation, Expectation, Expectation]] = {
+    "deadline": ("in_time", "in_time", "too_late"),  # "within 60 seconds" includes 60 s
+    "delay": ("not_yet", "stated", "happened"),
+    "duration": ("in_effect", "stated", "ended"),
+}
+
+
+def _at_limit(constraint: Constraint) -> Expectation:
+    below, at, above = _TIMED_OUTCOMES[constraint.timing or "delay"]
+    if constraint.strict:  # "after more than 5 attempts": not at the 5th
+        return below
+    # "Locked after 5 attempts" happens on the 5th; the exact moment of a time limit is left as stated.
+    if constraint.timing == "delay" and dimension(constraint.unit) != "time":
+        return above
+    return at
 
 
 def boundary_values(constraint: Constraint) -> BoundaryAnalysis:
@@ -158,10 +228,16 @@ def boundary_values(constraint: Constraint) -> BoundaryAnalysis:
         add(high, "valid")
         add(high + step, "invalid")
     if constraint.kind == "exact" and low is not None:
-        # "Expires after 30 minutes" says what happens at 30, not around it.
-        add(low - step, "unspecified")
-        add(low, "stated")
-        add(low + step, "unspecified")
+        if constraint.timing:
+            below, _, above = _TIMED_OUTCOMES[constraint.timing]
+            add(low - step, below)
+            add(low, _at_limit(constraint))
+            add(low + step, above)
+        else:
+            # "The code has 6 digits" says what happens at 6, not around it.
+            add(low - step, "unspecified")
+            add(low, "stated")
+            add(low + step, "unspecified")
     values.sort(key=lambda v: v.value)
     return BoundaryAnalysis(constraint=constraint, values=values)
 
@@ -193,10 +269,37 @@ def equivalence_partitions(constraint: Constraint) -> PartitionAnalysis:
             middle = middle.to_integral_value()
         parts.append(Partition(name="inside", interval=f"{_fmt(low)} – {_fmt(high)}", representative=middle, expectation="valid"))
         parts.append(Partition(name="above", interval=f"> {_fmt(high)}", representative=high * 2, expectation="invalid"))
+    elif constraint.kind == "exact" and low is not None and constraint.timing:
+        below, _, above = _TIMED_OUTCOMES[constraint.timing]
+        at = _at_limit(constraint)
+        before = f"≤ {_fmt(low)}" if at == below else f"< {_fmt(low)}"
+        after = f"≥ {_fmt(low)}" if at == above else f"> {_fmt(low)}"
+        parts.append(Partition(name="below", interval=before, representative=_half(low) or low / 2, expectation=below))
+        parts.append(Partition(name="above", interval=after, representative=low * 2 or _step(low), expectation=above))
     elif constraint.kind == "exact" and low is not None:
         parts.append(Partition(name="equal", interval=f"= {_fmt(low)}", representative=low, expectation="stated"))
         parts.append(Partition(name="not_equal", interval=f"≠ {_fmt(low)}", representative=low * 2 or _step(low), expectation="unspecified"))
     return PartitionAnalysis(constraint=constraint, partitions=parts)
+
+
+# Data limits probed in a smaller unit when one step of their own is too coarse: the neighbours of
+# "at most 1 MB" are 1023 and 1025 KB, not 0 and 2 MB.
+_FINER_UNIT = {"gigabytes": "megabytes", "megabytes": "kilobytes"}
+_MAX_RELATIVE_STEP = Decimal("0.01")
+
+
+def _probe_constraint(constraint: Constraint) -> Constraint:
+    """The constraint in the unit its test values are written in."""
+    finer = _FINER_UNIT.get(constraint.unit)
+    limits = [v for v in (constraint.low, constraint.high) if v]
+    if finer is None or not limits or _step(*limits) / min(limits) <= _MAX_RELATIVE_STEP:
+        return constraint
+    factor = to_base(Decimal(1), constraint.unit) / to_base(Decimal(1), finer)
+
+    def convert(value: Decimal | None) -> Decimal | None:
+        return None if value is None else (value * factor).normalize() + 0
+
+    return constraint.model_copy(update={"unit": finer, "low": convert(constraint.low), "high": convert(constraint.high)})
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +368,7 @@ def decision_table(text: str) -> DecisionTable | None:
 # ---------------------------------------------------------------------------
 
 def design_tests(requirement: Requirement) -> TestDesign:
-    constraints = extract_constraints(requirement.text)
+    constraints = [_probe_constraint(c) for c in extract_constraints(requirement.text)]
     return TestDesign(
         requirement_id=requirement.id,
         boundaries=[boundary_values(c) for c in constraints],

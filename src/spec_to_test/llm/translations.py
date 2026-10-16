@@ -97,4 +97,39 @@ LLM_TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Цей провайдер ШІ не підтримується. Використовуйте anthropic, openai, openai_compatible або ollama.",
         "ru": "Этот провайдер ИИ не поддерживается. Используйте anthropic, openai, openai_compatible или ollama.",
     },
+    "ai.error.not_configured": {
+        "en": "AI is not configured. Set AI_PROVIDER (anthropic, openai, openai_compatible or ollama) and the provider's key or server address in the environment or a local .env file.",
+        "uk": "ШІ не налаштовано. Задайте AI_PROVIDER (anthropic, openai, openai_compatible або ollama) і ключ або адресу сервера провайдера в оточенні чи локальному файлі .env.",
+        "ru": "ИИ не настроен. Задайте AI_PROVIDER (anthropic, openai, openai_compatible или ollama) и ключ или адрес сервера провайдера в окружении или локальном файле .env.",
+    },
+    "ai.error.key_missing": {
+        "en": "The API key of the AI_PROVIDER provider is not set (ANTHROPIC_API_KEY or OPENAI_API_KEY).",
+        "uk": "API-ключ провайдера AI_PROVIDER не задано (ANTHROPIC_API_KEY або OPENAI_API_KEY).",
+        "ru": "API-ключ провайдера AI_PROVIDER не задан (ANTHROPIC_API_KEY или OPENAI_API_KEY).",
+    },
+    "ai.error.url_missing": {
+        "en": "The server address is not set: OPENAI_COMPATIBLE_BASE_URL (e.g. http://localhost:1234/v1).",
+        "uk": "Адресу сервера не задано: OPENAI_COMPATIBLE_BASE_URL (напр. http://localhost:1234/v1).",
+        "ru": "Адрес сервера не задан: OPENAI_COMPATIBLE_BASE_URL (напр. http://localhost:1234/v1).",
+    },
+    "ai.error.model_missing": {
+        "en": "The model is not set or not a model ID: OPENAI_COMPATIBLE_MODEL (or AI_MODEL).",
+        "uk": "Модель не задано або це не ID моделі: OPENAI_COMPATIBLE_MODEL (або AI_MODEL).",
+        "ru": "Модель не задана или это не ID модели: OPENAI_COMPATIBLE_MODEL (или AI_MODEL).",
+    },
+    "ai.error.invalid_url": {
+        "en": "The provider's server address is not a valid http(s) URL (OPENAI_COMPATIBLE_BASE_URL, OPENAI_BASE_URL or OLLAMA_HOST).",
+        "uk": "Адреса сервера провайдера не є коректною http(s)-адресою (OPENAI_COMPATIBLE_BASE_URL, OPENAI_BASE_URL або OLLAMA_HOST).",
+        "ru": "Адрес сервера провайдера не является корректным http(s)-адресом (OPENAI_COMPATIBLE_BASE_URL, OPENAI_BASE_URL или OLLAMA_HOST).",
+    },
+    "ai.error.insecure_url": {
+        "en": "An API key is sent only over https or to this machine (localhost). Change the server address or remove the key.",
+        "uk": "API-ключ надсилається лише через https або на цей комп'ютер (localhost). Змініть адресу сервера або приберіть ключ.",
+        "ru": "API-ключ отправляется только по https или на этот компьютер (localhost). Измените адрес сервера или уберите ключ.",
+    },
+    "ai.error.input_too_large": {
+        "en": "The document is too large for one AI request. Nothing was sent.",
+        "uk": "Документ завеликий для одного запиту до ШІ. Нічого не надіслано.",
+        "ru": "Документ слишком большой для одного запроса к ИИ. Ничего не отправлено.",
+    },
 }

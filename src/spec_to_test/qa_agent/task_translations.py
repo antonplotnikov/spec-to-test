@@ -13,9 +13,9 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     # --- Page -----------------------------------------------------------------
     "qaagent.mode.task": _e("QA task", "QA-задача", "QA-задача"),
     "qatask.explainer": _e(
-        "Describe a QA task in plain words. The agent picks the matching checks (Test Case Critic, Scenario Coverage, Change Impact, Traceability, Suite Planner), runs them on the open document and sums up the result. It only reads: test case statuses change only after you confirm.",
-        "Опишіть QA-задачу звичайними словами. Агент вибере відповідні перевірки (критик тест-кейсів, покриття сценаріїв, вплив змін, трасування, планувальник наборів), виконає їх на відкритому документі й підсумує результат. Агент лише читає: статуси тест-кейсів змінюються тільки після вашого підтвердження.",
-        "Опишите QA-задачу обычными словами. Агент выберет подходящие проверки (критик тест-кейсов, покрытие сценариев, влияние изменений, трассировка, планировщик наборов), выполнит их на открытом документе и подведёт итог. Агент только читает: статусы тест-кейсов меняются только после вашего подтверждения.",
+        "Describe a QA task in plain words. The agent picks the matching checks (requirements analysis, Test Case Critic, Scenario Coverage, Change Impact, Traceability, Suite Planner), runs them on the open document and sums up the result. It only reads: test case statuses change only after you confirm.",
+        "Опишіть QA-задачу звичайними словами. Агент вибере відповідні перевірки (аналіз вимог, критик тест-кейсів, покриття сценаріїв, вплив змін, трасування, планувальник наборів), виконає їх на відкритому документі й підсумує результат. Агент лише читає: статуси тест-кейсів змінюються тільки після вашого підтвердження.",
+        "Опишите QA-задачу обычными словами. Агент выберет подходящие проверки (анализ требований, критик тест-кейсов, покрытие сценариев, влияние изменений, трассировка, планировщик наборов), выполнит их на открытом документе и подведёт итог. Агент только читает: статусы тест-кейсов меняются только после вашего подтверждения.",
     ),
     "qatask.input": _e("Task", "Задача", "Задача"),
     "qatask.placeholder": _e(
@@ -25,15 +25,17 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     ),
     "qatask.run": _e("Run task", "Виконати задачу", "Выполнить задачу"),
     "qatask.limits": _e(
-        "At most {steps} checks per task. Supported: test case quality, scenario coverage, change impact, traceability gaps, Smoke/Regression/Full suites, and approving or returning named test cases to Draft (with confirmation).",
-        "Не більше {steps} перевірок на задачу. Підтримується: якість тест-кейсів, покриття сценаріїв, вплив змін, прогалини трасування, набори Smoke/Regression/Full, а також затвердження або повернення названих тест-кейсів у чернетку (з підтвердженням).",
-        "Не более {steps} проверок на задачу. Поддерживается: качество тест-кейсов, покрытие сценариев, влияние изменений, пробелы трассировки, наборы Smoke/Regression/Full, а также утверждение или возврат названных тест-кейсов в черновик (с подтверждением).",
+        "At most {steps} checks per task. Supported: contradictions, ambiguities, missing error handling and missing expected results in the requirements, test case quality, scenario coverage, change impact, traceability gaps, Smoke/Regression/Full suites, and approving or returning named test cases to Draft (with confirmation).",
+        "Не більше {steps} перевірок на задачу. Підтримується: суперечності, неоднозначності, відсутня обробка помилок і відсутні очікувані результати у вимогах, якість тест-кейсів, покриття сценаріїв, вплив змін, прогалини трасування, набори Smoke/Regression/Full, а також затвердження або повернення названих тест-кейсів у чернетку (з підтвердженням).",
+        "Не более {steps} проверок на задачу. Поддерживается: противоречия, неоднозначности, отсутствие обработки ошибок и ожидаемых результатов в требованиях, качество тест-кейсов, покрытие сценариев, влияние изменений, пробелы трассировки, наборы Smoke/Regression/Full, а также утверждение или возврат названных тест-кейсов в черновик (с подтверждением).",
     ),
+    "qatask.tool.requirements": _e("Requirements analysis", "Аналіз вимог", "Анализ требований"),
     "qatask.tool.critic": _e("Test Case Critic", "Критик тест-кейсів", "Критик тест-кейсов"),
     "qatask.tool.coverage": _e("Scenario Coverage", "Покриття сценаріїв", "Покрытие сценариев"),
     "qatask.tool.impact": _e("Change Impact", "Вплив змін", "Влияние изменений"),
     "qatask.tool.traceability": _e("Traceability", "Трасування", "Трассировка"),
     "qatask.tool.suites": _e("Suite Planner", "Планувальник наборів", "Планировщик наборов"),
+    "qatask.tool.ai": _e("AI review", "AI-рев'ю", "AI-ревью"),
     "qatask.plan": _e("Checks run: {tools}", "Виконані перевірки: {tools}", "Выполненные проверки: {tools}"),
     "qatask.scope": _e(
         "Scope: {ids}. Change Impact and Suite Planner always look at the whole document.",
@@ -45,9 +47,36 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qatask.heading.problems": _e("Problems ({count})", "Проблеми ({count})", "Проблемы ({count})"),
     "qatask.heading.unknowns": _e("Unknown ({count})", "Невідомо ({count})", "Неизвестно ({count})"),
     "qatask.heading.recommendations": _e("Recommendations", "Рекомендації", "Рекомендации"),
+    "qatask.heading.approval": _e(
+        "Review status (not a problem of the requirements)", "Статус затвердження (не проблема вимог)",
+        "Статус утверждения (не проблема требований)",
+    ),
+    "qatask.approval.summary": _e(
+        "{draft} of {total} test cases are not Approved yet, and {names} count only Approved test cases. "
+        "Review and approve them.",
+        "{draft} з {total} тест-кейсів ще не затверджено, а {names} враховують лише затверджені тест-кейси. "
+        "Перегляньте й затвердьте їх.",
+        "{draft} из {total} тест-кейсов ещё не утверждены, а {names} учитывают только утверждённые тест-кейсы. "
+        "Проверьте и утвердите их.",
+    ),
+    "qatask.approval.summary_ids": _e(
+        "{draft} of {total} test cases are not Approved yet, and {names} count only Approved test cases. "
+        "Review and approve the test cases of {ids}.",
+        "{draft} з {total} тест-кейсів ще не затверджено, а {names} враховують лише затверджені тест-кейси. "
+        "Перегляньте й затвердьте тест-кейси {ids}.",
+        "{draft} из {total} тест-кейсов ещё не утверждены, а {names} учитывают только утверждённые тест-кейсы. "
+        "Проверьте и утвердите тест-кейсы {ids}.",
+    ),
     "qatask.heading.action": _e("Proposed change", "Запропонована зміна", "Предлагаемое изменение"),
     "qatask.no_problems": _e("No problems found by these checks.", "Ці перевірки не знайшли проблем.", "Эти проверки не нашли проблем."),
     "qatask.no_recommendations": _e("Nothing to do.", "Нічого робити не потрібно.", "Ничего делать не нужно."),
+    # Under a problem or unknown: what the requirements and test cases it names say now.
+    "qatask.ref.requirement_line": _e("{id} (line {line}): “{text}”", "{id} (рядок {line}): «{text}»",
+                                      "{id} (строка {line}): «{text}»"),
+    "qatask.ref.requirement": _e("{id}: “{text}”", "{id}: «{text}»", "{id}: «{text}»"),
+    "qatask.ref.test_case": _e("{id} ({status}, tests {req}): “{text}”", "{id} ({status}, перевіряє {req}): «{text}»",
+                               "{id} ({status}, проверяет {req}): «{text}»"),
+    "qatask.ref.more": _e("…and {count} more", "…і ще {count}", "…и ещё {count}"),
     "qatask.status.done": _e("Done", "Виконано", "Выполнено"),
     "qatask.status.partial": _e(
         "Done in part: some checks failed.", "Виконано частково: деякі перевірки не вдалися.",
@@ -82,6 +111,11 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qatask.action_too_large": _e(
         "A status change can name at most {max} test cases.", "Зміна статусу може стосуватися не більше {max} тест-кейсів.",
         "Изменение статуса может касаться не более {max} тест-кейсов.",
+    ),
+    "qatask.action_conflicts": _e(
+        "Not proposed for approval: {ids}. Their expected results conflict with other test cases (see Test Case Critic).",
+        "Не запропоновано до затвердження: {ids}. Їхні очікувані результати суперечать іншим тест-кейсам (див. Критик тест-кейсів).",
+        "Не предложено к утверждению: {ids}. Их ожидаемые результаты противоречат другим тест-кейсам (см. Критик тест-кейсов).",
     ),
     "qatask.error.empty": _e("Enter a task.", "Введіть задачу.", "Введите задачу."),
     "qatask.error.too_long": _e(
@@ -121,6 +155,11 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "Не применено: больше нет в документе: {ids}.",
     ),
     # --- Conclusions ----------------------------------------------------------
+    "qatask.summary.requirements": _e(
+        "Checked {checked} requirements: {contradiction} possible contradictions, {ambiguous_wording} with ambiguous wording, {missing_error_handling} without error handling, {missing_expected_result} without an expected result (open findings of the analysis).",
+        "Перевірено вимог: {checked}; можливих суперечностей: {contradiction}; з неоднозначним формулюванням: {ambiguous_wording}; без обробки помилок: {missing_error_handling}; без очікуваного результату: {missing_expected_result} (відкриті знахідки аналізу).",
+        "Проверено требований: {checked}; возможных противоречий: {contradiction}; с неоднозначной формулировкой: {ambiguous_wording}; без обработки ошибок: {missing_error_handling}; без ожидаемого результата: {missing_expected_result} (открытые находки анализа).",
+    ),
     "qatask.summary.critic": _e(
         "Checked {checked} test cases; {problems} have problems.", "Перевірено тест-кейсів: {checked}; з проблемами: {problems}.",
         "Проверено тест-кейсов: {checked}; с проблемами: {problems}.",
@@ -155,6 +194,26 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "Smoke: {smoke}, Регрессия: {regression}, Полный: {full} тест-кейсов.",
     ),
     # --- Problems and unknowns ------------------------------------------------
+    "qatask.requirements.contradiction": _e(
+        "conflicts with {related}: {terms}", "суперечить {related}: {terms}", "противоречит {related}: {terms}",
+    ),
+    "qatask.requirements.ambiguous_wording": _e(
+        "vague wording: {terms}", "розмите формулювання: {terms}", "размытая формулировка: {terms}",
+    ),
+    "qatask.requirements.missing_error_handling": _e(
+        "no behavior for invalid input or errors stated for: {terms}",
+        "не вказано поведінку при некоректних даних чи помилках для: {terms}",
+        "не указано поведение при некорректных данных или ошибках для: {terms}",
+    ),
+    "qatask.requirements.missing_expected_result": _e(
+        "states no observable result: what the user or the system sees or gets afterwards",
+        "не вказано спостережуваного результату: що користувач чи система бачить або отримує після дії",
+        "не указан наблюдаемый результат: что пользователь или система видит или получает после действия",
+    ),
+    "qatask.coverage.no_test_case": _e(
+        "no test case at all, not even a Draft, for: {names}", "жодного тест-кейсу, навіть чернетки, для: {names}",
+        "ни одного тест-кейса, даже черновика, для: {names}",
+    ),
     "qatask.coverage.missing": _e(
         "no Approved test case for: {names}", "немає затвердженого тест-кейсу для: {names}",
         "нет утверждённого тест-кейса для: {names}",
@@ -201,6 +260,11 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "not represented in Smoke: {ids}", "не представлені в Smoke: {ids}", "не представлены в Smoke: {ids}",
     ),
     # --- Recommendations ------------------------------------------------------
+    "qatask.rec.requirements_clarify": _e(
+        "Clarify {ids} with the document author before writing or approving their test cases.",
+        "Уточніть {ids} в автора документа, перш ніж писати чи затверджувати їхні тест-кейси.",
+        "Уточните {ids} у автора документа, прежде чем писать или утверждать их тест-кейсы.",
+    ),
     "qatask.rec.critic_fix": _e(
         "Fix the problems in {ids} before approving them.", "Виправте проблеми в {ids} перед затвердженням.",
         "Исправьте проблемы в {ids} перед утверждением.",
@@ -236,17 +300,9 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
         "Link {ids} to an existing requirement or delete them.", "Пов'яжіть {ids} з наявною вимогою або видаліть їх.",
         "Свяжите {ids} с существующим требованием или удалите их.",
     ),
-    "qatask.rec.trace_approve": _e(
-        "Review and approve a test case for {ids}.", "Перегляньте й затвердьте тест-кейс для {ids}.",
-        "Проверьте и утвердите тест-кейс для {ids}.",
-    ),
     "qatask.rec.trace_clarify": _e(
         "Clarify {ids} (Grill Mode) so it is clear what to test.", "Уточніть {ids} (Grill Mode), щоб було зрозуміло, що тестувати.",
         "Уточните {ids} (Grill Mode), чтобы было ясно, что тестировать.",
-    ),
-    "qatask.rec.suites_approve": _e(
-        "Approve test cases to fill the Smoke and Regression suites.", "Затвердьте тест-кейси, щоб заповнити набори Smoke і Регресія.",
-        "Утвердите тест-кейсы, чтобы заполнить наборы Smoke и Регрессия.",
     ),
     "qatask.rec.suites_smoke": _e(
         "Approve a Positive test case with High or Medium priority for each requirement missing from Smoke.",
@@ -318,4 +374,45 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qamemory.error.save_failed": _e(
         "Project memory could not be saved.", "Не вдалося зберегти пам'ять проєкту.", "Не удалось сохранить память проекта.",
     ),
+    # --- AI review (qa_agent/ai_review.py) ------------------------------------------
+    "qatask.summary.ai": _e(
+        "{model}: {problems} problems, {questions} questions.",
+        "{model}: проблем — {problems}, питань — {questions}.",
+        "{model}: проблем — {problems}, вопросов — {questions}.",
+    ),
+    "qatask.summary.ai_rejected": _e(
+        "{model}: {problems} problems, {questions} questions; {rejected} items of the reply were rejected (no known ID or a quote not found in the document).",
+        "{model}: проблем — {problems}, питань — {questions}; відхилено елементів відповіді: {rejected} (без відомого ID або з цитатою, якої немає в документі).",
+        "{model}: проблем — {problems}, вопросов — {questions}; отклонено элементов ответа: {rejected} (без известного ID или с цитатой, которой нет в документе).",
+    ),
+    "qatask.ai.failed": _e(
+        "not done: {names} The rule-based checks are not affected.",
+        "не виконано: {names} Перевірки на основі правил не змінено.",
+        "не выполнено: {names} Проверки на основе правил не изменены.",
+    ),
+    "qatask.ai.consent": _e(
+        "Add AI review: send this document's requirements, test cases and changes to {provider} ({model}) for this run",
+        "Додати AI-рев'ю: надіслати вимоги, тест-кейси та зміни цього документа до {provider} ({model}) для цього запуску",
+        "Добавить AI-ревью: отправить требования, тест-кейсы и изменения этого документа в {provider} ({model}) для этого запуска",
+    ),
+    "qatask.ai.off": _e(
+        "AI review is not available: AI is not configured or is turned off in AI settings. The checks below work without it.",
+        "AI-рев'ю недоступне: ШІ не налаштовано або вимкнено в налаштуваннях ШІ. Перевірки нижче працюють без нього.",
+        "AI-ревью недоступно: ИИ не настроен или выключен в настройках ИИ. Проверки ниже работают без него.",
+    ),
+    "qatask.ai.running": _e("AI review with {model}…", "AI-рев'ю з {model}…", "AI-ревью с {model}…"),
+    "qatask.ai.disclaimer": _e(
+        "Lines marked “AI · …” are suggestions of the model, checked only for known IDs and quotes. Verify them against the document; they change nothing.",
+        "Рядки з позначкою «AI · …» — пропозиції моделі, перевірені лише на відомі ID і цитати. Звірте їх із документом; вони нічого не змінюють.",
+        "Строки с пометкой «AI · …» — предложения модели, проверенные только на известные ID и цитаты. Сверьте их с документом; они ничего не меняют.",
+    ),
+    "qatask.ai.problem": _e("{text}", "{text}", "{text}"),
+    "qatask.ai.problem_quote": _e("{text} (“{quote}”)", "{text} («{quote}»)", "{text} («{quote}»)"),
+    "qatask.ai.question": _e("{text}", "{text}", "{text}"),
+    "qatask.ai.recommendation": _e("{text}", "{text}", "{text}"),
+    "qatask.ai.category.contradiction": _e("AI · Contradiction", "AI · Суперечність", "AI · Противоречие"),
+    "qatask.ai.category.ambiguity": _e("AI · Ambiguity", "AI · Неоднозначність", "AI · Неоднозначность"),
+    "qatask.ai.category.missing_scenario": _e("AI · Missing scenario", "AI · Відсутній сценарій", "AI · Нет сценария"),
+    "qatask.ai.category.change_risk": _e("AI · Change risk", "AI · Ризик зміни", "AI · Риск изменения"),
+    "qatask.ai.category.test_gap": _e("AI · Test gap", "AI · Прогалина в тестах", "AI · Пробел в тестах"),
 }

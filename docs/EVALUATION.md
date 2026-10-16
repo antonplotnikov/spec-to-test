@@ -146,3 +146,61 @@ answers; and scripted model replies per request type (`interview`,
 Label what a reviewer would ask, not what the engine happens to ask. Then run
 the suite and, if the new case changes the totals, adjust `thresholds.json`
 deliberately.
+
+## QA Agent evaluation
+
+A separate, rule-based evaluation of the QA task agent (`qa_agent/tasks.py`)
+against the known problems of five documents: `examples/password_reset.md`,
+`examples/qa_demo/requirements.md`, `tests/fixtures/reference_spec.md` and the
+requirements of the Grill cases `03_checkout_ru` and `24_uk_units_ranges`.
+
+```bash
+cd src
+python -m spec_to_test.evaluation.qa_agent_eval
+python -m spec_to_test.evaluation.qa_agent_eval --json out.json --markdown out.md
+```
+
+Each document is analyzed as the on-change run does (rule engine and generated
+test cases), the agent runs "Full check", and its output is scored against
+`evaluation/qa_agent_gold.json`: per document, the problems of the requirements
+(contradiction, ambiguous wording, missing error handling, missing boundary,
+missing expected result) and of the generated test cases (template test case,
+expectation conflict, boundary semantics — "within / after / not exceed"
+treated as equality), with the affected IDs and the trap each belongs to, plus
+`must_not` traps (equal values in other units, another scope, clear
+requirements, correct boundary probes). Requirement problems of the reference
+spec are those of `tests/test_reference_spec.py`; those of the Grill cases agree
+with their gold (checked by `tests/test_qa_agent_eval.py`).
+
+Scoring rules: only explicit problems count as found — an Unknown pointing at a
+gold problem is listed as "Unknown only" and does not raise recall; a problem
+reported again (both sides of a contradiction, two test cases of one boundary
+problem, an identical line) is a duplicate, neither a true nor a false positive;
+optional (debatable) gold problems are neutral; a line the agent merged (one
+remark on several IDs) is scored as one line per ID; lines that only say a test
+case is not Approved yet (coverage, traceability, suites) are outside
+precision — the agent sums them up apart from the problems (column "Not
+Approved (apart)"), and any left among the problems is status noise; scenarios
+no generated test case covers are not in the gold and not scored. Precision and recall are reported per kind, in total
+(micro) and as the mean over kinds (macro), and per trap.
+
+A boundary problem of generated test cases carries `expect`: its note restated
+as probe value → whether the requirement's statement holds there (`"29": false,
+"31": true` for "expires after 30 minutes"). When the generated test cases give
+every listed value that outcome and leave no value "not specified", the problem
+is *resolved*: it counts towards recall (the reader no longer has it), is listed
+apart and adds nothing to precision. A `must_not` boundary entry with `expect`
+is a correct test case (the "не менее 500" or "8–64" probes); if the generated
+test cases stop matching it, that is a *regression* (threshold `regressions`
+max 0).
+
+A document whose content changed, or a gold test case ID that now names
+another requirement or test type, stops the run with exit code 2: the gold is
+stale and has to be checked again. Thresholds are in the gold file (exit code 1
+when one is missed); they are a regression floor at the current level, not a
+quality target.
+
+Limits of the gold: one reviewer's judgement on five small documents; problems
+of generated test cases are tied to the current generator's test case IDs;
+missing boundary tests (e.g. no test for "after 5 failed attempts") and
+non-executable QA steps are not labeled.

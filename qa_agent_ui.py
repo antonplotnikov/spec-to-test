@@ -264,7 +264,8 @@ def render_qa_agent(
             if no_document is not None:
                 no_document()
             return
-        qa_task_ui.render_task(lang, workspace, docs.persist if docs is not None else None, previous_impact)
+        qa_task_ui.render_task(lang, workspace, docs.persist if docs is not None else None, previous_impact,
+                               ai_config)
         return
     st.caption(t("qaagent.explainer", lang))
     if workspace is None:

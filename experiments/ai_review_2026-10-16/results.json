@@ -1,0 +1,146 @@
+{
+ "required": 91,
+ "required_requirement_level": 32,
+ "rules_found": 83,
+ "rule_missed": {
+  "password_reset": [
+   "ambiguous_wording REQ-4",
+   "missing_error_handling REQ-3",
+   "missing_error_handling REQ-4,REQ-7"
+  ],
+  "qa_demo": [],
+  "reference_spec": [
+   "expectation_conflict TC-018,TC-021",
+   "missing_boundary REF-09",
+   "missing_boundary REF-19"
+  ],
+  "checkout_ru": [],
+  "uk_units_ranges": [
+   "missing_error_handling REQ-3",
+   "missing_expected_result REQ-5"
+  ]
+ },
+ "variants": {
+  "baseline_old": {
+   "lines": 22,
+   "tp": 8,
+   "dup": 0,
+   "optional": 1,
+   "outside": 0,
+   "disputed": 0,
+   "fp": 13,
+   "precision": 0.38,
+   "precision_manual": 0.38,
+   "recall": 0.088,
+   "recall_requirement_level": "8/32",
+   "rule_misses_found": "0/8",
+   "rule_misses_found_list": [],
+   "recall_rules_or_ai": 0.912,
+   "trap_lines": [
+    "reference_spec: requirement REF-01",
+    "reference_spec: requirement REF-04",
+    "reference_spec: requirement REF-18",
+    "uk_units_ranges: contradiction REQ-3,REQ-4"
+   ],
+   "units_trap": true,
+   "admin_session_trap": false,
+   "category_wrong_on_tp": 3,
+   "lines_with_quote": 16,
+   "rejected": 0,
+   "questions": 11,
+   "wall_s_total": 169.5,
+   "prompt_tokens_max": null
+  },
+  "baseline_rerun": {
+   "lines": 23,
+   "tp": 8,
+   "dup": 0,
+   "optional": 1,
+   "outside": 0,
+   "disputed": 0,
+   "fp": 14,
+   "precision": 0.36,
+   "precision_manual": 0.36,
+   "recall": 0.088,
+   "recall_requirement_level": "8/32",
+   "rule_misses_found": "1/8",
+   "rule_misses_found_list": [
+    "reference_spec: missing_boundary REF-09"
+   ],
+   "recall_rules_or_ai": 0.923,
+   "trap_lines": [
+    "reference_spec: requirement REF-01",
+    "reference_spec: requirement REF-04",
+    "reference_spec: requirement REF-15",
+    "uk_units_ranges: contradiction REQ-3,REQ-4"
+   ],
+   "units_trap": true,
+   "admin_session_trap": false,
+   "category_wrong_on_tp": 2,
+   "lines_with_quote": 19,
+   "rejected": 0,
+   "questions": 13,
+   "wall_s_total": 172.0,
+   "prompt_tokens_max": 3848
+  },
+  "full": {
+   "lines": 19,
+   "tp": 7,
+   "dup": 3,
+   "optional": 1,
+   "outside": 0,
+   "disputed": 1,
+   "fp": 7,
+   "precision": 0.47,
+   "precision_manual": 0.5,
+   "recall": 0.077,
+   "recall_requirement_level": "7/32",
+   "rule_misses_found": "1/8",
+   "rule_misses_found_list": [
+    "reference_spec: missing_boundary REF-09"
+   ],
+   "recall_rules_or_ai": 0.923,
+   "trap_lines": [
+    "reference_spec: requirement REF-01",
+    "uk_units_ranges: contradiction REQ-3,REQ-4"
+   ],
+   "units_trap": true,
+   "admin_session_trap": false,
+   "category_wrong_on_tp": 1,
+   "lines_with_quote": 15,
+   "rejected": 0,
+   "questions": 13,
+   "wall_s_total": 179.1,
+   "prompt_tokens_max": 6029
+  },
+  "fewshot": {
+   "lines": 26,
+   "tp": 14,
+   "dup": 0,
+   "optional": 1,
+   "outside": 1,
+   "disputed": 1,
+   "fp": 9,
+   "precision": 0.56,
+   "precision_manual": 0.62,
+   "recall": 0.154,
+   "recall_requirement_level": "13/32",
+   "rule_misses_found": "0/8",
+   "rule_misses_found_list": [],
+   "recall_rules_or_ai": 0.912,
+   "trap_lines": [
+    "reference_spec: requirement REF-02",
+    "reference_spec: requirement REF-18",
+    "uk_units_ranges: contradiction REQ-3,REQ-4"
+   ],
+   "units_trap": true,
+   "admin_session_trap": false,
+   "category_wrong_on_tp": 1,
+   "lines_with_quote": 26,
+   "rejected": 0,
+   "questions": 10,
+   "wall_s_total": 267.5,
+   "prompt_tokens_max": 10727
+  }
+ }
+}

@@ -1,0 +1,499 @@
+{
+ "task": "Full check",
+ "document_hash": "b39ca78208f6fc30",
+ "status": "done",
+ "error": "",
+ "plan": {
+  "tools": [
+   "requirements",
+   "critic",
+   "coverage",
+   "impact",
+   "traceability",
+   "suites"
+  ],
+  "test_case_ids": [],
+  "requirement_ids": [],
+  "unknown_ids": [],
+  "unsupported_terms": [],
+  "action": null,
+  "action_needs_ids": false,
+  "action_too_large": false,
+  "action_conflicts": [],
+  "skipped_tools": []
+ },
+ "steps": [
+  {
+   "tool": "requirements",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.requirements",
+    "params": {
+     "checked": "6",
+     "contradiction": "0",
+     "ambiguous_wording": "0",
+     "missing_error_handling": "1",
+     "missing_expected_result": "1"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.requirements.missing_error_handling",
+     "params": {
+      "terms": "sign in"
+     },
+     "terms": [],
+     "ref": "REQ-2",
+     "refs": [],
+     "topic": "finding.missing_error_handling"
+    },
+    {
+     "key": "qatask.requirements.missing_expected_result",
+     "params": {
+      "terms": ""
+     },
+     "terms": [],
+     "ref": "REQ-5",
+     "refs": [],
+     "topic": "finding.missing_expected_result"
+    }
+   ],
+   "unknowns": [],
+   "recommendations": [
+    {
+     "key": "qatask.rec.requirements_clarify",
+     "params": {
+      "ids": "REQ-2, REQ-5"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "critic",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.critic",
+    "params": {
+     "checked": "6",
+     "problems": "6"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "critic.step_generic",
+     "params": {
+      "steps": "1, 2, 3"
+     },
+     "terms": [],
+     "ref": "TC-001",
+     "refs": [
+      "TC-002",
+      "TC-003",
+      "TC-005",
+      "TC-006"
+     ],
+     "topic": "critic.criterion.steps"
+    },
+    {
+     "key": "critic.step_generic",
+     "params": {
+      "steps": "2, 3"
+     },
+     "terms": [],
+     "ref": "TC-004",
+     "refs": [],
+     "topic": "critic.criterion.steps"
+    }
+   ],
+   "unknowns": [
+    {
+     "key": "critic.requirement_no_expected",
+     "params": {},
+     "terms": [],
+     "ref": "TC-005",
+     "refs": [],
+     "topic": "critic.criterion.requirement_match"
+    }
+   ],
+   "recommendations": [
+    {
+     "key": "qatask.rec.critic_fix",
+     "params": {
+      "ids": "TC-001, TC-002, TC-003, TC-004, TC-005, TC-006"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.rec.critic_unknown",
+     "params": {},
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "coverage",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.coverage",
+    "params": {
+     "checked": "6",
+     "full": "0",
+     "incomplete": "6"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.negative"
+     ],
+     "ref": "REQ-3",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.no_test_case",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REQ-4",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "unknowns": [],
+   "recommendations": [
+    {
+     "key": "qatask.rec.coverage",
+     "params": {
+      "ids": "REQ-3, REQ-4"
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REQ-1",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REQ-2",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REQ-3",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.negative"
+     ],
+     "ref": "REQ-4",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REQ-5",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.coverage.missing",
+     "params": {},
+     "terms": [
+      "scenario.happy_path"
+     ],
+     "ref": "REQ-6",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "impact",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.impact_none",
+    "params": {},
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [],
+   "error": ""
+  },
+  {
+   "tool": "traceability",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.traceability",
+    "params": {
+     "requirements": "6",
+     "covered": "0",
+     "gaps": "0"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-1",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-2",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-3",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-4",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-5",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.trace.not_approved",
+     "params": {},
+     "terms": [],
+     "ref": "REQ-6",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "suites",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.suites",
+    "params": {
+     "smoke": "0",
+     "regression": "0",
+     "full": "6"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [],
+   "unknowns": [],
+   "recommendations": [],
+   "approval": [
+    {
+     "key": "qatask.suites.no_approved",
+     "params": {},
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "error": ""
+  },
+  {
+   "tool": "ai",
+   "status": "ok",
+   "summary": {
+    "key": "qatask.summary.ai",
+    "params": {
+     "model": "Ollama · qwen2.5:14b",
+     "problems": "3",
+     "questions": "3",
+     "rejected": "0"
+    },
+    "terms": [],
+    "ref": "",
+    "refs": [],
+    "topic": ""
+   },
+   "problems": [
+    {
+     "key": "qatask.ai.problem",
+     "params": {
+      "text": "The requirement does not specify what happens if a user tries to sign in with an invalid email."
+     },
+     "terms": [],
+     "ref": "REQ-2",
+     "refs": [],
+     "topic": "qatask.ai.category.missing_scenario"
+    },
+    {
+     "key": "qatask.ai.problem",
+     "params": {
+      "text": "The requirement does not specify what happens after a user deletes their account."
+     },
+     "terms": [],
+     "ref": "REQ-5",
+     "refs": [],
+     "topic": "qatask.ai.category.missing_scenario"
+    },
+    {
+     "key": "qatask.ai.problem",
+     "params": {
+      "text": "The requirement does not specify what happens if the user clicks the \"go elsewhere\" link while not signed in."
+     },
+     "terms": [],
+     "ref": "REQ-6",
+     "refs": [],
+     "topic": "qatask.ai.category.missing_scenario"
+    }
+   ],
+   "unknowns": [
+    {
+     "key": "qatask.ai.question",
+     "params": {
+      "text": "What should happen if a user tries to sign in with an invalid email?"
+     },
+     "terms": [],
+     "ref": "REQ-2",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.question",
+     "params": {
+      "text": "What should happen after a user deletes their account?"
+     },
+     "terms": [],
+     "ref": "REQ-5",
+     "refs": [],
+     "topic": ""
+    },
+    {
+     "key": "qatask.ai.question",
+     "params": {
+      "text": "What should happen if the user clicks the \"go elsewhere\" link while not signed in?"
+     },
+     "terms": [],
+     "ref": "REQ-6",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "recommendations": [
+    {
+     "key": "qatask.ai.recommendation",
+     "params": {
+      "text": "Clarify the expected behavior for invalid email sign-in attempts, account deletion outcomes, and non-signed-in user actions on the \"go elsewhere\" link."
+     },
+     "terms": [],
+     "ref": "",
+     "refs": [],
+     "topic": ""
+    }
+   ],
+   "approval": [],
+   "error": ""
+  }
+ ],
+ "action": null,
+ "approval": {
+  "key": "qatask.approval.summary_ids",
+  "params": {
+   "draft": "6",
+   "total": "6",
+   "ids": "REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6"
+  },
+  "terms": [
+   "qatask.tool.coverage",
+   "qatask.tool.traceability",
+   "qatask.tool.suites"
+  ],
+  "ref": "",
+  "refs": [],
+  "topic": ""
+ }
+}

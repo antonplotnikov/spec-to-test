@@ -1,0 +1,65 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REQ-3",
+   "REQ-4"
+  ],
+  "description": "Требования REQ-3 и REQ-4 противоречат друг другу, так как оба устанавливают минимальную сумму заказа, но с разными значениями.",
+  "quote": "Сумма заказа должна быть не менее 500 рублей."
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "REQ-4",
+   "TC-006"
+  ],
+  "description": "Тест-кейс TC-006 не соответствует требованию REQ-3, так как проверяет минимальную сумму в 1000 рублей, а не 500 рублей.",
+  "quote": "Сумма заказа должна быть не менее 1000 рублей."
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "REQ-3",
+   "TC-006"
+  ],
+  "description": "Тест-кейс TC-006 не соответствует требованию REQ-3, так как проверяет минимальную сумму в 1000 рублей, а не 500 рублей.",
+  "quote": "Сумма заказа должна быть не менее 500 рублей."
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REQ-3",
+   "REQ-4"
+  ],
+  "question": "Какое значение должно быть минимальной суммой заказа: 500 или 1000 рублей?"
+ },
+ {
+  "kind": "recommendation",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Необходимо уточнить минимальную сумму заказа и скорректировать противоречащие требования и тест-кейсы."
+ }
+]

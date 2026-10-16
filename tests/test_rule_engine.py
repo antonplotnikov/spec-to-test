@@ -62,6 +62,38 @@ def test_requirements_with_outcomes_pass(text):
     assert FindingType.MISSING_EXPECTED_RESULT not in types_for(text)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        # QA Agent eval, qa_demo REQ-5: "delete" is what the user does, not its result.
+        "A signed-in user must be able to delete their account from the account page.",
+        "Admins can block other users.",
+        "Користувач може видалити обліковий запис.",
+        "Пользователь может удалить аккаунт.",
+    ],
+)
+def test_the_action_a_capability_grants_is_not_its_result(text):
+    assert FindingType.MISSING_EXPECTED_RESULT in types_for(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # QA Agent eval, qa_demo REQ-1 / REQ-2: short, but the result is concrete.
+        'The home page must show the heading "Demo Shop".',
+        'A registered user must be able to sign in with a valid email and password and see "Welcome, Demo User" '
+        "on the dashboard.",
+        'The user can delete the account; the system then shows the message "Account deleted".',
+        "The user can see the order history.",
+        "The user can receive notifications.",
+        "Пользователь может получить чек на email.",
+        "The system deletes inactive accounts after 30 days.",
+    ],
+)
+def test_a_capability_with_an_observable_result_passes(text):
+    assert FindingType.MISSING_EXPECTED_RESULT not in types_for(text)
+
+
 # --- Missing boundary conditions -------------------------------------------
 
 @pytest.mark.parametrize(

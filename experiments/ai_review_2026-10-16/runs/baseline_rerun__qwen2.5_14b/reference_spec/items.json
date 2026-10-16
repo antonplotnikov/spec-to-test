@@ -1,0 +1,174 @@
+[
+ {
+  "kind": "problem",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "contradiction",
+  "ids": [
+   "REF-13",
+   "REF-14"
+  ],
+  "description": "Requirements REF-13 and REF-14 contradict each other regarding whether admins can export the audit log.",
+  "quote": "Admins must be able to export the audit log."
+ },
+ {
+  "kind": "problem",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "ambiguity",
+  "ids": [
+   "REF-09"
+  ],
+  "description": "Requirement REF-09 does not specify the minimum password length, leading to ambiguity.",
+  "quote": "The password must have a minimum length."
+ },
+ {
+  "kind": "problem",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-01"
+  ],
+  "description": "There is no requirement or test case covering the scenario where the email address is invalid or malformed.",
+  "quote": "The system must send a password reset link to the registered email address within 60 seconds."
+ },
+ {
+  "kind": "problem",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-04"
+  ],
+  "description": "There is no requirement or test case covering the scenario where the account is locked and the user tries to log in.",
+  "quote": "After 5 consecutive failed login attempts, the account must be locked for 15 minutes."
+ },
+ {
+  "kind": "problem",
+  "n": 4,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "missing_scenario",
+  "ids": [
+   "REF-15"
+  ],
+  "description": "There is no requirement or test case covering the scenario where the confirmation email is not sent within 5 minutes.",
+  "quote": "Система повинна надіслати лист підтвердження протягом 5 хвилин."
+ },
+ {
+  "kind": "problem",
+  "n": 5,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "TC-018",
+   "REF-11"
+  ],
+  "description": "Test case TC-018 specifies a boundary value of 7 characters, but requirement REF-11 specifies a minimum length of 8 characters.",
+  "quote": "The new password must be at least 8 characters long."
+ },
+ {
+  "kind": "problem",
+  "n": 6,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "category": "test_gap",
+  "ids": [
+   "TC-021",
+   "REF-12"
+  ],
+  "description": "Test case TC-021 specifies a boundary value of 11 characters, but requirement REF-12 specifies a minimum length of 12 characters.",
+  "quote": "The new password must be at least 12 characters long."
+ },
+ {
+  "kind": "question",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REF-09"
+  ],
+  "question": "What is the minimum password length specified in REF-09?"
+ },
+ {
+  "kind": "question",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REF-18"
+  ],
+  "question": "What is the exact number of failed login attempts that will trigger account lockout?"
+ },
+ {
+  "kind": "question",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [
+   "REF-15"
+  ],
+  "question": "What is the exact time frame for sending the confirmation email?"
+ },
+ {
+  "kind": "recommendation",
+  "n": 0,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Clarify the minimum password length in requirement REF-09 to avoid ambiguity."
+ },
+ {
+  "kind": "recommendation",
+  "n": 1,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Resolve the contradiction between requirements REF-13 and REF-14 regarding admin audit log export."
+ },
+ {
+  "kind": "recommendation",
+  "n": 2,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Add test cases for scenarios where the email address is invalid or malformed."
+ },
+ {
+  "kind": "recommendation",
+  "n": 3,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Add test cases for scenarios where the account is locked and the user tries to log in."
+ },
+ {
+  "kind": "recommendation",
+  "n": 4,
+  "accepted": true,
+  "reason": "",
+  "dropped_unknown_ids": [],
+  "ids": [],
+  "text": "Add test cases for scenarios where the confirmation email is not sent within the specified time frame."
+ }
+]
