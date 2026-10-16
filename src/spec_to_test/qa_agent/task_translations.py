@@ -77,6 +77,76 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qatask.ref.test_case": _e("{id} ({status}, tests {req}): “{text}”", "{id} ({status}, перевіряє {req}): «{text}»",
                                "{id} ({status}, проверяет {req}): «{text}»"),
     "qatask.ref.more": _e("…and {count} more", "…і ще {count}", "…и ещё {count}"),
+    # Under a problem whose own line does not say how to resolve it (tasks.next_step_lines).
+    "qatask.next.label": _e("Next step", "Наступний крок", "Следующий шаг"),
+    "qatask.next.ask": _e("ask the document author: “{question}”", "запитайте в автора документа: «{question}»",
+                          "спросите у автора документа: «{question}»"),
+    "qatask.next.contradiction": _e(
+        "agree on one wording of {ids} with the document author; approve their test cases only after that.",
+        "узгодьте з автором документа єдине формулювання {ids}; затверджуйте їхні тест-кейси лише після цього.",
+        "согласуйте с автором документа единую формулировку {ids}; утверждайте их тест-кейсы только после этого.",
+    ),
+    # The previous run of the same document and task compared with this one (tasks.compare_problems).
+    "qatask.compare.heading": _e("Since the previous run", "Після попереднього запуску", "После предыдущего запуска"),
+    # Counted per requirement or test case: a line naming two test cases is two problems.
+    "qatask.compare.summary": _e(
+        "Compared with run {run} ({at}), each requirement or test case of a line counted separately: "
+        "resolved {resolved}, still open {open}, new {new}.",
+        "Порівняно із запуском {run} ({at}), кожна вимога чи тест-кейс рядка рахується окремо: "
+        "усунено {resolved}, залишилось {open}, нових {new}.",
+        "По сравнению с запуском {run} ({at}), каждое требование или тест-кейс строки считается отдельно: "
+        "устранено {resolved}, осталось {open}, новых {new}.",
+    ),
+    "qatask.compare.unmatched": _e(
+        "Could not be compared ({before} in run {run}, {now} now)",
+        "Не вдалося порівняти ({before} у запуску {run}, {now} зараз)",
+        "Не удалось сравнить ({before} в запуске {run}, {now} сейчас)",
+    ),
+    "qatask.compare.unmatched_why": _e(
+        "Their test cases share a title with another test case, got another title under the same ID (renamed "
+        "or replaced), or the previous run did not keep test case titles: whether they were fixed is unknown.",
+        "Їхні тест-кейси мають ту саму назву, що й інший тест-кейс, отримали іншу назву під тим самим ID "
+        "(перейменовано або замінено) або попередній запуск не зберіг назви тест-кейсів: невідомо, чи їх виправлено.",
+        "Их тест-кейсы называются так же, как другой тест-кейс, получили другое название под тем же ID "
+        "(переименованы или заменены) или предыдущий запуск не сохранил названия тест-кейсов: неизвестно, "
+        "исправлены ли они.",
+    ),
+    "qatask.compare.resolved": _e("Resolved ({count})", "Усунено ({count})", "Устранено ({count})"),
+    "qatask.compare.previous_test_case": _e("{id} in run {run}: “{text}”", "{id} у запуску {run}: «{text}»",
+                                            "{id} в запуске {run}: «{text}»"),
+    "qatask.compare.current_test_case": _e("{id} now: “{text}”", "{id} зараз: «{text}»", "{id} сейчас: «{text}»"),
+    "qatask.compare.new": _e("New ({count})", "Нові ({count})", "Новые ({count})"),
+    "qatask.compare.not_compared": _e("Not compared: {names}.", "Не порівнюються: {names}.",
+                                      "Не сравниваются: {names}."),
+    # The QA task page: compared with the previous run of this session (same project, document title and task).
+    "qatask.rerun.summary": _e(
+        "Compared with the previous check of this document and task ({at}), each requirement or test case "
+        "counted separately: resolved {resolved}, still open {open}, new {new}; could not be compared "
+        "{before} before / {now} now.",
+        "Порівняно з попередньою перевіркою цього документа й задачі ({at}), кожна вимога чи тест-кейс "
+        "рахується окремо: усунено {resolved}, залишилось {open}, нових {new}; не вдалося порівняти "
+        "{before} до / {now} зараз.",
+        "По сравнению с предыдущей проверкой этого документа и задачи ({at}), каждое требование или тест-кейс "
+        "считается отдельно: устранено {resolved}, осталось {open}, новых {new}; не удалось сравнить "
+        "{before} до / {now} сейчас.",
+    ),
+    "qatask.rerun.unmatched": _e(
+        "Could not be compared ({before} before, {now} now)", "Не вдалося порівняти ({before} до, {now} зараз)",
+        "Не удалось сравнить ({before} до, {now} сейчас)",
+    ),
+    "qatask.rerun.previous_test_case": _e("{id} at the previous check: “{text}”",
+                                          "{id} під час попередньої перевірки: «{text}»",
+                                          "{id} при предыдущей проверке: «{text}»"),
+    "qatask.rerun.other_document": _e(
+        "Not compared with the previous check: it was of another document or project.",
+        "Не порівнюється з попередньою перевіркою: вона була іншого документа чи проєкту.",
+        "Не сравнивается с предыдущей проверкой: она была для другого документа или проекта.",
+    ),
+    "qatask.rerun.other_task": _e(
+        "Not compared with the previous check: it had another task.",
+        "Не порівнюється з попередньою перевіркою: у неї була інша задача.",
+        "Не сравнивается с предыдущей проверкой: у неё была другая задача.",
+    ),
     "qatask.status.done": _e("Done", "Виконано", "Выполнено"),
     "qatask.status.partial": _e(
         "Done in part: some checks failed.", "Виконано частково: деякі перевірки не вдалися.",

@@ -18,7 +18,8 @@ from spec_to_test.models import (
     TestType,
     Workspace,
 )
-from spec_to_test.test_design import TestDesign, design_tests, format_value
+from spec_to_test.rule_engine import _CAPABILITY, _normalize
+from spec_to_test.test_design import _AND, _OR, TestDesign, design_tests, format_value
 
 TITLE_TEXT_CHARS = 70
 
@@ -31,6 +32,43 @@ def _short(text: str, limit: int = TITLE_TEXT_CHARS) -> str:
 def next_test_case_id(existing: list[TestCase]) -> str:
     numbers = [int(m.group(1)) for tc in existing if (m := re.fullmatch(r"TC-(\d+)", tc.id))]
     return f"TC-{max(numbers, default=0) + 1:03d}"
+
+
+# "The user can ...", "Users are able to ...": a user is the one who acts, so the
+# words after the capability are the action a tester performs. Other actors
+# ("The system may ...") and negations ("is not able to") are left generic.
+_USER_ACTOR = re.compile(
+    r"(?:\w+\s+){0,2}?(?:users?|customers?|пользовател\w*|користувач\w*|клиент\w*|клієнт\w*)"
+    r"(?:\s+(?:is|are|will be|must be|should be|shall be))?\s*",
+    re.IGNORECASE,
+)
+_NOT = re.compile(r"(?:not|не|ні)(?!\w)", re.IGNORECASE)
+
+
+def _user_action(text: str) -> str | None:
+    """The action a user-capability requirement grants, quoted verbatim, or None."""
+    capability = _CAPABILITY.search(text)
+    if capability is None or not _USER_ACTOR.fullmatch(text[: capability.start()]):
+        return None
+    action = re.split(r"[.;!?](?:\s|$)", text[capability.end():], maxsplit=1)[0].strip(" .;!?")
+    if not action or _NOT.match(action):
+        return None
+    return action
+
+
+def _has_other_conditions(text: str, phrases: list[str]) -> bool:
+    """Whether the requirement joins more to its numeric limits with "and"/"or"
+    ("at least 8 characters long and contain one digit"). Boundary values vary only
+    the number, so such cases check part of the requirement."""
+    text = _normalize(text)
+    for phrase in phrases:
+        parts = phrase.split(" … ")  # a merged range: "at least 8 characters … at most 64 characters"
+        if len(parts) == 2:  # its own "and" is not another condition
+            for first, second in (parts, parts[::-1]):
+                text = re.sub(rf"{re.escape(first)}{_AND.pattern}{re.escape(second)}", " ", text, flags=re.IGNORECASE)
+        for part in parts:
+            text = text.replace(part, " ")
+    return bool(_AND.search(text) or _OR.search(text))
 
 
 def _value_line(value: str, unit: str, expectation: str, lang: str) -> str:
@@ -54,6 +92,8 @@ def _cases_for(
 
     table = design.decision_table
     if table is None:
+        action = _user_action(req.text)
+        perform = t("tc.step_perform_stated", lang, req=req.id, action=action) if action else t("tc.step_perform", lang)
         cases.append(
             {
                 "title": t("tc.title_positive", lang, req=req.id, text=_short(req.text)),
@@ -61,7 +101,7 @@ def _cases_for(
                 "preconditions": [reference],
                 "steps": [
                     t("tc.step_prepare", lang, req=req.id),
-                    t("tc.step_perform", lang),
+                    perform,
                     t("tc.step_observe", lang),
                 ],
                 "expected_result": t("tc.expected_quote", lang, text=req.text),
@@ -93,6 +133,11 @@ def _cases_for(
                 }
             )
 
+    partial = _has_other_conditions(req.text, [b.constraint.phrase for b in design.boundaries])
+
+    def numeric_assumptions(phrase: str) -> list[str]:
+        return assumptions + ([t("tc.assumption_partial_check", lang, req=req.id, phrase=phrase)] if partial else [])
+
     for analysis in design.boundaries:
         unit = analysis.constraint.unit
         has_unspecified = any(v.expectation == "unspecified" for v in analysis.values)
@@ -109,7 +154,7 @@ def _cases_for(
                 "expected_result": "\n".join(
                     _value_line(format_value(v.value), unit, v.expectation, lang) for v in analysis.values
                 ),
-                "assumptions": assumptions,
+                "assumptions": numeric_assumptions(analysis.constraint.phrase),
                 "clarification_questions": questions
                 + ([t("tc.question_exact_value", lang, phrase=analysis.constraint.phrase)] if has_unspecified else []),
             }
@@ -137,7 +182,7 @@ def _cases_for(
                     _value_line(format_value(p.representative), unit, p.expectation, lang)
                     for p in classes.partitions
                 ),
-                "assumptions": assumptions,
+                "assumptions": numeric_assumptions(classes.constraint.phrase),
                 "clarification_questions": questions
                 + ([t("tc.question_exact_value", lang, phrase=classes.constraint.phrase)] if has_unspecified else []),
             }

@@ -108,6 +108,7 @@ def test_written_steps_are_converted(sentence, expected):
     [
         "Perform the action described in the requirement.",
         "Set up the conditions described in REQ-1.",
+        "Perform the action stated in REQ-1: “request a password reset from the login page”.",
         "Click Save",  # no quotes: which element is meant is not certain
         "Log in as an administrator",
         "Open the settings",

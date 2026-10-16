@@ -109,6 +109,7 @@ def contradictions(*texts: str) -> list[tuple[str, ...]]:
     ("The username must be between 3 and 20 characters.", "The username must be at least 5 characters long."),
     ("Пароль має містити від 8 до 64 символів.", "Пароль має містити щонайменше 10 символів."),
     ("The password must be at least 10 characters long.", "The password must be at most 8 characters long."),
+    ("The password must be 8 or more characters long.", "The password must be at least 10 characters long."),
 ])
 def test_real_numeric_contradictions(first, second):
     assert contradictions(first, second) == [("REQ-1", "REQ-2")]

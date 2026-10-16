@@ -22,7 +22,8 @@ Lines that only say test cases are not Approved yet (coverage, traceability and
 suites count only Approved test cases) are kept apart from the problems and
 summed up in one line, `AgentResult.approval`. Under each problem and unknown
 the report quotes the requirements (with their line) and test cases it names
-(`reference_lines`), so the user sees what to fix without looking it up.
+(`reference_lines`), so the user sees what to fix without looking it up; a
+vague wording or a contradiction also gets the next step (`next_step_lines`).
 
 The agent never changes the workspace. A request to change test case statuses
 ("approve TC-003") becomes a proposed action that the page applies with
@@ -33,6 +34,7 @@ deleting is not supported and is reported instead of attempted.
 """
 
 import re
+from collections import Counter
 from collections.abc import Callable
 from typing import Literal
 
@@ -193,6 +195,9 @@ class AgentResult(BaseModel):
     action: ProposedAction | None = None
     # One line instead of the steps' `approval` lines: review status, not a problem of the texts.
     approval: Item | None = None
+    # Title of every test case at the time of the run: generated test case IDs move when a requirement
+    # gets more or fewer test cases, so compare_problems matches test cases by title.
+    test_case_titles: dict[str, str] = Field(default_factory=dict)
 
     @property
     def problems(self) -> list[Item]:
@@ -580,6 +585,149 @@ def reference_lines(lang: str, item: Item, workspace: Workspace) -> list[str]:
     return lines
 
 
+# Problems whose next step says more than the line itself. Vague wording: the clarification
+# question of the finding (the one the Analysis page shows). A contradiction is not decided
+# here: the requirements it names have to be agreed on one wording.
+_NEXT_STEPS = {
+    "qatask.requirements.ambiguous_wording": "question.ambiguous_wording",
+    "qatask.requirements.contradiction": "qatask.next.contradiction",
+}
+
+
+def next_step_lines(lang: str, item: Item) -> list[str]:
+    """An indented Markdown list line under a report line: what to ask or agree on to resolve it, or none."""
+    key = _NEXT_STEPS.get(item.key)
+    if key is None:
+        return []
+    if key.startswith("question."):
+        text = t("qatask.next.ask", lang, question=t(key, lang, terms=item.params.get("terms", "")))
+    else:
+        related = (i.strip() for i in item.params.get("related", "").split(","))
+        text = t(key, lang, ids=", ".join(dict.fromkeys(i for i in (*item.ids, *related) if i)))
+    return [f"  - **{t('qatask.next.label', lang)}:** {escape_markdown(text)}"]
+
+
+# ---------------------------------------------------------------------------
+# Compared with the previous run
+# ---------------------------------------------------------------------------
+
+# Change Impact lines are about one pair of versions and the AI review gives other lines on every run:
+# a line of theirs gone or added says nothing about the fixes.
+_NOT_COMPARED: frozenset[Tool] = frozenset({"impact", "ai"})
+
+
+class ProblemComparison(BaseModel):
+    """What happened to the previous run's problems.
+
+    Counted per problem: one kind of problem of one requirement or test case, so a line naming
+    two test cases is two problems. resolved + still_open + unmatched_before are all problems of
+    the previous run; still_open + new + unmatched_now all problems of this one. The lists group
+    the problems back into the lines of `AgentResult.problems`, cut to the IDs they are about.
+    """
+
+    resolved_count: int = 0
+    still_open: int = 0
+    new_count: int = 0
+    # Problems of test cases that cannot be told apart: a title shared by several test cases in either
+    # run, or a run without test case titles (result.json written before they were kept). Whether
+    # they were fixed is unknown, so they are neither resolved nor new.
+    unmatched_before_count: int = 0
+    unmatched_now_count: int = 0
+    resolved: list[Item] = Field(default_factory=list)  # previous lines
+    new: list[Item] = Field(default_factory=list)  # current lines
+    unmatched_before: list[Item] = Field(default_factory=list)
+    unmatched_now: list[Item] = Field(default_factory=list)
+    not_compared: list[Tool] = Field(default_factory=list)  # tools whose problems are left out
+    # Test cases of `resolved` and `unmatched_before` lines: their title in the previous run
+    # (the ID may now be another test case).
+    previous_titles: dict[str, str] = Field(default_factory=dict)
+    current_titles: dict[str, str] = Field(default_factory=dict)  # of the `unmatched_now` lines
+
+
+# The IDs test_generator gives: a test case ID in a result that kept no titles.
+_TEST_CASE_ID = re.compile(r"TC-\d+")
+
+_Unit = tuple[object, ...]
+
+
+def _problem_units(item: Item, identity: Callable[[str], object | None]) -> list[tuple[str, _Unit | None]]:
+    """Each problem of a line: (ID, identity), None when its test case cannot be told apart."""
+    if ids := item.ids or sorted(_named(item)):
+        return [(i, None if (who := identity(i)) is None else (item.key, item.topic, who)) for i in ids]
+    return [("", (item.key, item.topic, tuple(item.terms), tuple(sorted(item.params.items()))))]
+
+
+def _only(item: Item, ids: list[str], units: list[tuple[str, _Unit | None]]) -> Item:
+    """The line cut to `ids`: its own IDs, or its "ids" parameter when it has none."""
+    if len(ids) == len(units):
+        return item
+    if item.ids:
+        return item.model_copy(update={"ref": ids[0], "refs": ids[1:]})
+    return item.model_copy(update={"params": item.params | {"ids": ", ".join(ids)}})
+
+
+def compare_problems(previous: AgentResult, current: AgentResult) -> ProblemComparison:
+    """Resolved, still open and new problems of the tools that ran in both results.
+
+    Problems are matched by kind and ID (requirement or test case), not by text: a vague
+    wording of REQ-3 reworded but still vague stays open. Test cases are matched by title
+    (see AgentResult.test_case_titles), and only by a title no other test case has in either
+    run and not taken over by another test case under the same ID; the others are counted
+    as unmatched instead of a guess.
+    """
+    ran = [{s.tool for s in r.steps if s.status == "ok"} for r in (previous, current)]
+    compared = (ran[0] & ran[1]) - _NOT_COMPARED
+    every = [s.tool for r in (previous, current) for s in r.steps]
+    titled = bool(previous.test_case_titles and current.test_case_titles)
+    known = previous.test_case_titles.keys() | current.test_case_titles.keys()
+    shared = {title for r in (previous, current) for title, n in Counter(r.test_case_titles.values()).items()
+              if n > 1}
+
+    def identity(i: str, titles: dict[str, str], other: dict[str, str]) -> object | None:
+        if not titled:
+            return None if i in known or _TEST_CASE_ID.fullmatch(i) else i
+        if (title := titles.get(i)) is None:
+            return i
+        if title in shared:
+            return None
+        # A title the other run lacks, while this ID there has a title this run lacks: the test
+        # case was renamed (its requirement reworded) or replaced by another one.
+        if title not in other.values() and (there := other.get(i)) is not None and there not in titles.values():
+            return None
+        return ("test case", title)
+
+    def units(result: AgentResult, other: AgentResult) -> list[tuple[Item, list[tuple[str, _Unit | None]]]]:
+        titles, other_titles = result.test_case_titles, other.test_case_titles
+        return [(item, _problem_units(item, lambda i: identity(i, titles, other_titles)))
+                for s in result.steps if s.tool in compared for item in s.problems]
+
+    before, now = units(previous, current), units(current, previous)
+    old_units = {u for _, found in before for _, u in found if u is not None}
+    now_units = {u for _, found in now for _, u in found if u is not None}
+
+    def lines(found_lines: list[tuple[Item, list[tuple[str, _Unit | None]]]], keep: Callable[[_Unit | None], bool]
+              ) -> list[Item]:
+        return [_only(item, ids, found) for item, found in found_lines if (ids := [i for i, u in found if keep(u)])]
+
+    def unmatched(found_lines: list[tuple[Item, list[tuple[str, _Unit | None]]]]) -> int:
+        return len({(item.key, item.topic, i) for item, found in found_lines for i, u in found if u is None})
+
+    comparison = ProblemComparison(
+        resolved_count=len(old_units - now_units), still_open=len(old_units & now_units),
+        new_count=len(now_units - old_units),
+        unmatched_before_count=unmatched(before), unmatched_now_count=unmatched(now),
+        resolved=lines(before, lambda u: u is not None and u not in now_units),
+        new=lines(now, lambda u: u is not None and u not in old_units),
+        unmatched_before=lines(before, lambda u: u is None), unmatched_now=lines(now, lambda u: u is None),
+        not_compared=[tool for tool in dict.fromkeys(every) if tool not in compared])
+    comparison.previous_titles = {i: previous.test_case_titles[i]
+                                  for item in comparison.resolved + comparison.unmatched_before
+                                  for i in item.ids if i in previous.test_case_titles}
+    comparison.current_titles = {i: current.test_case_titles[i] for item in comparison.unmatched_now
+                                 for i in item.ids if i in current.test_case_titles}
+    return comparison
+
+
 # ---------------------------------------------------------------------------
 # Running and applying
 # ---------------------------------------------------------------------------
@@ -608,7 +756,7 @@ def run_task(
         return AgentResult(task=task, document_hash=workspace.document_hash, status="error", plan=plan,
                            error="qatask.error.unknown_ids")
     result = AgentResult(task=task, document_hash=workspace.document_hash, status="done", plan=plan,
-                         action=plan.action)
+                         action=plan.action, test_case_titles={tc.id: tc.title for tc in workspace.test_cases})
     if not plan.tools:
         result.status = "unsupported"
         return result

@@ -54,7 +54,7 @@ Import with **Test Cases → Import Cases → Import from CSV**. Choose the
 | Template        | Template              | `Test Case (Text)` |
 | Type            | Type                  | `Functional` |
 | Priority        | Priority              | `Medium` |
-| Preconditions   | Preconditions         | One per line; unconfirmed assumptions are prefixed `Assumption (not confirmed):` |
+| Preconditions   | Preconditions         | One per line: first `Requirement <ID>: <requirement text>`, then the preconditions, unconfirmed assumptions prefixed `Assumption (not confirmed):` and open questions prefixed `Open question:` |
 | Steps           | Steps                 | Numbered steps (`1. …`), one per line |
 | Expected Result | Expected Result       | Expected result text |
 | References      | References            | Requirement ID |

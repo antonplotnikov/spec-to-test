@@ -13,7 +13,7 @@ from spec_to_test.input_parser import extract_requirements
 from spec_to_test.models import ChangeImpact, ClarificationStatus, ReviewStatus, Source, TestCaseImpact, Workspace
 from spec_to_test.qa_agent import tasks
 from spec_to_test.qa_agent.on_change import build_workspace
-from spec_to_test.qa_agent.tasks import Item, ProposedAction, apply_action, plan_task, run_task
+from spec_to_test.qa_agent.tasks import AgentResult, Item, ProposedAction, apply_action, plan_task, run_task
 from spec_to_test.rule_engine import analyze_requirements
 from spec_to_test.test_critic import critique
 from spec_to_test.test_generator import generate_test_cases
@@ -304,6 +304,103 @@ def test_a_contradiction_quotes_both_requirements_with_their_lines(ws):
     assert tasks.reference_lines("ru", line, ws)[0].startswith("  - REQ-4 (строка 12): «The new password")
 
 
+def test_vague_wording_and_contradictions_get_a_next_step(ws):
+    from qa_task_ui import _lines_with_references
+
+    problems = {i.key: i for i in reversed(run_task("Find contradictions", ws).problems)}  # the first of each
+    vague = problems["qatask.requirements.ambiguous_wording"]
+    assert tasks.next_step_lines("en", vague) == [
+        "  - **Next step:** ask the document author: “What measurable criteria replace: fast, user-friendly?”",
+    ]
+    # Neither requirement of a contradiction is picked: both have to be agreed on one wording.
+    contradiction = problems["qatask.requirements.contradiction"]
+    assert tasks.next_step_lines("ru", contradiction) == [
+        "  - **Следующий шаг:** согласуйте с автором документа единую формулировку REQ-4, REQ-7; "
+        "утверждайте их тест-кейсы только после этого.",
+    ]
+    # The line itself already says what is missing: no next step that would only repeat it.
+    assert tasks.next_step_lines("en", problems["qatask.requirements.missing_expected_result"]) == []
+    page = _lines_with_references("en", [contradiction], ws).splitlines()
+    assert page[0].startswith("- **REQ-4 · ") and page[1].startswith("  - REQ-4 (line 12)")
+    assert page[-1].startswith("  - **Next step:** agree on one wording of REQ-4, REQ-7")
+
+
+def _result(titles, *steps):
+    return tasks.AgentResult(task="Full check", status="done", test_case_titles=titles,
+                             steps=[tasks.StepResult(tool=tool, problems=problems) for tool, problems in steps])
+
+
+def test_compare_problems_matches_test_cases_by_title_not_by_moved_ids():
+    vague = Item(key="qatask.requirements.ambiguous_wording", ref="REQ-5", params={"terms": "fast"})
+    steps = Item(key="critic.step_generic", ref="TC-014", refs=["TC-015"], params={"steps": "2"})
+    impact = Item(key="qatask.impact.test_case", ref="TC-003")
+    previous = _result({"TC-014": "decision table R1", "TC-015": "REQ-9: set a new password"},
+                       ("requirements", [vague]), ("critic", [steps]), ("impact", [impact]))
+    # REQ-5 is fixed and got two more test cases: "decision table R1" is TC-016 now.
+    moved = Item(key="critic.step_generic", ref="TC-016", params={"steps": "2"})
+    unclear = Item(key="critic.expected_vague", ref="TC-017")
+    current = _result({"TC-016": "decision table R1", "TC-017": "REQ-9: set a new password"},
+                      ("requirements", []), ("critic", [moved, unclear]), ("impact", []))
+
+    comparison = tasks.compare_problems(previous, current)
+    assert [(i.key, i.ids) for i in comparison.resolved] == [
+        ("qatask.requirements.ambiguous_wording", ["REQ-5"]), ("critic.step_generic", ["TC-015"]),
+    ]
+    assert comparison.previous_titles == {"TC-015": "REQ-9: set a new password"}
+    assert comparison.still_open == 1 and comparison.new == [unclear]
+    assert _counts(comparison) == (2, 1, 1, 0, 0)  # REQ-5, TC-014, TC-015 before; TC-016, TC-017 now
+    assert comparison.not_compared == ["impact"]  # its lines are about one pair of versions
+
+
+def _counts(comparison):
+    return (comparison.resolved_count, comparison.still_open, comparison.new_count,
+            comparison.unmatched_before_count, comparison.unmatched_now_count)
+
+
+def test_compare_problems_counts_each_test_case_of_a_grouped_line():
+    titles = {"TC-001": "a", "TC-002": "b", "TC-003": "c", "TC-004": "d"}
+    previous = _result(titles, ("critic", [Item(key="critic.step_generic", ref="TC-001", refs=["TC-002", "TC-003"])]))
+    current = _result(titles, ("critic", [Item(key="critic.step_generic", ref="TC-002", refs=["TC-004"])]))
+
+    comparison = tasks.compare_problems(previous, current)
+    # 3 problems before = 2 resolved + 1 still open; 2 now = 1 still open + 1 new.
+    assert _counts(comparison) == (2, 1, 1, 0, 0)
+    assert [i.ids for i in comparison.resolved] == [["TC-001", "TC-003"]]
+    assert [i.ids for i in comparison.new] == [["TC-004"]]  # not hidden in the still open line
+
+
+def test_compare_problems_does_not_guess_between_test_cases_of_the_same_title():
+    titles = {"TC-001": "Login", "TC-002": "Login", "TC-003": "Logout"}
+    vague = Item(key="critic.expected_vague", ref="TC-003")
+    previous = _result(titles, ("critic", [Item(key="critic.step_generic", ref="TC-001", refs=["TC-002"]), vague]))
+    current = _result(titles, ("critic", [Item(key="critic.step_generic", ref="TC-002")]))
+
+    comparison = tasks.compare_problems(previous, current)
+    # TC-001 is not reported as fixed: by title it cannot be told apart from TC-002.
+    assert _counts(comparison) == (1, 0, 0, 2, 1)
+    assert comparison.resolved == [vague]
+    assert [i.ids for i in comparison.unmatched_before] == [["TC-001", "TC-002"]]
+    assert [i.ids for i in comparison.unmatched_now] == [["TC-002"]]
+    assert comparison.current_titles == {"TC-002": "Login"}
+
+
+def test_compare_problems_with_a_result_saved_without_test_case_titles():
+    vague = Item(key="qatask.requirements.ambiguous_wording", ref="REQ-5")
+    previous = tasks.AgentResult.model_validate({
+        "task": "Full check", "status": "done",  # result.json written before test_case_titles
+        "steps": [{"tool": "requirements", "problems": [vague.model_dump()]},
+                  {"tool": "critic", "problems": [{"key": "critic.step_generic", "ref": "TC-014"}]}],
+    })
+    current = _result({"TC-016": "decision table R1"},
+                      ("requirements", []), ("critic", [Item(key="critic.step_generic", ref="TC-016")]))
+
+    comparison = tasks.compare_problems(previous, current)
+    # Requirements are still compared; test cases are unmatched instead of "TC-014 resolved, TC-016 new".
+    assert _counts(comparison) == (1, 0, 0, 1, 1)
+    assert comparison.resolved == [vague]
+    assert [i.ids for i in comparison.unmatched_before + comparison.unmatched_now] == [["TC-014"], ["TC-016"]]
+
+
 def test_references_name_test_cases_and_skip_what_the_document_lacks(ws):
     ws.test_cases[0].title = "Reset *link* " + "x" * 300
     item = Item(key="critic.step_generic", ref="TC-001", params={"related": "REQ-99, REQ-1"})
@@ -434,3 +531,81 @@ def test_page_reports_an_unsupported_task(example_text):
     _button(at, "qa_task_run").click().run()
     assert not at.exception
     assert any("not supported" in w.value for w in at.warning)
+
+
+def _rerun(at: AppTest, task: str) -> AppTest:
+    """Back on the task mode (leaving the page clears its widgets), the same or another task is run."""
+    goto(at, "qa_agent")
+    at.segmented_control(key="qa_mode").set_value("task").run()
+    at.text_area(key="qa_task_text").input(task).run()
+    _button(at, "qa_task_run").click().run()
+    assert not at.exception
+    return at
+
+
+def _analyze(at: AppTest, text: str) -> None:
+    home(at).text_area(key="requirements_text").input(text).run()
+    home(at).button(key="analyze").click().run()
+    assert not at.exception
+
+
+def test_page_shows_what_an_edit_of_the_document_resolved(example_text):
+    at = _task_mode(example_text)
+    at.text_area(key="qa_task_text").input("Full check").run()
+    _button(at, "qa_task_run").click().run()
+    assert "Since the previous run" not in [s.value for s in at.subheader]  # nothing to compare with yet
+    assert not any("previous check" in c.value for c in at.caption)
+
+    # The contradiction REQ-4 ↔ REQ-7 fixed, a vague requirement added; the title (first line) stays.
+    edited = example_text.replace("at least 10 characters", "at least 8 characters").replace(
+        "set a new password.", "set a new password.\n- REQ-10: The page should be fast.")
+    _analyze(at, edited)
+    _rerun(at, "  Full   check ")  # the same task, spaced differently
+    assert "Since the previous run" in [s.value for s in at.subheader]
+    summary = next(w.value for w in at.warning if "previous check" in w.value)  # warning: there are new problems
+    assert "resolved 2, still open 16, new 2; could not be compared 1 before / 1 now" in summary
+    lines = next(m.value for m in at.markdown if m.value.startswith("**Resolved (2)**"))
+    resolved, new = lines.split("**New (2)**")
+    assert "**REQ-4 · Possible contradiction**: conflicts with REQ-7" in resolved
+    assert "  - TC-007 at the previous check: “REQ-4: boundary values for “at least 8 characters””" in resolved
+    assert "**REQ-10 · Ambiguous wording**: vague wording: fast" in new
+    # TC-011 got another title (REQ-7 was reworded): neither resolved nor new, but listed as not comparable.
+    assert "TC-011" not in lines
+    assert any(e.label == "Could not be compared (1 before, 1 now)" for e in at.expander)
+    assert any("TC-011 now: “REQ-7: The new password must be at least 8 characters long.”" in m.value
+               for m in at.markdown)
+    assert any(c.value == "Not compared: Change Impact." for c in at.caption)
+
+
+def test_page_compares_only_the_same_document_and_task(example_text):
+    at = _task_mode(example_text)
+    at.text_area(key="qa_task_text").input("Find contradictions").run()
+    _button(at, "qa_task_run").click().run()
+    _rerun(at, "Find contradictions")  # nothing changed
+    summary = next(i.value for i in at.info if "previous check" in i.value)
+    assert "resolved 0, still open 6, new 0; could not be compared 0 before / 0 now" in summary
+
+    _rerun(at, "Full check")
+    assert "Since the previous run" not in [s.value for s in at.subheader]
+    assert any(c.value == "Not compared with the previous check: it had another task." for c in at.caption)
+
+    _analyze(at, example_text.replace("# Password Reset", "# Account Recovery"))  # another title: another document
+    _rerun(at, "Full check")
+    assert "Since the previous run" not in [s.value for s in at.subheader]
+    assert any(c.value == "Not compared with the previous check: it was of another document or project."
+               for c in at.caption)
+
+
+def test_rerun_identity_of_document_and_task():
+    from qa_task_ui import PreviousCheck, _same_document, _same_task
+
+    result = AgentResult(task="Full check", document_hash="h1", status="done")
+    titled = PreviousCheck("default", "Spec", result, "10:00:00")
+    assert _same_document(titled, "default", Workspace(document_hash="h2", title="Spec"))  # a new version
+    assert not _same_document(titled, "default", Workspace(document_hash="h1", title="Other"))
+    assert not _same_document(titled, "other-project", Workspace(document_hash="h2", title="Spec"))
+    untitled = PreviousCheck("default", "", result, "10:00:00")
+    assert _same_document(untitled, "default", Workspace(document_hash="h1"))
+    assert not _same_document(untitled, "default", Workspace(document_hash="h2"))
+    assert _same_task("Full check", " Full\n check ")
+    assert not _same_task("Full check", "full check of REQ-1")

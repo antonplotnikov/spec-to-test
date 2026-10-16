@@ -839,6 +839,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Виконайте дію, описану у вимозі.",
         "ru": "Выполните действие, описанное в требовании.",
     },
+    "tc.step_perform_stated": {
+        "en": "Perform the action stated in {req}: “{action}”.",
+        "uk": "Виконайте дію, зазначену в {req}: «{action}».",
+        "ru": "Выполните действие, указанное в {req}: «{action}».",
+    },
     "tc.step_observe": {
         "en": "Observe the system behavior.",
         "uk": "Перевірте поведінку системи.",
@@ -873,6 +878,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "The requirement has open findings, so the expected result may change after clarification.",
         "uk": "Вимога має відкриті знахідки, тому очікуваний результат може змінитися після уточнення.",
         "ru": "У требования есть открытые находки, поэтому ожидаемый результат может измениться после уточнения.",
+    },
+    "tc.assumption_partial_check": {
+        "en": "Partial check: only “{phrase}” is varied. {req} also states other conditions that this case does not check; each test value must meet them, otherwise the expected result does not apply.",
+        "uk": "Часткова перевірка: змінюється лише «{phrase}». {req} містить й інші умови, які цей кейс не перевіряє; кожне тестове значення має їм відповідати, інакше очікуваний результат не застосовується.",
+        "ru": "Частичная проверка: меняется только «{phrase}». {req} содержит и другие условия, которые этот кейс не проверяет; каждое тестовое значение должно им соответствовать, иначе ожидаемый результат не применяется.",
     },
     "tc.question_unspecified_rules": {
         "en": "The requirement does not say what happens in {count} condition combination(s). What is the expected behavior?",

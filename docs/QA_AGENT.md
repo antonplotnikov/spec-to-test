@@ -222,6 +222,29 @@ SPEC_TO_TEST_STORAGE=local python -m spec_to_test.qa_agent.on_change \
 - **Output**: `<out>/journal.jsonl` (one line per run: inputs, hashes,
   status, counts, error code, proposed change and what happened to it) and
   `<out>/runs/<run id>/report.md` + `result.json`.
+- **Since the previous run**: the report (section after the conclusions), the
+  printed line and the journal (`compared_with`, `resolved`, `still_open`,
+  `new_problems`, `unmatched_before`, `unmatched_now`) compare the problems
+  with the latest `done`/`partial` run of the same document path, project and
+  task in this `--out` folder. Counts are per requirement or test case: a line
+  naming three test cases is three problems, so resolved + still open (+
+  unmatched before) is every problem of the previous run. Problems are matched
+  by kind and requirement ID, test cases by title (generated test case IDs
+  move when a requirement gets more or fewer test cases); a resolved test case
+  line names its title in that run. A test case is **not comparable** when
+  its title is shared by another test case in either run, when its ID got
+  another title that the other run lacks (renamed or replaced), or when the
+  previous `result.json` has no `test_case_titles`: those problems are listed
+  under "Could not be compared", never as resolved or new. Change Impact and AI review
+  lines are not compared. Requirement IDs numbered by the app (no IDs in the
+  document) move when a requirement is inserted, and are then compared wrongly.
+  The app's QA task mode shows the same comparison ("Since the previous run":
+  summary, resolved and new lines, an expander for the ones that could not be
+  compared) when a run checks the same document as the previous finished run
+  of the browser session — same project and document title (the rule Change
+  Impact uses for a new version) or, untitled, the same content — with the
+  same task (spacing ignored). Only that one previous run is kept, in the
+  session; another document or task is not compared, and the page says so.
 - **Repeats**: a run with the same inputs (document content including saved
   reviews, previous version, task, project, `--allow-write`, version) as an
   earlier run with status `done` or `unsupported` is journaled as `skipped`;

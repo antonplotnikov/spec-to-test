@@ -15,10 +15,18 @@ Project memory (spec_to_test.qa_agent.memory) is shown beside a result when it
 is relevant to it, and is managed in the "Project memory" panel: rules the
 user confirmed and the user's ratings of results. Nothing is saved without an
 explicit click.
+
+A run is compared (tasks.compare_problems, as on_change does) with the previous
+finished run of this browser session when both checked the same document (same
+project and document title, the app's rule for a new version, or the same
+content) with the same task. Only that one previous run is kept, in the session
+state; nothing about it is saved.
 """
 
+import time
 from collections.abc import Callable
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import streamlit as st
 
@@ -31,10 +39,12 @@ from spec_to_test.models import ChangeImpact, Workspace
 from spec_to_test.qa_agent import memory, tasks
 from spec_to_test.qa_agent.ai_review import add_ai_step, ai_review, failed_step
 from spec_to_test.qa_agent.memory import MemoryEntry, MemoryEntryError, MemoryStore, Rating
-from spec_to_test.qa_agent.tasks import AgentResult, Item, ProposedAction
+from spec_to_test.qa_agent.tasks import AgentResult, Item, ProblemComparison, ProposedAction
 
 TASK = "qa_task_text"
 RESULT = "qa_task_result"
+PREVIOUS = "qa_task_previous"  # PreviousCheck: the latest finished run, compared with the next one
+RERUN = "qa_task_rerun"  # Rerun of the shown result
 CONFIRM = "qa_task_confirm"
 MESSAGE = "qa_task_message"
 RATED = "qa_task_rated"
@@ -46,6 +56,23 @@ PICK = "qa_memory_pick"
 AI_CONSENT = "qa_task_ai_consent"
 AI_PENDING = "qa_task_ai_pending"
 RATING_ICONS = {"useful": "👍", "not_useful": "👎"}
+
+
+@dataclass(frozen=True)
+class PreviousCheck:
+    project_id: str
+    title: str
+    result: AgentResult
+    at: str  # time of the run, shown in the comparison
+
+
+@dataclass(frozen=True)
+class Rerun:
+    """How the shown result relates to the previous check: compared, or why not."""
+
+    comparison: ProblemComparison | None = None
+    at: str = ""
+    not_compared: Literal["", "other_document", "other_task"] = ""
 
 
 def _text(lang: str, item: Item) -> str:
@@ -65,14 +92,47 @@ def _line(lang: str, item: Item) -> str:
 
 
 def _lines_with_references(lang: str, items: list[Item], workspace: Workspace) -> str:
-    """Each line followed by the text of the requirements and test cases it names."""
+    """Each line followed by the text of the requirements and test cases it names and, if known, the next step."""
     return "\n".join(line for item in items
-                     for line in (_line(lang, item), *tasks.reference_lines(lang, item, workspace)))
+                     for line in (_line(lang, item), *tasks.reference_lines(lang, item, workspace),
+                                  *tasks.next_step_lines(lang, item)))
+
+
+def _same_document(previous: PreviousCheck, project_id: str, workspace: Workspace) -> bool:
+    """The same project and document title (change_impact's rule for a new version), or, untitled, the same content."""
+    if previous.project_id != project_id:
+        return False
+    if previous.title or workspace.title:
+        return previous.title == workspace.title
+    return previous.result.document_hash == workspace.document_hash
+
+
+def _same_task(a: str, b: str) -> bool:
+    return " ".join(a.split()) == " ".join(b.split())
+
+
+def _remember_check(result: AgentResult, workspace: Workspace) -> None:
+    """Compare a finished run with the previous one, then keep it for the next run."""
+    state = st.session_state
+    state.pop(RERUN, None)
+    if result.status not in ("done", "partial"):
+        return  # nothing checked: the previous check stays the one to compare with
+    project_id = active_project_id()
+    previous: PreviousCheck | None = state.get(PREVIOUS)
+    if previous is not None:
+        if not _same_document(previous, project_id, workspace):
+            state[RERUN] = Rerun(not_compared="other_document")
+        elif not _same_task(previous.result.task, result.task):
+            state[RERUN] = Rerun(not_compared="other_task")
+        else:
+            state[RERUN] = Rerun(tasks.compare_problems(previous.result, result), previous.at)
+    state[PREVIOUS] = PreviousCheck(project_id, workspace.title, result, time.strftime("%H:%M:%S"))
 
 
 def _on_run(workspace: Workspace, previous_impact: Callable[[Workspace], ChangeImpact | None] | None) -> None:
     result = tasks.run_task(st.session_state.get(TASK, ""), workspace, previous_impact)
     st.session_state[RESULT] = result
+    _remember_check(result, workspace)
     # The AI review runs below the form (with a spinner) and only with this run's consent.
     st.session_state[AI_PENDING] = bool(st.session_state.get(AI_CONSENT)) and result.status in ("done", "partial")
     st.session_state[AI_CONSENT] = False  # asked again before the next run
@@ -144,17 +204,66 @@ def render_task(
     project_id = active_project_id()
     result: AgentResult | None = st.session_state.get(RESULT)
     if result is not None and result.document_hash != workspace.document_hash:
-        st.session_state.pop(RESULT, None)  # a result for another document
+        st.session_state.pop(RESULT, None)  # a result for another document (kept as PREVIOUS for the next run)
+        st.session_state.pop(RERUN, None)
         result = None
     if result is not None and st.session_state.pop(AI_PENDING, False):
         _run_ai(lang, result, workspace, ai_config, previous_impact)
     if result is not None:
-        _result(lang, result, workspace, persist)
+        _result(lang, result, workspace, persist, st.session_state.get(RERUN))
         _related_memory(lang, result, store, project_id)
     _memory_panel(lang, store, project_id)
 
 
-def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None] | None) -> None:
+def _previous_lines(lang: str, comparison: ProblemComparison, items: list[Item]) -> list[str]:
+    """Lines of the previous check, each with the title its test cases had then (the ID may now be another one)."""
+    lines = []
+    for item in items:
+        lines.append(_line(lang, item))
+        lines += [f"  - {escape_markdown(t('qatask.rerun.previous_test_case', lang, id=i, text=title))}"
+                  for i in item.ids if (title := comparison.previous_titles.get(i)) is not None]
+    return lines
+
+
+def _comparison(lang: str, rerun: Rerun) -> None:
+    if rerun.comparison is None:
+        st.caption(t(f"qatask.rerun.{rerun.not_compared}", lang))
+        return
+    c = rerun.comparison
+    st.subheader(t("qatask.compare.heading", lang), anchor=False)
+    summary = t("qatask.rerun.summary", lang, at=rerun.at, resolved=c.resolved_count, open=c.still_open,
+                new=c.new_count, before=c.unmatched_before_count, now=c.unmatched_now_count)
+    if c.new_count:
+        st.warning(summary, icon=":material/compare_arrows:")
+    elif c.resolved_count:
+        st.success(summary, icon=":material/compare_arrows:")
+    else:
+        st.info(summary, icon=":material/compare_arrows:")
+    lines: list[str] = []
+    if c.resolved:
+        lines += [f"**{t('qatask.compare.resolved', lang, count=c.resolved_count)}**", "",
+                  *_previous_lines(lang, c, c.resolved), ""]
+    if c.new:
+        lines += [f"**{t('qatask.compare.new', lang, count=c.new_count)}**", "", *(_line(lang, i) for i in c.new)]
+    if lines:
+        st.markdown("\n".join(lines))
+    if c.unmatched_before or c.unmatched_now:
+        heading = t("qatask.rerun.unmatched", lang, before=c.unmatched_before_count, now=c.unmatched_now_count)
+        with st.expander(heading, icon=":material/help:"):
+            st.caption(t("qatask.compare.unmatched_why", lang))
+            unmatched = _previous_lines(lang, c, c.unmatched_before)
+            for item in c.unmatched_now:
+                unmatched.append(_line(lang, item))
+                unmatched += [f"  - {escape_markdown(t('qatask.compare.current_test_case', lang, id=i, text=title))}"
+                              for i in item.ids if (title := c.current_titles.get(i)) is not None]
+            st.markdown("\n".join(unmatched))
+    if c.not_compared:
+        st.caption(t("qatask.compare.not_compared", lang,
+                     names=", ".join(t(f"qatask.tool.{tool}", lang) for tool in c.not_compared)))
+
+
+def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None] | None,
+            rerun: Rerun | None = None) -> None:
     plan = result.plan
     if result.status == "error" and not result.steps:
         ids = ", ".join(plan.unknown_ids) if plan else ""
@@ -199,6 +308,8 @@ def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Calla
     st.markdown("\n".join(conclusions))
     if any(step.tool == "ai" and step.status == "ok" for step in result.steps):
         st.info(t("qatask.ai.disclaimer", lang), icon=":material/smart_toy:")
+    if rerun is not None:
+        _comparison(lang, rerun)
 
     problems, unknowns = result.problems, result.unknowns
     st.subheader(t("qatask.heading.problems", lang, count=len(problems)), anchor=False)

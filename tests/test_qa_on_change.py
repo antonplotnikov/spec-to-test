@@ -85,6 +85,36 @@ def test_the_report_uses_the_chosen_language(docs, out):
     assert "## Выводы" in (out / "runs" / entry.run_id / "report.md").read_text(encoding="utf-8")
 
 
+def test_a_rerun_after_a_fix_shows_what_was_resolved(docs, out, capsys):
+    _, new = docs
+    assert main(["--document", str(new), "--out", str(out)]) == 0
+    first_report = (out / "runs" / _journal(out)[0]["run_id"] / "report.md").read_text(encoding="utf-8")
+    assert "Since the previous run" not in first_report  # nothing to compare with
+    new.write_text(new.read_text(encoding="utf-8").replace(
+        "should load fast and be user-friendly", "loads within 2 seconds"), encoding="utf-8")
+    # Another task is another question: not compared.
+    run_on_change(Request(document=new, out=out, task="Check the quality of the test cases"))
+    capsys.readouterr()
+
+    assert main(["--document", str(new), "--out", str(out)]) == 0
+    first, _, rerun = _journal(out)
+    assert rerun["compared_with"] == first["run_id"]
+    # REQ-5 got two more test cases, which moves the later IDs: they are not reported as new.
+    # Its own test case TC-009 was regenerated under a new title: renamed or replaced is unknown,
+    # so its old problem is not reported as resolved.
+    assert (rerun["resolved"], rerun["new_problems"], rerun["unmatched_before"], rerun["unmatched_now"]) == (1, 0, 1, 1)
+    assert f"since run {first['run_id']}: resolved 1, still open {rerun['still_open']}, new 0, " \
+           "not comparable 1 before / 1 now" in capsys.readouterr().out
+    report = (out / "runs" / rerun["run_id"] / "report.md").read_text(encoding="utf-8")
+    section = report.split("## Since the previous run")[1].split("## Problems")[0]
+    assert "counted separately: resolved 1, still open" in section and "### New" not in section
+    assert "### Resolved (1)\n\n- **REQ-5 · Ambiguous wording**: vague wording: fast, user-friendly\n" in section
+    assert f"### Could not be compared (1 in run {first['run_id']}, 1 now)" in section
+    assert f"TC-009 in run {first['run_id']}: “REQ-5: The reset page should load fast" in section
+    assert "TC-009 now: “REQ-5: The reset page loads within 2 seconds" in section
+    assert "_Not compared: Change Impact._" in section
+
+
 def test_a_repeat_with_the_same_inputs_is_skipped_unless_forced(docs, out, capsys):
     old, new = docs
     args = ["--document", str(new), "--previous", str(old), "--out", str(out)]
@@ -343,9 +373,12 @@ def test_the_report_keeps_not_approved_apart_from_the_problems(docs, out):
     problems, approval = report.split(f"## {t('qatask.heading.approval', 'en')}")
     assert "has test cases, but none is Approved" not in problems
     assert "of 15 test cases are not Approved yet" in approval
-    assert "**TC-001, TC-002, " in problems  # the same remark on several test cases: one line
+    assert "**TC-002, TC-003, " in problems  # the same remark on several test cases: one line
+    # TC-001 and TC-015 quote the user's action in step 2, so their remark names only steps 1 and 3.
+    assert "**TC-001, TC-015 · Steps**" in problems
     # Under a problem: what the requirement it names says, and where it is in the document.
     assert "\n  - REQ-6 (line 14): “After too many failed attempts, the account is locked.”" in problems
+    assert "\n  - **Next step:** ask the document author: “What measurable criteria replace: many?”" in problems
 
 
 def test_allow_write_refuses_a_document_not_saved_in_the_project(docs, out):

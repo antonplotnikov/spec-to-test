@@ -6,6 +6,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Generated test cases — the user's action in positive steps
+
+#### Changed
+- For a user-capability requirement ("The user can …", "Users are able to …",
+  "Пользователь может …", "Користувач може …") the positive case's action step
+  quotes the action verbatim: `Perform the action stated in REQ-1: “request a
+  password reset from the login page by entering their email address”.`
+  Before, it read `Perform the action described in the requirement.` Other
+  actors, negations and conditions before the actor keep the generic step.
+
+### TestRail export — self-contained test cases
+
+#### Changed
+- The TestRail CSV Preconditions now start with the linked requirement's
+  wording (`Requirement REQ-3: The reset link expires after 30 minutes.`) and
+  end with the case's open questions (`Open question: …`). Before, a case
+  imported into TestRail showed only the requirement ID, and open questions
+  (e.g. a conflict with another requirement) were dropped, though the Jira
+  export already had both.
+
 ### QA task report — what each problem refers to
 
 #### Added
