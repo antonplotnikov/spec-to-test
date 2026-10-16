@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-16
+
 ### QA Agent — generate missing test cases
 
 #### Added
@@ -626,7 +628,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   characters as an analyzed document, so one session cannot grow without
   bound or fill the save file.
 
-[Unreleased]: https://github.com/antonplotnikov/spec-to-test/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/antonplotnikov/spec-to-test/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/antonplotnikov/spec-to-test/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/antonplotnikov/spec-to-test/releases/tag/v1.1.0
 
 ## [1.0.0] - 2026-10-11

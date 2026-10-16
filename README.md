@@ -929,6 +929,7 @@ The app is ready for **Streamlit Community Cloud**. See
 
 ## Project status and license
 
-Version **1.1.0** — adds Grill Mode (see [CHANGELOG.md](CHANGELOG.md) and
-[docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md)).
+Version **1.2.0** — adds the QA Agent, the Automation tab, projects and more AI
+providers (see [CHANGELOG.md](CHANGELOG.md) and
+[docs/release-notes-v1.2.0.md](docs/release-notes-v1.2.0.md)).
 Released under the [MIT License](LICENSE).
