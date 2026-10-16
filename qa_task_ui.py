@@ -21,6 +21,11 @@ finished run of this browser session when both checked the same document (same
 project and document title, the app's rule for a new version, or the same
 content) with the same task. Only that one previous run is kept, in the session
 state; nothing about it is saved.
+
+When the result names requirements missing test cases, "Generate missing test
+cases" (spec_to_test.qa_agent.missing_cases) adds the generator's cases for those
+gaps as Drafts, saves the document and shows the new cases with the coverage
+after them. The result above is not rerun: it stays the one of the check.
 """
 
 import time
@@ -36,10 +41,12 @@ from spec_to_test.i18n import t
 from spec_to_test.llm.config import AIConfig
 from spec_to_test.llm.providers import ConfiguredProvider
 from spec_to_test.models import ChangeImpact, Workspace
-from spec_to_test.qa_agent import memory, tasks
+from spec_to_test.qa_agent import memory, missing_cases, tasks
 from spec_to_test.qa_agent.ai_review import add_ai_step, ai_review, failed_step
 from spec_to_test.qa_agent.memory import MemoryEntry, MemoryEntryError, MemoryStore, Rating
+from spec_to_test.qa_agent.missing_cases import MissingGeneration
 from spec_to_test.qa_agent.tasks import AgentResult, Item, ProblemComparison, ProposedAction
+from spec_to_test.scenario_coverage import ScenarioCategory
 
 TASK = "qa_task_text"
 RESULT = "qa_task_result"
@@ -55,6 +62,7 @@ RULE_CONFIRM = "qa_memory_rule_confirm"
 PICK = "qa_memory_pick"
 AI_CONSENT = "qa_task_ai_consent"
 AI_PENDING = "qa_task_ai_pending"
+GENERATION = "qa_task_generation"  # MissingGeneration of the shown result
 RATING_ICONS = {"useful": "👍", "not_useful": "👎"}
 
 
@@ -141,6 +149,7 @@ def _on_run(workspace: Workspace, previous_impact: Callable[[Workspace], ChangeI
     st.session_state[AI_CONSENT] = False  # asked again before the next run
     st.session_state.pop(CONFIRM, None)
     st.session_state.pop(RATED, None)
+    st.session_state.pop(GENERATION, None)
 
 
 def _run_ai(lang: str, result: AgentResult, workspace: Workspace, ai_config: AIConfig | None,
@@ -209,6 +218,7 @@ def render_task(
     if result is not None and result.document_hash != workspace.document_hash:
         st.session_state.pop(RESULT, None)  # a result for another document (kept as PREVIOUS for the next run)
         st.session_state.pop(RERUN, None)
+        st.session_state.pop(GENERATION, None)
         result = None
     if result is not None and st.session_state.pop(AI_PENDING, False):
         _run_ai(lang, result, workspace, ai_config, previous_impact)
@@ -333,8 +343,75 @@ def _result(lang: str, result: AgentResult, workspace: Workspace, persist: Calla
     st.markdown("\n".join(_line(lang, item) for item in recommendations) if recommendations
                 else t("qatask.no_recommendations", lang))
 
+    if persist is not None:
+        _missing_cases(lang, result, workspace, persist)
     if result.action is not None and persist is not None:
         _action(lang, result, workspace, persist)
+
+
+def _on_generate(lang: str, workspace: Workspace, persist: Callable[[Workspace], None],
+                 requirement_ids: list[str]) -> None:
+    generation = missing_cases.generate_missing(workspace, requirement_ids, lang)
+    if generation.created:
+        workspace.test_cases.extend(generation.created)
+        persist(workspace)
+    st.session_state[GENERATION] = generation
+
+
+def _missing_cases(lang: str, result: AgentResult, workspace: Workspace,
+                   persist: Callable[[Workspace], None]) -> None:
+    """The button that adds the missing test cases, and what it added."""
+    generation: MissingGeneration | None = st.session_state.get(GENERATION)
+    ids = missing_cases.gap_requirements(result, workspace)
+    if not ids and generation is None:
+        return
+    with st.container(border=True, key="qa_task_missing"):
+        st.markdown(f"**{t('qamissing.heading', lang)}**")
+        if generation is None:
+            st.caption(escape_markdown(t("qamissing.explainer", lang, ids=", ".join(ids))))
+            st.button(t("qamissing.generate", lang), key="qa_task_generate", icon=":material/auto_awesome:",
+                      on_click=_on_generate, args=(lang, workspace, persist, ids))
+            return
+        _generation(lang, generation)
+
+
+def _categories(lang: str, categories: list[ScenarioCategory]) -> str:
+    return ", ".join(t(f"scenario.{c.value}", lang) for c in categories) or t("qamissing.none", lang)
+
+
+def _generation(lang: str, generation: MissingGeneration) -> None:
+    created = generation.created
+    if created:
+        st.success(escape_markdown(t("qamissing.created", lang, count=len(created),
+                                     ids=", ".join(tc.id for tc in created))), icon=":material/add_task:")
+        unclear = {tc.id for r in generation.requirements if r.unclear for tc in created
+                   if tc.requirement_id == r.requirement_id}
+        lines = [f"**{t('qamissing.cases_heading', lang)}**", ""]
+        for tc in created:
+            line = t("qamissing.case", lang, id=tc.id, req=tc.requirement_id,
+                     type=t(f"test_type.{tc.test_type.value}", lang), title=tc.title)
+            mark = f" — {t('qamissing.case_unclear', lang)}" if tc.id in unclear else ""
+            lines.append(f"- {escape_markdown(line + mark)}")
+            expected = " ".join(tc.expected_result.split())
+            lines.append(f"  - {escape_markdown(t('qamissing.case_expected', lang, text=expected))}")
+        st.markdown("\n".join(lines))
+    else:
+        st.info(t("qamissing.nothing", lang))
+    lines = [f"**{t('qamissing.coverage_heading', lang)}**", ""]
+    for r in generation.requirements:
+        percent = t("qamissing.not_applicable", lang) if r.approved_percent is None else f"{r.approved_percent:g}%"
+        coverage = t("qamissing.coverage_line", lang, req=r.requirement_id, before=r.tests_before,
+                     after=r.tests_after, missing_before=_categories(lang, r.missing_before),
+                     missing_after=_categories(lang, r.missing_after), percent=percent)
+        lines.append(f"- {escape_markdown(coverage)}")
+        if r.missing_after:
+            by_hand = t("qamissing.by_hand", lang, req=r.requirement_id, names=_categories(lang, r.missing_after))
+            lines.append(f"  - {escape_markdown(by_hand)}")
+        if r.unclear:
+            reasons = ", ".join(t(f"finding.{kind.value}", lang) for kind in r.unclear)
+            lines.append(f"  - {escape_markdown(t('qamissing.unclear', lang, req=r.requirement_id, reasons=reasons))}")
+    st.markdown("\n".join(lines))
+    st.caption(t("qamissing.approved_note", lang))
 
 
 def _action(lang: str, result: AgentResult, workspace: Workspace, persist: Callable[[Workspace], None]) -> None:

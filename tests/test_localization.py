@@ -16,6 +16,7 @@ APP_PATH = str(PROJECT_ROOT / "app.py")
 SAME_IN_ALL_LANGUAGES = {
     "app.title", "column.id", "tc.title_positive", "tc.value_expectation",
     "unit.megabytes", "unit.percent", "suites.smoke", "ai.configured", "export.mapping_body", "projects.document_option",
+    "qamissing.case",
     # the model's own text, already in the report language
     "qatask.ai.problem", "qatask.ai.question", "qatask.ai.recommendation",
 }

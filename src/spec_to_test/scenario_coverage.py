@@ -235,6 +235,12 @@ def unchecked_conditions(requirement: Requirement, test_cases: list[TestCase]) -
     return unchecked
 
 
+def categories_without_test_case(requirement: Requirement, test_cases: list[TestCase]) -> list[ScenarioCategory]:
+    """Applicable categories that no test case exercises, whatever its review status."""
+    return scenario_coverage(requirement, [tc.model_copy(update={"review_status": ReviewStatus.APPROVED})
+                                           for tc in test_cases]).missing
+
+
 def scenario_coverage(requirement: Requirement, test_cases: list[TestCase]) -> ScenarioCoverage:
     applicable, unknown, reasons = applicable_categories(requirement)
     approved = [tc for tc in test_cases if tc.review_status == ReviewStatus.APPROVED]

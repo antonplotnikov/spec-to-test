@@ -6,6 +6,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### QA Agent — generate missing test cases
+
+#### Added
+- **Generate missing test cases** on the QA Agent page (mode "QA task"): when
+  the result names requirements without test cases (Traceability) or with
+  scenarios no test case exercises yet (Scenario Coverage), one click adds the
+  missing cases, made by the same rule-based generator as the Test cases page
+  (no AI). A requirement without test cases gets every case the generator
+  makes; otherwise only cases for the missing scenario kinds are added, one per
+  kind. A case with the title, or the type, steps and expected result, of an
+  existing test case of the requirement is never added, so a second click adds
+  nothing. New cases are Draft and linked to their requirement; existing and
+  Approved test cases are not changed.
+- Where an open finding leaves the requirement without a checkable result (a
+  contradiction, vague wording, no stated result, a limit without a value), the
+  new case's expected result reads "Not defined yet: … needs clarification
+  first" instead of a quote, and keeps the clarification questions.
+- After the click the page lists the new cases and, per requirement, the
+  coverage after them: test cases before → after, scenarios without a test
+  case before → after, the Approved coverage, and the scenario kinds the
+  generator has no case for (permissions, state transitions, recovery, a
+  negative case without numbers), to be written by hand.
+
 ### Generated test cases — the user's action in positive steps
 
 #### Changed

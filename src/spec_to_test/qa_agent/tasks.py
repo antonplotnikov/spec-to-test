@@ -30,7 +30,8 @@ The agent never changes the workspace. A request to change test case statuses
 `apply_action` only after the user confirms it. Test cases whose expected
 results conflict with another test case (see test_critic.expectation_conflicts)
 are left out of a proposed approval. Running, generating, editing or
-deleting is not supported and is reported instead of attempted.
+deleting is not supported and is reported instead of attempted; the page adds
+missing test cases only from its own button (spec_to_test.qa_agent.missing_cases).
 """
 
 import re
@@ -54,7 +55,7 @@ from spec_to_test.models import (
 )
 from spec_to_test.rtm import Coverage, build_rtm, traceability_gaps
 from spec_to_test.rule_engine import _compile
-from spec_to_test.scenario_coverage import scenario_coverage
+from spec_to_test.scenario_coverage import categories_without_test_case, scenario_coverage
 from spec_to_test.suites import SuiteKind, plan_suites
 from spec_to_test.test_critic import critique, expectation_conflicts
 
@@ -364,15 +365,14 @@ def _coverage(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> S
         tests = ws.tests_for(req.id)
         coverage = scenario_coverage(req, tests)
         # What is still missing when every test case counts has no test case at all, not even a Draft.
-        drafts = scenario_coverage(req, [tc.model_copy(update={"review_status": ReviewStatus.APPROVED})
-                                         for tc in tests])
+        without = categories_without_test_case(req, tests)
         if coverage.missing:
             incomplete.append(req.id)
-            if drafts.missing:
+            if without:
                 gaps.append(req.id)
                 step.problems.append(Item(key="qatask.coverage.no_test_case", ref=req.id,
-                                          terms=[f"scenario.{c.value}" for c in drafts.missing]))
-            if pending := [c for c in coverage.missing if c not in drafts.missing]:
+                                          terms=[f"scenario.{c.value}" for c in without]))
+            if pending := [c for c in coverage.missing if c not in without]:
                 step.approval.append(Item(key="qatask.coverage.missing", ref=req.id,
                                           terms=[f"scenario.{c.value}" for c in pending]))
         elif coverage.percent is not None:

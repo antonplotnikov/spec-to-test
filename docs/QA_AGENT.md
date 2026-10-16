@@ -330,6 +330,21 @@ reply …) is shown as the reason in the "AI review" conclusion, and the
 rule-based checks are kept. AI findings never propose or apply a status
 change. Without AI configured the page says that AI review is not available.
 
+### Generate missing test cases (QA task mode)
+
+When a QA task result (e.g. **Full check**) names requirements without test
+cases or with scenarios no test case exercises, the page shows **Generate
+missing test cases**. It runs the rule-based generator of the Test cases page
+on those requirements and adds only what is missing, as Draft test cases linked
+to their requirement: every generated case for a requirement without test
+cases, otherwise one case per missing scenario kind. Duplicates (same title, or
+same type, steps and expected result) are skipped and existing test cases are
+not changed. With an open contradiction, vague wording, no stated result or a
+limit without a value, the expected result says the requirement needs
+clarification instead of quoting it. The page then lists the new cases and the
+coverage after them, including the scenario kinds that need a hand-written test
+case. The result above is not rerun; run the task again to update it.
+
 ## Architecture
 
 ```

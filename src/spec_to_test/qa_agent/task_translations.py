@@ -13,9 +13,9 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     # --- Page -----------------------------------------------------------------
     "qaagent.mode.task": _e("QA task", "QA-задача", "QA-задача"),
     "qatask.explainer": _e(
-        "Describe a QA task in plain words. The agent picks the matching checks (requirements analysis, Test Case Critic, Scenario Coverage, Change Impact, Traceability, Suite Planner), runs them on the open document and sums up the result. It only reads: test case statuses change only after you confirm.",
-        "Опишіть QA-задачу звичайними словами. Агент вибере відповідні перевірки (аналіз вимог, критик тест-кейсів, покриття сценаріїв, вплив змін, трасування, планувальник наборів), виконає їх на відкритому документі й підсумує результат. Агент лише читає: статуси тест-кейсів змінюються тільки після вашого підтвердження.",
-        "Опишите QA-задачу обычными словами. Агент выберет подходящие проверки (анализ требований, критик тест-кейсов, покрытие сценариев, влияние изменений, трассировка, планировщик наборов), выполнит их на открытом документе и подведёт итог. Агент только читает: статусы тест-кейсов меняются только после вашего подтверждения.",
+        "Describe a QA task in plain words. The agent picks the matching checks (requirements analysis, Test Case Critic, Scenario Coverage, Change Impact, Traceability, Suite Planner), runs them on the open document and sums up the result. It only reads: test case statuses change only after you confirm, and missing test cases are added only when you click Generate missing test cases.",
+        "Опишіть QA-задачу звичайними словами. Агент вибере відповідні перевірки (аналіз вимог, критик тест-кейсів, покриття сценаріїв, вплив змін, трасування, планувальник наборів), виконає їх на відкритому документі й підсумує результат. Агент лише читає: статуси тест-кейсів змінюються тільки після вашого підтвердження, а відсутні тест-кейси додаються лише за кнопкою «Згенерувати відсутні тест-кейси».",
+        "Опишите QA-задачу обычными словами. Агент выберет подходящие проверки (анализ требований, критик тест-кейсов, покрытие сценариев, влияние изменений, трассировка, планировщик наборов), выполнит их на открытом документе и подведёт итог. Агент только читает: статусы тест-кейсов меняются только после вашего подтверждения, а недостающие тест-кейсы добавляются только по кнопке «Сгенерировать недостающие тест-кейсы».",
     ),
     "qatask.input": _e("Task", "Задача", "Задача"),
     "qatask.placeholder": _e(
@@ -501,4 +501,58 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qatask.ai.category.missing_scenario": _e("AI · Missing scenario", "AI · Відсутній сценарій", "AI · Нет сценария"),
     "qatask.ai.category.change_risk": _e("AI · Change risk", "AI · Ризик зміни", "AI · Риск изменения"),
     "qatask.ai.category.test_gap": _e("AI · Test gap", "AI · Прогалина в тестах", "AI · Пробел в тестах"),
+    # --- Missing test cases (spec_to_test.qa_agent.missing_cases) ---------------
+    "qamissing.heading": _e("Missing test cases", "Відсутні тест-кейси", "Недостающие тест-кейсы"),
+    "qamissing.explainer": _e(
+        "Requirements without test cases, or with scenarios no test case exercises yet: {ids}. The rule-based generator of the Test cases page adds only the cases that are missing, as Draft and linked to their requirement. Existing test cases are not changed.",
+        "Вимоги без тест-кейсів або зі сценаріями, які ще не перевіряє жоден тест-кейс: {ids}. Генератор на основі правил (як на сторінці тест-кейсів) додасть лише відсутні кейси — як чернетки з прив'язкою до вимоги. Наявні тест-кейси не змінюються.",
+        "Требования без тест-кейсов или со сценариями, которые ещё не проверяет ни один тест-кейс: {ids}. Генератор на основе правил (как на странице тест-кейсов) добавит только недостающие кейсы — как черновики с привязкой к требованию. Существующие тест-кейсы не меняются.",
+    ),
+    "qamissing.generate": _e("Generate missing test cases", "Згенерувати відсутні тест-кейси",
+                             "Сгенерировать недостающие тест-кейсы"),
+    "qamissing.created": _e(
+        "Created {count} test case(s) as Draft: {ids}",
+        "Створено тест-кейсів (чернетки): {count} — {ids}",
+        "Создано тест-кейсов (черновики): {count} — {ids}",
+    ),
+    "qamissing.nothing": _e(
+        "Nothing added: the generator has no new case for these gaps. They need test cases written by hand (see below).",
+        "Нічого не додано: генератор не має нових кейсів для цих прогалин. Для них потрібні тест-кейси, написані вручну (див. нижче).",
+        "Ничего не добавлено: у генератора нет новых кейсов для этих пробелов. Для них нужны тест-кейсы, написанные вручную (см. ниже).",
+    ),
+    "qamissing.expected_unclear": _e(
+        "Not defined yet: {req} needs clarification first ({reasons}). Answer the clarification questions, then write the expected result.",
+        "Ще не визначено: {req} спершу потребує уточнення ({reasons}). Дайте відповіді на уточнювальні запитання, потім запишіть очікуваний результат.",
+        "Пока не определено: {req} сначала требует уточнения ({reasons}). Ответьте на уточняющие вопросы, затем запишите ожидаемый результат.",
+    ),
+    "qamissing.cases_heading": _e("Created test cases", "Створені тест-кейси", "Созданные тест-кейсы"),
+    "qamissing.case": _e("{id} · {req} · {type}: {title}", "{id} · {req} · {type}: {title}",
+                         "{id} · {req} · {type}: {title}"),
+    "qamissing.case_expected": _e("Expected result: {text}", "Очікуваний результат: {text}",
+                                  "Ожидаемый результат: {text}"),
+    "qamissing.case_unclear": _e("⚠ needs clarification", "⚠ потребує уточнення", "⚠ требует уточнения"),
+    "qamissing.coverage_heading": _e("Coverage after generation", "Покриття після генерації",
+                                     "Покрытие после генерации"),
+    "qamissing.coverage_line": _e(
+        "{req}: test cases {before} → {after}; scenarios without a test case: {missing_before} → {missing_after}; Approved coverage: {percent}",
+        "{req}: тест-кейсів {before} → {after}; сценарії без тест-кейсу: {missing_before} → {missing_after}; покриття затвердженими: {percent}",
+        "{req}: тест-кейсов {before} → {after}; сценарии без тест-кейса: {missing_before} → {missing_after}; покрытие утверждёнными: {percent}",
+    ),
+    "qamissing.none": _e("none", "немає", "нет"),
+    "qamissing.not_applicable": _e("n/a", "н/д", "н/д"),
+    "qamissing.by_hand": _e(
+        "{req}: the generator has no case for {names}; write it by hand.",
+        "{req}: генератор не має кейсу для {names}; напишіть його вручну.",
+        "{req}: у генератора нет кейса для {names}; напишите его вручную.",
+    ),
+    "qamissing.unclear": _e(
+        "{req}: expected results of the new test cases are left undefined until it is clarified ({reasons}).",
+        "{req}: очікувані результати нових тест-кейсів не визначено до уточнення вимоги ({reasons}).",
+        "{req}: ожидаемые результаты новых тест-кейсов не определены до уточнения требования ({reasons}).",
+    ),
+    "qamissing.approved_note": _e(
+        "Draft test cases count toward coverage only once they are Approved. Run the check again to update the result above.",
+        "Чернетки враховуються в покритті лише після затвердження. Запустіть перевірку ще раз, щоб оновити результат вище.",
+        "Черновики учитываются в покрытии только после утверждения. Запустите проверку ещё раз, чтобы обновить результат выше.",
+    ),
 }
