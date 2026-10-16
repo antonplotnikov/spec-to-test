@@ -49,13 +49,109 @@ def test_ranges_in_all_languages(text):
 
 
 def test_exact_value_does_not_invent_neighbour_behavior():
-    design = design_tests(Requirement(id="R", text="The reset link expires after 30 minutes."))
-    assert values(design.boundaries[0]) == [("29", "unspecified"), ("30", "stated"), ("31", "unspecified")]
+    design = design_tests(Requirement(id="R", text="The discount is 10%."))
+    assert values(design.boundaries[0]) == [("9", "unspecified"), ("10", "stated"), ("11", "unspecified")]
     assert {p.expectation for p in design.partitions[0].partitions} == {"stated", "unspecified"}
 
 
+def partitions(analysis):
+    return [(p.interval, str(p.representative), p.expectation) for p in analysis.partitions]
+
+
+@pytest.mark.parametrize("text", [
+    "The system must send a password reset link within 60 seconds.",
+    "Система повинна надіслати лист протягом 60 секунд.",
+    "Система должна отправить письмо в течение 60 секунд.",
+])
+def test_within_is_a_deadline_that_includes_its_limit(text):
+    design = design_tests(Requirement(id="R", text=text))
+    assert design.boundaries[0].constraint.timing == "deadline"
+    assert values(design.boundaries[0]) == [("59", "in_time"), ("60", "in_time"), ("61", "too_late")]
+    assert partitions(design.partitions[0]) == [("≤ 60", "30", "in_time"), ("> 60", "120", "too_late")]
+
+
+@pytest.mark.parametrize("text", [
+    "The reset link expires after 30 minutes.",
+    "The reset link must expire 30 minutes after it is generated.",
+    "The link expires in 30 minutes.",
+    "Сесія завершується через 30 хвилин бездіяльності.",
+    "Сессия завершается через 30 минут бездействия.",
+])
+def test_after_is_a_delay_not_an_equality(text):
+    design = design_tests(Requirement(id="R", text=text))
+    assert design.boundaries[0].constraint.timing == "delay"
+    # 29: the link still works, 31: it has expired; the exact moment is the one the requirement names.
+    assert values(design.boundaries[0]) == [("29", "not_yet"), ("30", "stated"), ("31", "happened")]
+    assert partitions(design.partitions[0]) == [("< 30", "15", "not_yet"), ("> 30", "60", "happened")]
+
+
+def test_for_is_a_duration():
+    text = "After 5 consecutive failed login attempts, the account must be locked for 15 minutes."
+    design = design_tests(Requirement(id="R", text=text))
+    assert design.boundaries[0].constraint.timing == "duration"
+    assert values(design.boundaries[0]) == [("14", "in_effect"), ("15", "stated"), ("16", "ended")]
+    assert partitions(design.partitions[0]) == [("< 15", "8", "in_effect"), ("> 15", "30", "ended")]
+
+
+def test_attempt_limits_are_inclusive_unless_strict():
+    design = design_tests(Requirement(id="R", text="Lock the account after 5 attempts."))
+    # The lock happens on the 5th attempt.
+    assert values(design.boundaries[0]) == [("4", "not_yet"), ("5", "happened"), ("6", "happened")]
+    assert partitions(design.partitions[0]) == [("< 5", "2", "not_yet"), ("≥ 5", "10", "happened")]
+    design = design_tests(Requirement(id="R", text="Lock the account after more than 5 attempts."))
+    assert design.boundaries[0].constraint.phrase == "more than 5 attempts"
+    assert values(design.boundaries[0]) == [("4", "not_yet"), ("5", "not_yet"), ("6", "happened")]
+    assert partitions(design.partitions[0]) == [("≤ 5", "2", "not_yet"), ("> 5", "10", "happened")]
+    design = design_tests(Requirement(id="R", text="Пользователь может сделать не более 10 попыток входа."))
+    assert values(design.boundaries[0]) == [("9", "valid"), ("10", "valid"), ("11", "invalid")]
+
+
+@pytest.mark.parametrize("text", [
+    "Passwords longer than 64 characters are rejected.",
+    "Orders over 50 USD ship free.",
+    "The page must load in less than 2 seconds.",
+])
+def test_strict_comparators_without_a_timing_word_stay_exact(text):
+    # Which side of "longer than 64" is valid depends on the sentence, so nothing is guessed around it.
+    [boundary] = design_tests(Requirement(id="R", text=text)).boundaries
+    assert boundary.constraint.timing is None and not boundary.constraint.strict
+    assert [e for _, e in values(boundary)] == ["unspecified", "stated", "unspecified"]
+
+
+@pytest.mark.parametrize("text", [
+    "Розмір аватара не повинен перевищувати 1 МБ.",
+    "Розмір аватара не повинен перевищувати 1024 КБ.",
+    "Размер аватара не должен превышать 1 МБ.",
+    "The avatar cannot exceed 1 MB.",
+    "The avatar must not exceed 1 MB.",
+])
+def test_must_not_exceed_is_an_inclusive_upper_limit(text):
+    [boundary] = design_tests(Requirement(id="R", text=text)).boundaries
+    # 1 MB is probed as 1024 KB: 0 and 2 MB would be too coarse.
+    assert boundary.constraint.unit == "kilobytes"
+    assert values(boundary) == [("1023", "valid"), ("1024", "valid"), ("1025", "invalid")]
+
+
+def test_coarse_data_limits_are_probed_in_a_smaller_unit():
+    [boundary] = design_tests(Requirement(id="R", text="The file must be at most 2.5 MB.")).boundaries
+    assert (boundary.constraint.unit, boundary.constraint.phrase) == ("kilobytes", "at most 2.5 MB")
+    assert values(boundary) == [("2559", "valid"), ("2560", "valid"), ("2561", "invalid")]
+    [boundary] = design_tests(Requirement(id="R", text="The file must be at most 500 MB.")).boundaries
+    assert (boundary.constraint.unit, values(boundary)[0]) == ("megabytes", ("499", "valid"))
+
+
+def test_correct_ranges_and_units_keep_their_values():
+    design = design_tests(Requirement(id="R", text="Пароль має містити від 8 до 64 символів."))
+    assert values(design.boundaries[0]) == [
+        ("7", "invalid"), ("8", "valid"), ("9", "valid"), ("63", "valid"), ("64", "valid"), ("65", "invalid"),
+    ]
+    design = design_tests(Requirement(id="R", text="Сумма заказа должна быть не менее 500 рублей."))
+    assert values(design.boundaries[0]) == [("499", "invalid"), ("500", "valid"), ("501", "valid")]
+    assert design.boundaries[0].constraint.timing is None
+
+
 def test_decimal_step():
-    design = design_tests(Requirement(id="R", text="The file must be at most 2.5 MB."))
+    design = design_tests(Requirement(id="R", text="The response must take at most 2.5 seconds."))
     assert values(design.boundaries[0]) == [("2.4", "valid"), ("2.5", "valid"), ("2.6", "invalid")]
 
 

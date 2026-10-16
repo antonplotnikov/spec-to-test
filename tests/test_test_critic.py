@@ -1,6 +1,13 @@
+import json
+
+import pytest
+
+from conftest import PROJECT_ROOT
 from spec_to_test.i18n import t
+from spec_to_test.input_parser import extract_requirements
 from spec_to_test.models import Finding, FindingType, Requirement, Severity, TestCase, TestType, Workspace
-from spec_to_test.test_critic import critique
+from spec_to_test.rule_engine import analyze_requirements
+from spec_to_test.test_critic import critique, expectation_conflicts
 from spec_to_test.test_generator import generate_test_cases
 
 REQ = Requirement(id="REQ-1", text="The password must be at least 8 characters long.")
@@ -106,3 +113,81 @@ def test_hidden_is_an_observable_expected_result():
         for case in ws.test_cases:
             assert "expected_not_observable" not in {i.code for i in critique(case, ws)}, case.expected_result
     assert "expected_not_observable" in codes(tc(expected="Everything is fine."))
+
+
+# --- Conflicting expectations --------------------------------------------------
+
+def _analyzed(text: str, lang: str = "en") -> Workspace:
+    result = analyze_requirements(extract_requirements(text))
+    ws = Workspace(requirements=result.requirements, findings=result.findings)
+    ws.test_cases = generate_test_cases(ws, lang)
+    return ws
+
+
+def _conflicts(ws: Workspace) -> dict[str, dict[str, list[str]]]:
+    return {case.id: found for case in ws.test_cases if (found := expectation_conflicts(case, ws))}
+
+
+@pytest.mark.parametrize(("source", "pair", "value"), [
+    ("password_reset.md", ("TC-007", "TC-012"), "9 characters"),
+    ("03_checkout_ru", ("TC-004", "TC-008"), "500 рублей"),
+    ("24_uk_units_ranges", ("TC-002", "TC-005"), "9 символів"),
+])
+def test_conflicts_from_the_evaluation_are_found(source, pair, value):
+    if source.endswith(".md"):
+        ws = _analyzed((PROJECT_ROOT / "examples" / source).read_text(encoding="utf-8"))
+    else:
+        fixture = PROJECT_ROOT / "src" / "spec_to_test" / "evaluation" / "fixtures" / f"{source}.json"
+        data = json.loads(fixture.read_text(encoding="utf-8"))
+        ws = _analyzed(data["requirements"], data["language"])
+    a, b = pair
+    assert _conflicts(ws) == {a: {b: [value]}, b: {a: [value]}}
+    case = next(c for c in ws.test_cases if c.id == a)
+    [issue] = [i for i in critique(case, ws) if i.criterion == "conflict"]
+    assert issue.code == "expectation_conflict" and not issue.unknown
+    assert issue.params == {"ids": b, "values": value}
+
+
+def _probe(n: int, expected: str, requirement_id: str = "REQ-1", preconditions=()) -> TestCase:
+    return TestCase(id=f"TC-{n}", requirement_id=requirement_id, title="Password length", test_type=TestType.BOUNDARY,
+                    preconditions=list(preconditions), steps=["Enter a password of the given length and submit."],
+                    expected_result=expected)
+
+
+def test_opposite_outcomes_for_one_requirement_conflict():
+    ws = Workspace(requirements=[REQ], test_cases=[
+        _probe(1, "7 characters → rejected (invalid)\n8 characters → accepted (valid)"),
+        _probe(2, "8 characters → rejected (invalid)"),
+    ])
+    assert _conflicts(ws) == {"TC-1": {"TC-2": ["8 characters"]}, "TC-2": {"TC-1": ["8 characters"]}}
+
+
+def test_no_conflict_without_the_same_input_and_conditions():
+    ws = Workspace(requirements=[REQ], test_cases=[
+        # Positive and negative tests of other values.
+        _probe(1, "8 characters → accepted (valid)"),
+        _probe(2, "7 characters → rejected (invalid)"),
+        # The same outcome is agreement, not a conflict.
+        _probe(3, "8 characters → accepted (valid)"),
+        # The same value under another precondition is another condition.
+        _probe(4, "8 characters → rejected (invalid)", preconditions=["The user is blocked."]),
+        # Outcomes not written as "value → accepted / rejected" are not guessed.
+        _probe(5, "A password of 8 characters is not accepted."),
+    ])
+    assert _conflicts(ws) == {}
+
+
+def test_requirements_not_reported_as_contradicting_are_not_compared():
+    # Different contexts (wholesale buyers, administrators) are not a contradiction of the analyzer.
+    for text in ("REQ-1: The order total must be at least 500 USD.\n"
+                 "REQ-2: For wholesale buyers the order total must be at least 1000 USD.",
+                 "REQ-1: The session ends after 15 minutes of inactivity.\n"
+                 "REQ-2: The administrator session ends after 5 minutes of inactivity."):
+        ws = _analyzed(text)
+        assert not [f for f in ws.findings if f.type == FindingType.CONTRADICTION]
+        assert _conflicts(ws) == {}
+    # Unrelated requirements with the same probe value.
+    ws = Workspace(requirements=[REQ, Requirement(id="REQ-2", text="The nickname must be at most 8 characters.")],
+                   test_cases=[_probe(1, "9 characters → accepted (valid)"),
+                               _probe(2, "9 characters → rejected (invalid)", requirement_id="REQ-2")])
+    assert _conflicts(ws) == {}

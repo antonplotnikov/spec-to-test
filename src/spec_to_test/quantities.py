@@ -12,7 +12,7 @@ when a known unit or currency is written next to it.
 - Every currency is its own dimension: "100 USD" and "3000 RUB" are never
   compared (no exchange rates are assumed).
 - Comparators: min ("at least", "не менее", "щонайменше"), max ("up to",
-  "не более", "не більше"), strict gt ("more than", "свыше", "понад") and lt
+  "не более", "не більше", "must not exceed", "не повинен перевищувати"), strict gt ("more than", "свыше", "понад") and lt
   ("less than", "менее", "менше"), or exact.
 - Ranges: "between 8 and 64 characters", "8-64 characters", "от 8 до 64
   символов", "від 8 до 64 символів", "from $10 to $50".
@@ -58,7 +58,10 @@ MIN_WORDS = (
 MAX_WORDS = (
     r"at most|maximum(?: of)?|max\.?|up to|no more than|not more than|not exceed\w*|no longer than|no larger than|"
     r"не більше(?: ніж| за)?|максимум|до|не более(?: чем)?|не больше(?: чем)?|не превыша\w*|не перевищу\w*|"
-    r"no later than|не дольше(?: чем)?(?: за)?|не довше(?: ніж)?(?: за)?|не позднее|не позже|не пізніше(?: ніж)?(?: за)?"
+    r"no later than|не дольше(?: чем)?(?: за)?|не довше(?: ніж)?(?: за)?|не позднее|не позже|не пізніше(?: ніж)?(?: за)?|"
+    # "cannot exceed", "не повинен перевищувати", "не должен превышать": a negated "more than" is an upper limit.
+    r"(?:cannot|can't|won't|doesn't|don't|mustn't|shouldn't|shan't) exceed\w*|"
+    r"не (?:повин\w*|ма[єю]\w*|мож\w*|буде|будуть|долж\w*|мог\w*|будет|будут) (?:перевищ\w*|превы[шс]\w*)"
 )
 GT_WORDS = (
     r"more than|greater than|over|above|exceeds?|exceeding|longer than|larger than|bigger than|"

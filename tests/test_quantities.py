@@ -31,6 +31,10 @@ def one(text: str) -> tuple[str, str, Decimal]:
     ("2,5 секунды", ("seconds", "exact", Decimal("2.5"))),
     ("up to 5MB", ("megabytes", "max", Decimal(5))),
     ("must not exceed 2 GB", ("gigabytes", "max", Decimal(2))),
+    ("cannot exceed 2 GB", ("gigabytes", "max", Decimal(2))),
+    ("не повинен перевищувати 1 МБ", ("megabytes", "max", Decimal(1))),
+    ("не должен превышать 5 МБ", ("megabytes", "max", Decimal(5))),
+    ("не може перевищити 10 МБ", ("megabytes", "max", Decimal(10))),
     ("не дольше 3 секунд", ("seconds", "max", Decimal(3))),
     ("не пізніше ніж за 30 секунд", ("seconds", "max", Decimal(30))),
     ("more than 3 attempts", ("attempts", "gt", Decimal(3))),
@@ -79,8 +83,12 @@ def test_units_convert_within_a_dimension_only():
 
 
 def test_test_design_keeps_its_behavior_for_strict_comparators():
+    [constraint] = extract_constraints("Passwords longer than 64 characters are rejected.")
+    assert (constraint.kind, constraint.phrase, constraint.timing) == ("exact", "64 characters", None)
+    # With a delay word the strict comparator says when the change happens: after the 5th attempt.
     [constraint] = extract_constraints("Lock the account after more than 5 attempts.")
-    assert (constraint.kind, constraint.phrase) == ("exact", "5 attempts")
+    assert (constraint.kind, constraint.low, constraint.phrase) == ("exact", Decimal(5), "more than 5 attempts")
+    assert (constraint.timing, constraint.strict) == ("delay", True)
     [price] = extract_constraints("The order total must be at least 500 рублей.")
     assert (price.unit, price.kind, price.low) == ("rub", "min", Decimal(500))
 

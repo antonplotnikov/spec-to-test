@@ -36,7 +36,7 @@ Metrics (ratios keep their numerator and denominator, so cases add up exactly):
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -199,7 +199,10 @@ def _derived_numbers(requirements: list[Requirement]) -> set[str]:
     """Values the built-in test design derives from stated limits (boundaries, class representatives)."""
     numbers = {value for r in requirements for _, values in boundary_hints(r) for value in values}
     for requirement in requirements:
-        for classes in design_tests(requirement).partitions:
+        design = design_tests(requirement)
+        # Coarse data limits are probed in a smaller unit ("1 MB" → 1023 / 1024 / 1025 KB).
+        numbers |= {format_value(v.value) for boundary in design.boundaries for v in boundary.values}
+        for classes in design.partitions:
             numbers |= {format_value(part.representative) for part in classes.partitions}
     return numbers
 
@@ -475,7 +478,11 @@ def load_thresholds(path: Path = THRESHOLDS_FILE) -> dict[str, dict[str, dict[st
 
 def check_thresholds(result: SuiteResult, thresholds: dict[str, dict[str, float]]) -> list[str]:
     """Threshold violations as readable lines ([] = all met). A metric with no data is not checked."""
-    totals = result.totals()
+    return threshold_failures(result.totals(), thresholds)
+
+
+def threshold_failures(totals: Mapping[str, float | int | None], thresholds: dict[str, dict[str, float]]) -> list[str]:
+    """`check_thresholds` over any metric totals (also used by the QA Agent evaluation)."""
     failures = []
     for name, limits in thresholds.items():
         value = totals.get(name)

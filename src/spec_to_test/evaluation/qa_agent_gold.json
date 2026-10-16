@@ -1,0 +1,177 @@
+{
+ "description": "Known problems of 5 requirement documents and of the test cases the app generates for them, judged by a person from the texts (see qa_agent_eval.py). \"expect\" of a boundary problem restates its note as probe value → whether the requirement's statement holds there. Requirement problems of reference_spec come from tests/test_reference_spec.py, those of checkout_ru and uk_units_ranges from the Grill eval gold of the same cases.",
+ "task": "Full check",
+ "thresholds": {
+  "precision": {"min": 0.95},
+  "recall": {"min": 0.65},
+  "recall_macro": {"min": 0.5},
+  "recall.contradiction": {"min": 1.0},
+  "recall.expectation_conflict": {"min": 0.75},
+  "recall.template_test_case": {"min": 1.0},
+  "false_alarms": {"max": 0},
+  "recall.boundary_semantics": {"min": 1.0},
+  "regressions": {"max": 0}
+ },
+ "documents": [
+  {
+   "name": "password_reset",
+   "language": "en",
+   "file": "examples/password_reset.md",
+   "sha256": "a280e06f33c5dd88",
+   "test_cases": {"TC-001": "REQ-1 positive", "TC-002": "REQ-2 positive", "TC-003": "REQ-3 positive", "TC-004": "REQ-3 boundary", "TC-005": "REQ-3 equivalence", "TC-006": "REQ-4 positive", "TC-007": "REQ-4 boundary", "TC-008": "REQ-4 equivalence", "TC-009": "REQ-5 positive", "TC-010": "REQ-6 positive", "TC-011": "REQ-7 positive", "TC-012": "REQ-7 boundary", "TC-013": "REQ-7 equivalence", "TC-014": "REQ-8 decision_table", "TC-015": "REQ-9 positive"},
+   "problems": [
+    {"kind": "contradiction", "ids": ["REQ-4", "REQ-7"], "trap": "contradiction", "note": "minimum password length 8 vs 10"},
+    {"kind": "ambiguous_wording", "ids": ["REQ-4"], "note": "\"contain one digit\": exactly one or at least one"},
+    {"kind": "ambiguous_wording", "ids": ["REQ-5"], "note": "\"fast\", \"user-friendly\" are not measurable"},
+    {"kind": "missing_boundary", "ids": ["REQ-6"], "accept": ["ambiguous_wording"], "trap": "numeric_boundary", "note": "\"too many failed attempts\": no number"},
+    {"kind": "missing_error_handling", "ids": ["REQ-1"], "trap": "error_handling", "note": "malformed email address"},
+    {"kind": "missing_error_handling", "ids": ["REQ-3"], "trap": "error_handling", "note": "what an expired link shows"},
+    {"kind": "missing_error_handling", "ids": ["REQ-4", "REQ-7"], "trap": "error_handling", "note": "what a password that breaks the rules gets"},
+    {"kind": "missing_expected_result", "ids": ["REQ-9"], "note": "no observable result of setting the password"},
+    {"kind": "missing_expected_result", "ids": ["REQ-1"], "optional": true, "note": "debatable: REQ-2 states the result (the link is sent)"},
+    {"kind": "expectation_conflict", "ids": ["TC-007", "TC-012"], "trap": "contradiction", "note": "9 characters accepted (REQ-4) vs rejected (REQ-7)"},
+    {"kind": "boundary_semantics", "ids": ["TC-004", "TC-005"], "trap": "within_after", "expect": {"29": false, "31": true}, "note": "\"expires after 30 minutes\": 29 min is valid and 31 min expired, not \"not specified\""},
+    {"kind": "template_test_case", "ids": ["TC-001"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-002"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-003"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-006"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-009"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-010"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-011"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-014"], "trap": "template_test_case", "note": "decision table: steps 2-3 name no action"},
+    {"kind": "template_test_case", "ids": ["TC-015"], "trap": "template_test_case"}
+   ],
+   "must_not": [
+    {"kind": "missing_error_handling", "ids": ["REQ-8"], "trap": "error_handling", "note": "REQ-8 is the error handling (unknown email)"},
+    {"kind": "template_test_case", "ids": ["TC-007", "TC-008", "TC-012", "TC-013"], "trap": "template_test_case", "note": "boundary/equivalence cases with concrete values"}
+   ]
+  },
+  {
+   "name": "qa_demo",
+   "language": "en",
+   "file": "examples/qa_demo/requirements.md",
+   "sha256": "88c03dd9ef1912f5",
+   "test_cases": {"TC-001": "REQ-1 positive", "TC-002": "REQ-2 positive", "TC-003": "REQ-3 positive", "TC-004": "REQ-4 decision_table", "TC-005": "REQ-5 positive", "TC-006": "REQ-6 positive"},
+   "problems": [
+    {"kind": "missing_expected_result", "ids": ["REQ-5"], "note": "what deleting the account leads to (sign-out, confirmation)"},
+    {"kind": "missing_error_handling", "ids": ["REQ-2"], "optional": true, "note": "debatable: REQ-3 covers a wrong password, not other sign-in failures"},
+    {"kind": "ambiguous_wording", "ids": ["REQ-6"], "optional": true, "note": "debatable: \"inside the shop\" (same host?)"},
+    {"kind": "template_test_case", "ids": ["TC-001"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-002"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-003"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-004"], "trap": "template_test_case", "note": "decision table: steps 2-3 name no action"},
+    {"kind": "template_test_case", "ids": ["TC-005"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-006"], "trap": "template_test_case"}
+   ],
+   "must_not": [
+    {"kind": "missing_error_handling", "ids": ["REQ-3", "REQ-4"], "trap": "error_handling", "note": "both are error rules"},
+    {"kind": "requirement", "ids": ["REQ-1"], "note": "clear requirement"}
+   ]
+  },
+  {
+   "name": "reference_spec",
+   "language": "en",
+   "file": "tests/fixtures/reference_spec.md",
+   "sha256": "8c53e4a70745a0e8",
+   "test_cases": {"TC-001": "REF-01 positive", "TC-002": "REF-01 boundary", "TC-003": "REF-01 equivalence", "TC-004": "REF-02 decision_table", "TC-005": "REF-03 positive", "TC-006": "REF-03 boundary", "TC-007": "REF-03 equivalence", "TC-008": "REF-04 positive", "TC-009": "REF-04 boundary", "TC-010": "REF-04 equivalence", "TC-011": "REF-05 positive", "TC-012": "REF-06 positive", "TC-013": "REF-07 positive", "TC-014": "REF-08 positive", "TC-015": "REF-09 positive", "TC-016": "REF-10 positive", "TC-017": "REF-11 positive", "TC-018": "REF-11 boundary", "TC-020": "REF-12 positive", "TC-021": "REF-12 boundary", "TC-023": "REF-13 positive", "TC-024": "REF-14 positive", "TC-025": "REF-15 positive", "TC-026": "REF-15 boundary", "TC-027": "REF-15 equivalence", "TC-028": "REF-16 positive", "TC-029": "REF-17 positive", "TC-030": "REF-18 positive", "TC-031": "REF-19 positive", "TC-032": "REF-20 positive"},
+   "problems": [
+    {"kind": "ambiguous_wording", "ids": ["REF-07"]},
+    {"kind": "missing_expected_result", "ids": ["REF-08"]},
+    {"kind": "missing_boundary", "ids": ["REF-09"], "trap": "numeric_boundary", "note": "\"a minimum length\" without a value"},
+    {"kind": "missing_expected_result", "ids": ["REF-10"]},
+    {"kind": "missing_error_handling", "ids": ["REF-10"], "trap": "error_handling", "note": "the two entries differ"},
+    {"kind": "contradiction", "ids": ["REF-11", "REF-12"], "trap": "contradiction", "note": "minimum length 8 vs 12"},
+    {"kind": "contradiction", "ids": ["REF-13", "REF-14"], "trap": "contradiction", "note": "must vs must not export"},
+    {"kind": "missing_expected_result", "ids": ["REF-13"]},
+    {"kind": "ambiguous_wording", "ids": ["REF-16"]},
+    {"kind": "missing_expected_result", "ids": ["REF-17"]},
+    {"kind": "missing_error_handling", "ids": ["REF-17"], "trap": "error_handling", "note": "upload failure, wrong file"},
+    {"kind": "missing_boundary", "ids": ["REF-19"], "trap": "numeric_boundary", "note": "\"ограничено\" without a number"},
+    {"kind": "missing_expected_result", "ids": ["REF-19"]},
+    {"kind": "missing_expected_result", "ids": ["REF-20"]},
+    {"kind": "missing_error_handling", "ids": ["REF-20"], "trap": "error_handling", "note": "invalid email"},
+    {"kind": "expectation_conflict", "ids": ["TC-018", "TC-021"], "trap": "contradiction", "note": "implicit: TC-018 accepts 8 and 9 characters, REF-12 (TC-021) rejects everything under 12; no shared probe value"},
+    {"kind": "boundary_semantics", "ids": ["TC-002", "TC-003"], "trap": "within_after", "expect": {"59": true, "61": false}, "note": "\"within 60 seconds\": 59 s is in time, 61 s too late"},
+    {"kind": "boundary_semantics", "ids": ["TC-006", "TC-007"], "trap": "within_after", "expect": {"29": false, "31": true}, "note": "\"expire 30 minutes after\": 29 min valid, 31 min expired"},
+    {"kind": "boundary_semantics", "ids": ["TC-009", "TC-010"], "trap": "within_after", "expect": {"14": true, "16": false}, "note": "\"locked for 15 minutes\": still locked at 14 min, unlocked at 16"},
+    {"kind": "boundary_semantics", "ids": ["TC-026", "TC-027"], "trap": "within_after", "expect": {"4": true, "6": false}, "note": "\"протягом 5 хвилин\" (within): 4 min in time, 6 min too late"},
+    {"kind": "template_test_case", "ids": ["TC-001"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-004"], "trap": "template_test_case", "note": "decision table: steps 2-3 name no action"},
+    {"kind": "template_test_case", "ids": ["TC-005"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-008"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-011"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-012"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-013"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-014"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-015"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-016"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-017"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-020"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-023"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-024"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-025"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-028"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-029"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-030"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-031"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-032"], "trap": "template_test_case"}
+   ],
+   "must_not": [
+    {"kind": "requirement", "ids": ["REF-01", "REF-02", "REF-03", "REF-04", "REF-05", "REF-06", "REF-15", "REF-18"], "note": "clear requirements (tests/test_reference_spec.py)"}
+   ]
+  },
+  {
+   "name": "checkout_ru",
+   "language": "ru",
+   "grill_case": "03_checkout_ru",
+   "sha256": "6371ce85d4447835",
+   "test_cases": {"TC-001": "REQ-1 positive", "TC-002": "REQ-2 positive", "TC-003": "REQ-3 positive", "TC-004": "REQ-3 boundary", "TC-005": "REQ-3 equivalence", "TC-006": "REQ-4 positive", "TC-008": "REQ-4 equivalence", "TC-009": "REQ-5 positive"},
+   "problems": [
+    {"kind": "missing_expected_result", "ids": ["REQ-1"], "note": "результат оформления заказа"},
+    {"kind": "ambiguous_wording", "ids": ["REQ-2"], "note": "«быстро»"},
+    {"kind": "contradiction", "ids": ["REQ-3", "REQ-4"], "trap": "contradiction", "note": "минимальная сумма 500 или 1000"},
+    {"kind": "missing_error_handling", "ids": ["REQ-5"], "trap": "error_handling", "note": "неверный номер телефона"},
+    {"kind": "missing_expected_result", "ids": ["REQ-5"], "note": "что происходит после ввода номера"},
+    {"kind": "expectation_conflict", "ids": ["TC-004", "TC-008"], "trap": "contradiction", "note": "500 рублей принимается (REQ-3) и отклоняется (REQ-4)"},
+    {"kind": "template_test_case", "ids": ["TC-001"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-002"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-003"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-006"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-009"], "trap": "template_test_case"}
+   ],
+   "must_not": [
+    {"kind": "boundary_semantics", "ids": ["TC-004", "TC-005"], "trap": "numeric_boundary", "expect": {"499": false, "500": true}, "note": "«не менее 500»: 499 отклоняется, 500 принимается — верно"}
+   ]
+  },
+  {
+   "name": "uk_units_ranges",
+   "language": "uk",
+   "grill_case": "24_uk_units_ranges",
+   "sha256": "9a5af06010f7e8d7",
+   "test_cases": {"TC-001": "REQ-1 positive", "TC-002": "REQ-1 boundary", "TC-003": "REQ-1 equivalence", "TC-004": "REQ-2 positive", "TC-005": "REQ-2 boundary", "TC-007": "REQ-3 positive", "TC-008": "REQ-3 boundary", "TC-009": "REQ-3 equivalence", "TC-010": "REQ-4 positive", "TC-011": "REQ-4 boundary", "TC-012": "REQ-4 equivalence", "TC-013": "REQ-5 positive", "TC-014": "REQ-5 boundary", "TC-015": "REQ-5 equivalence", "TC-016": "REQ-6 positive", "TC-017": "REQ-6 boundary", "TC-018": "REQ-6 equivalence"},
+   "problems": [
+    {"kind": "contradiction", "ids": ["REQ-1", "REQ-2"], "trap": "contradiction", "note": "мінімальна довжина 8 чи 10"},
+    {"kind": "missing_error_handling", "ids": ["REQ-3"], "trap": "error_handling", "note": "аватар більший за ліміт"},
+    {"kind": "missing_error_handling", "ids": ["REQ-4"], "optional": true, "note": "the same limit as REQ-3 in other units"},
+    {"kind": "missing_expected_result", "ids": ["REQ-5"], "note": "що бачить користувач після завершення сесії"},
+    {"kind": "missing_expected_result", "ids": ["REQ-6"], "optional": true, "note": "the same question for the admin session"},
+    {"kind": "expectation_conflict", "ids": ["TC-002", "TC-005"], "trap": "contradiction", "note": "9 символів приймається (REQ-1) і відхиляється (REQ-2)"},
+    {"kind": "boundary_semantics", "ids": ["TC-008", "TC-009"], "trap": "numeric_boundary", "expect": {"1023": true, "1024": true, "1025": false}, "note": "«не повинен перевищувати 1 МБ» is an upper limit, not equality: ≤ 1 МБ accepted, more rejected; 0/2 МБ steps are too coarse"},
+    {"kind": "boundary_semantics", "ids": ["TC-011", "TC-012"], "trap": "numeric_boundary", "expect": {"1023": true, "1025": false}, "note": "«не повинен перевищувати 1024 КБ»: 1023 КБ accepted, 1025 КБ rejected"},
+    {"kind": "boundary_semantics", "ids": ["TC-014", "TC-015"], "trap": "within_after", "expect": {"14": false, "16": true}, "note": "«через 15 хвилин»: session active at 14 min, ended at 16"},
+    {"kind": "boundary_semantics", "ids": ["TC-017", "TC-018"], "trap": "within_after", "expect": {"4": false, "6": true}, "note": "«через 5 хвилин»: session active at 4 min, ended at 6"},
+    {"kind": "template_test_case", "ids": ["TC-001"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-004"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-007"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-010"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-013"], "trap": "template_test_case"},
+    {"kind": "template_test_case", "ids": ["TC-016"], "trap": "template_test_case"}
+   ],
+   "must_not": [
+    {"kind": "contradiction", "ids": ["REQ-3", "REQ-4"], "trap": "contradiction", "note": "1 МБ = 1024 КБ: equal values in other units"},
+    {"kind": "contradiction", "ids": ["REQ-5", "REQ-6"], "trap": "contradiction", "note": "different scope: the admin session"},
+    {"kind": "boundary_semantics", "ids": ["TC-002", "TC-003"], "trap": "numeric_boundary", "expect": {"7": false, "8": true, "9": true, "63": true, "64": true, "65": false}, "note": "range 8–64: 7/8/9/63/64/65 are the right probes"}
+   ]
+  }
+ ]
+}

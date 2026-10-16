@@ -26,7 +26,7 @@ from spec_to_test.i18n import t  # noqa: E402
 from spec_to_test.llm.config import load_settings  # noqa: E402
 from spec_to_test.models import Workspace  # noqa: E402
 from spec_to_test.projects import open_store  # noqa: E402
-from spec_to_test.storage import persistence_enabled  # noqa: E402
+from spec_to_test.storage import WorkspaceConflict, persistence_enabled  # noqa: E402
 
 st.set_page_config(page_title="Spec-to-Test", page_icon="🧪", layout="wide", initial_sidebar_state="auto")
 theme_ui.inject()
@@ -37,6 +37,10 @@ def persist(ws: Workspace) -> None:
     st.session_state["workspace"] = ws
     try:
         store.save(active_project_id(), ws)
+    except WorkspaceConflict:
+        # Saved elsewhere meanwhile (another tab or the QA on-change run): show that version, keep it intact.
+        st.session_state["workspace"] = store.load(active_project_id(), ws.document_hash) or ws
+        pages_ui.flash(t("storage.changed_elsewhere", lang), icon="⚠️")
     except (OSError, ValueError):
         pages_ui.flash(t("storage.save_failed", lang), icon="⚠️")
 

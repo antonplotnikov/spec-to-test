@@ -38,6 +38,26 @@ def test_round_trip_keeps_edits():
     assert load_latest() == ws
 
 
+def test_a_copy_older_than_the_saved_file_is_not_saved():
+    ws = sample()
+    save_workspace(ws)
+    first, second = load_workspace(ws.document_hash), load_workspace(ws.document_hash)  # e.g. two writers
+    first.test_cases[0].title = "First"
+    save_workspace(first)
+    first.test_cases[0].title = "First again"
+    save_workspace(first)  # its own last save is not a conflict
+    second.test_cases[0].title = "Second"
+    with pytest.raises(storage.WorkspaceConflict):
+        save_workspace(second)
+    assert load_workspace(ws.document_hash).test_cases[0].title == "First again"
+    with pytest.raises(storage.WorkspaceConflict):
+        save_workspace(ws)  # the copy saved first is outdated too
+    reloaded = load_workspace(ws.document_hash)
+    reloaded.test_cases[0].title = "Second"
+    save_workspace(reloaded)
+    assert load_workspace(ws.document_hash).test_cases[0].title == "Second"
+
+
 def test_uses_configured_data_dir(tmp_path):
     save_workspace(sample())
     assert data_dir() == tmp_path / "data"

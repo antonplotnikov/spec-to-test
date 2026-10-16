@@ -310,6 +310,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "uk": "Не вдалося зберегти зміни на диск. Вони збережуться лише до закриття сторінки.",
         "ru": "Не удалось сохранить изменения на диск. Они сохранятся только до закрытия страницы.",
     },
+    "storage.changed_elsewhere": {
+        "en": "This document was changed elsewhere (another tab or the QA automation). Its saved version is shown; repeat your last change.",
+        "uk": "Цей документ змінено в іншому місці (інша вкладка або автоматизація QA). Показано збережену версію; повторіть останню зміну.",
+        "ru": "Этот документ изменён в другом месте (другая вкладка или автоматизация QA). Показана сохранённая версия; повторите последнее изменение.",
+    },
     # --- Tabs ----------------------------------------------------------------
     "tab.dashboard": {"en": "Dashboard", "uk": "Дашборд", "ru": "Дашборд"},
     "tab.rtm": {"en": "Traceability (RTM)", "uk": "Трасування (RTM)", "ru": "Трассировка (RTM)"},
@@ -722,6 +727,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "critic.criterion.expected_result": {"en": "Expected result", "uk": "Очікуваний результат", "ru": "Ожидаемый результат"},
     "critic.criterion.requirement_match": {"en": "Requirement match", "uk": "Відповідність вимозі", "ru": "Соответствие требованию"},
     "critic.criterion.duplicate": {"en": "Duplicate", "uk": "Дублікат", "ru": "Дубликат"},
+    "critic.criterion.conflict": {"en": "Conflicting expectation", "uk": "Суперечливе очікування", "ru": "Противоречивое ожидание"},
     "critic.criterion.unsupported": {"en": "Unsupported expectation", "uk": "Непідтверджене очікування", "ru": "Неподтверждённое ожидание"},
     "critic.step_placeholder": {
         "en": "step {step} is still the placeholder text.",
@@ -782,6 +788,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "same steps and expected result as {ids}.",
         "uk": "ті самі кроки й очікуваний результат, що й у {ids}.",
         "ru": "те же шаги и ожидаемый результат, что и у {ids}.",
+    },
+    "critic.expectation_conflict": {
+        "en": "{ids} expects the opposite outcome for the same input: {values}. Decide which outcome is right before approving either test case.",
+        "uk": "{ids} очікує протилежний результат для того самого значення: {values}. Визначте правильний результат, перш ніж затверджувати будь-який із цих тест-кейсів.",
+        "ru": "{ids} ожидает противоположный результат для того же значения: {values}. Определите правильный результат, прежде чем утверждать любой из этих тест-кейсов.",
     },
     "critic.invented_value": {
         "en": "the expected result uses values not stated in the requirement: {values}.",
@@ -899,6 +910,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "design.invalid": {"en": "rejected (invalid)", "uk": "відхиляється (невалідне)", "ru": "отклоняется (невалидное)"},
     "design.stated": {"en": "as stated in the requirement", "uk": "як зазначено у вимозі", "ru": "как указано в требовании"},
     "design.unspecified": {"en": "not specified — needs clarification", "uk": "не визначено — потребує уточнення", "ru": "не определено — требует уточнения"},
+    "design.in_time": {"en": "in time (meets the requirement)", "uk": "вчасно (відповідає вимозі)", "ru": "вовремя (соответствует требованию)"},
+    "design.too_late": {"en": "too late (violates the requirement)", "uk": "запізно (порушує вимогу)", "ru": "слишком поздно (нарушает требование)"},
+    "design.not_yet": {"en": "not yet — the stated change has not happened", "uk": "ще ні — зазначена зміна ще не відбулася", "ru": "ещё нет — указанное изменение ещё не произошло"},
+    "design.happened": {"en": "the stated change has happened", "uk": "зазначена зміна відбулася", "ru": "указанное изменение произошло"},
+    "design.in_effect": {"en": "still in effect as stated", "uk": "ще діє, як зазначено", "ru": "ещё действует, как указано"},
+    "design.ended": {"en": "no longer in effect", "uk": "вже не діє", "ru": "уже не действует"},
     "design.true": {"en": "true", "uk": "так", "ru": "да"},
     "design.false": {"en": "false", "uk": "ні", "ru": "нет"},
     "design.unspecified_warning": {

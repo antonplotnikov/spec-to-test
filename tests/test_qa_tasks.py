@@ -1,14 +1,19 @@
 """QA tasks: plain-text tasks routed to the existing Critic, Coverage, Change Impact,
 Traceability and Suite Planner, with status changes only after confirmation."""
 
+import json
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from conftest import PROJECT_ROOT, goto, home
+from spec_to_test.evaluation.cases import FIXTURES_DIR
+from spec_to_test.evaluation.qa_agent_eval import load_gold
 from spec_to_test.input_parser import extract_requirements
-from spec_to_test.models import ChangeImpact, ReviewStatus, TestCaseImpact, Workspace
+from spec_to_test.models import ChangeImpact, ClarificationStatus, ReviewStatus, Source, TestCaseImpact, Workspace
 from spec_to_test.qa_agent import tasks
-from spec_to_test.qa_agent.tasks import ProposedAction, apply_action, plan_task, run_task
+from spec_to_test.qa_agent.on_change import build_workspace
+from spec_to_test.qa_agent.tasks import Item, ProposedAction, apply_action, plan_task, run_task
 from spec_to_test.rule_engine import analyze_requirements
 from spec_to_test.test_critic import critique
 from spec_to_test.test_generator import generate_test_cases
@@ -35,6 +40,15 @@ def ws(example_text) -> Workspace:
     ("Спланируй smoke-набор", ["suites"]),
     ("Check coverage and plan a regression suite", ["coverage", "suites"]),
     ("Full audit before release", list(tasks.TOOLS)),
+    ("Find contradictions", ["requirements"]),
+    ("Найди противоречия", ["requirements"]),
+    ("Знайди суперечності", ["requirements"]),
+    ("Check the requirements", ["requirements"]),
+    ("Проверь требования", ["requirements"]),
+    ("Перевір вимоги", ["requirements"]),
+    ("Is the document ready for testing?", ["requirements"]),
+    ("Готов ли документ к тестированию?", ["requirements"]),
+    ("Чи готовий документ до тестування?", ["requirements"]),
 ])
 def test_task_picks_the_matching_tools(ws, task, tools):
     assert plan_task(task, ws).tools == tools
@@ -60,8 +74,8 @@ def test_unknown_ids_are_reported_not_replaced_by_the_whole_document(ws):
 
 def test_step_limit_cuts_the_plan(ws):
     plan = plan_task("full audit", ws, max_steps=2)
-    assert plan.tools == ["critic", "coverage"]
-    assert plan.skipped_tools == ["impact", "traceability", "suites"]
+    assert plan.tools == ["requirements", "critic"]
+    assert plan.skipped_tools == ["coverage", "impact", "traceability", "suites"]
     assert len(run_task("full audit", ws, max_steps=2).steps) == 2
 
 
@@ -114,10 +128,60 @@ def test_full_run_combines_every_tool_and_never_changes_the_workspace(ws):
     assert result.status == "done"
     assert [s.tool for s in result.steps] == list(tasks.TOOLS)
     assert all(s.summary is not None for s in result.steps)
-    # Generated test cases are Draft: suites and traceability ask to approve.
-    keys = {i.key for i in result.recommendations}
-    assert {"qatask.rec.suites_approve", "qatask.rec.trace_approve"} <= keys
+    # Generated test cases are Draft: one summary asks to approve them, apart from the problems.
+    assert result.approval is not None and result.approval.key == "qatask.approval.summary_ids"
     assert ws.model_dump() == before
+
+
+def _requirement_problems(result) -> list[tuple[str, str]]:
+    """(ID, topic) per affected requirement; a merged line names several IDs."""
+    [step] = [s for s in result.steps if s.tool == "requirements"]
+    return [(ref, i.topic) for i in step.problems for ref in i.ids]
+
+
+def test_full_check_reports_the_rule_engine_findings_once(ws):
+    result = run_task("Full check", ws)
+    assert _requirement_problems(result) == [
+        # One line for both: the same finding, nothing else differs. REQ-9 "is able to set a new password".
+        ("REQ-1", "finding.missing_expected_result"), ("REQ-9", "finding.missing_expected_result"),
+        ("REQ-1", "finding.missing_error_handling"),
+        ("REQ-4", "finding.contradiction"),  # REQ-4 vs REQ-7: one line, not one per requirement
+        ("REQ-5", "finding.ambiguous_wording"),  # other terms: a line of its own
+        ("REQ-6", "finding.ambiguous_wording"),
+    ]
+    step = result.steps[0]
+    assert step.problems[2].params == {"related": "REQ-7", "terms": "“at least 8 characters” ↔ “at least 10 characters”"}
+    assert step.summary.params == {"checked": "9", "contradiction": "1", "ambiguous_wording": "2",
+                                   "missing_error_handling": "1", "missing_expected_result": "2"}
+    assert step.recommendations[0].params == {"ids": "REQ-1, REQ-4, REQ-5, REQ-6, REQ-7, REQ-9"}
+    # The same findings stored twice are not reported twice.
+    doubled = ws.model_copy(update={"findings": ws.findings + ws.findings})
+    assert _requirement_problems(run_task("Full check", doubled)) == _requirement_problems(result)
+
+
+def test_requirement_findings_follow_status_source_and_scope(ws):
+    resolved = [f.model_copy(update={"status": ClarificationStatus.RESOLVED}) if f.requirement_id == "REQ-5"
+                else f.model_copy(update={"source": Source.AI}) if f.requirement_id == "REQ-6" else f
+                for f in ws.findings]
+    result = run_task("find contradictions and ambiguities", ws.model_copy(update={"findings": resolved}))
+    assert [ref for ref, _ in _requirement_problems(result)] == ["REQ-1", "REQ-9", "REQ-1", "REQ-4"]
+    # A contradiction belongs to both requirements of the pair.
+    assert _requirement_problems(run_task("Найди противоречия в REQ-7", ws)) == [("REQ-4", "finding.contradiction")]
+    assert _requirement_problems(run_task("Перевір вимоги REQ-2", ws)) == []
+
+
+@pytest.mark.parametrize(("fixture", "expected"), [
+    # Known examples of the QA agent evaluation (2026-10-16).
+    ("03_checkout_ru", [("REQ-1", "finding.missing_expected_result"), ("REQ-5", "finding.missing_expected_result"),
+                        ("REQ-2", "finding.ambiguous_wording"), ("REQ-3", "finding.contradiction"),
+                        ("REQ-5", "finding.missing_error_handling")]),
+    ("24_uk_units_ranges", [("REQ-1", "finding.contradiction")]),
+])
+def test_full_check_reports_findings_of_known_documents(fixture, expected):
+    text = json.loads((FIXTURES_DIR / f"{fixture}.json").read_text(encoding="utf-8"))["requirements"]
+    result = analyze_requirements(extract_requirements(text))
+    workspace = Workspace(document_hash="doc", requirements=result.requirements, findings=result.findings)
+    assert _requirement_problems(run_task("Полная проверка", workspace)) == expected
 
 
 def test_impact_uses_the_stored_impact_or_computes_it(ws):
@@ -138,8 +202,126 @@ def test_impact_uses_the_stored_impact_or_computes_it(ws):
 def test_traceability_follows_the_scope(ws):
     whole = run_task("traceability gaps", ws).steps[0]
     scoped = run_task("traceability gaps for REQ-1", ws).steps[0]
-    assert {i.ref for i in scoped.problems} == {"REQ-1"}
-    assert len(whole.problems) > len(scoped.problems)
+    # Draft test cases only: traceability has nothing but "not Approved" lines.
+    assert scoped.problems == [] and {i.ref for i in scoped.approval} == {"REQ-1"}
+    assert len(whole.approval) > len(scoped.approval)
+
+
+# --- One line per problem, "not Approved" apart -------------------------------
+
+def test_merge_drops_mirror_lines_and_joins_identical_remarks():
+    items = [
+        Item(key="critic.step_generic", params={"steps": "1, 2"}, ref="TC-1", topic="critic.criterion.steps"),
+        Item(key="critic.expectation_conflict", params={"ids": "TC-3", "values": "9"}, ref="TC-2"),
+        Item(key="critic.step_generic", params={"steps": "2"}, ref="TC-3", topic="critic.criterion.steps"),
+        Item(key="critic.expectation_conflict", params={"ids": "TC-2", "values": "9"}, ref="TC-3"),
+        Item(key="critic.expectation_conflict", params={"ids": "TC-2", "values": "10"}, ref="TC-3"),
+        Item(key="critic.step_generic", params={"steps": "1, 2"}, ref="TC-4", topic="critic.criterion.steps"),
+    ]
+    before = [i.model_copy(deep=True) for i in items]
+    merged = tasks._merge(items)
+    assert [(i.key, i.ids, i.params) for i in merged] == [
+        ("critic.step_generic", ["TC-1", "TC-4"], {"steps": "1, 2"}),  # same remark: one line, both IDs
+        ("critic.expectation_conflict", ["TC-2"], {"ids": "TC-3", "values": "9"}),  # names both sides
+        ("critic.step_generic", ["TC-3"], {"steps": "2"}),  # other steps: another remark
+        ("critic.expectation_conflict", ["TC-3"], {"ids": "TC-2", "values": "10"}),  # another value
+    ]
+    assert merged[1].mentions == {"TC-2", "TC-3"}
+    assert items == before  # the tools' own lines are not changed
+
+
+def _atoms(tool: str, items: list[Item]) -> set[tuple]:
+    """One entry per affected ID: tool (the source), key (the type), topic, terms, params, IDs named."""
+    out = set()
+    for item in items:
+        named = {i.strip() for i in item.params.get("ids", "").split(",") if i.strip()}
+        rest = tuple(sorted((k, v) for k, v in item.params.items() if k != "ids"))
+        out |= {(tool, item.key, item.topic, tuple(item.terms), rest, frozenset({ref, *named}))
+                for ref in item.ids or [""]}
+    return out
+
+
+@pytest.mark.parametrize("name", [d.name for d in load_gold().documents])
+def test_merging_keeps_every_unique_finding_with_its_type_ids_and_source(name):
+    gold = load_gold()
+    doc = next(d for d in gold.documents if d.name == name)
+    workspace = build_workspace(doc.text(), doc.name, doc.language)
+    result = run_task(gold.task, workspace)
+    lines = 0
+    for step in result.steps:
+        raw = tasks._RUNNERS[step.tool](result.plan, workspace.model_copy(deep=True), None)
+        for kind in ("problems", "unknowns"):
+            before, after = getattr(raw, kind), getattr(step, kind)
+            assert _atoms(step.tool, after) == _atoms(step.tool, before)
+            assert {i for item in after for i in item.mentions} == {i for item in before for i in item.mentions}
+            assert len(after) <= len(before)
+            lines += len(before) - len(after)
+        assert step.approval == raw.approval and step.recommendations == raw.recommendations
+    assert lines > 0  # every document repeats some remark
+
+
+def test_not_approved_lines_are_summed_up_apart_from_the_problems(ws):
+    result = run_task("Full check", ws)
+    status_keys = {"qatask.coverage.missing", "qatask.trace.not_approved", "qatask.suites.no_approved"}
+    assert not status_keys & {i.key for i in result.problems}
+    approval = [(step.tool, item) for step in result.steps for item in step.approval]
+    assert {item.key for _, item in approval} == status_keys
+    # The summary names the source tools and every requirement of the "not Approved" lines.
+    summary = result.approval
+    assert summary is not None and summary.key == "qatask.approval.summary_ids"
+    assert summary.terms == ["qatask.tool.coverage", "qatask.tool.traceability", "qatask.tool.suites"]
+    assert summary.params["ids"].split(", ") == [r.id for r in ws.requirements]
+    assert (summary.params["draft"], summary.params["total"]) == (str(len(ws.test_cases)),) * 2
+    # A scenario no test case covers, not even a Draft, is still a problem, and stays one after approval.
+    gaps = [(i.ids, i.terms) for i in result.problems if i.key == "qatask.coverage.no_test_case"]
+    assert gaps
+    approved = ws.model_copy(update={"test_cases": [
+        tc.model_copy(update={"review_status": ReviewStatus.APPROVED}) for tc in ws.test_cases]})
+    after = run_task("Full check", approved)
+    assert after.approval is None and not any(step.approval for step in after.steps)
+    assert [(i.ids, i.terms) for i in after.problems if i.key == "qatask.coverage.no_test_case"] == gaps
+    # Approving hides no problem; Smoke can then name a requirement without a Positive test case.
+    assert all(i in after.problems for i in result.problems)
+    assert {i.key for i in after.problems if i not in result.problems} == {"qatask.suites.smoke_missing"}
+
+
+def test_the_page_shows_merged_ids_and_the_summary_apart(ws):
+    from qa_task_ui import _line
+
+    item = Item(key="critic.step_generic", params={"steps": "1"}, ref="TC-001", refs=["TC-002"],
+                topic="critic.criterion.steps")
+    assert _line("en", item).startswith("- **TC-001, TC-002 · ")
+
+
+def test_a_contradiction_quotes_both_requirements_with_their_lines(ws):
+    [line] = [i for i in run_task("Find contradictions", ws).problems if i.key == "qatask.requirements.contradiction"]
+    refs = tasks.references(line, ws)
+    assert [(r.id, r.kind, r.line) for r in refs] == [("REQ-4", "requirement", 12), ("REQ-7", "requirement", 15)]
+    assert tasks.reference_lines("en", line, ws) == [
+        "  - REQ-4 (line 12): “The new password must be at least 8 characters long and contain one digit.”",
+        "  - REQ-7 (line 15): “The new password must be at least 10 characters long.”",
+    ]
+    assert tasks.reference_lines("ru", line, ws)[0].startswith("  - REQ-4 (строка 12): «The new password")
+
+
+def test_references_name_test_cases_and_skip_what_the_document_lacks(ws):
+    ws.test_cases[0].title = "Reset *link* " + "x" * 300
+    item = Item(key="critic.step_generic", ref="TC-001", params={"related": "REQ-99, REQ-1"})
+    [tc, req] = tasks.references(item, ws)
+    assert (tc.id, tc.requirement_id, tc.status) == ("TC-001", "REQ-1", ReviewStatus.DRAFT)
+    assert len(tc.text) == tasks.REFERENCE_TEXT_LENGTH and tc.text.endswith("…")
+    assert req.id == "REQ-1"
+    first = tasks.reference_lines("en", item, ws)[0]
+    assert first.startswith("  - TC-001 (Draft, tests REQ-1): “Reset \\*link\\* xxx")  # shown as written
+    # Change Impact names IDs of the previous version: nothing is quoted for them.
+    assert tasks.references(Item(key="qatask.impact.test_case", ref="TC-001"), ws) == []
+
+
+def test_a_line_on_many_test_cases_quotes_only_the_first_ones(ws):
+    ids = [tc.id for tc in ws.test_cases[:tasks.MAX_REFERENCES + 3]]
+    lines = tasks.reference_lines("en", Item(key="critic.step_generic", ref=ids[0], refs=ids[1:]), ws)
+    assert len(lines) == tasks.MAX_REFERENCES + 1
+    assert lines[-1] == "  - …and 3 more"
 
 
 def test_a_failing_tool_does_not_lose_the_others(ws, monkeypatch):
@@ -162,6 +344,25 @@ def test_approval_is_only_proposed_and_checked_by_the_critic(ws):
     assert result.action == ProposedAction(test_case_ids=["TC-003"], status=ReviewStatus.APPROVED)
     assert [s.tool for s in result.steps] == ["critic"]
     assert all(tc.review_status == ReviewStatus.DRAFT for tc in ws.test_cases)
+
+
+def test_approval_of_conflicting_test_cases_is_not_proposed(ws):
+    # TC-007 (REQ-4, at least 8) accepts 9 characters, TC-012 (REQ-7, at least 10) rejects them.
+    result = run_task("Approve TC-007 and TC-012", ws)
+    assert result.action is None
+    assert result.plan.action_conflicts == ["TC-007", "TC-012"]
+    [critic] = result.steps
+    # One line for the pair, naming both test cases.
+    [conflict] = [i for i in critic.problems if i.topic == "critic.criterion.conflict"]
+    assert (conflict.key, conflict.ref, conflict.mentions) == ("critic.expectation_conflict", "TC-007",
+                                                               {"TC-007", "TC-012"})
+    # Other test cases of the task are still proposed; returning to Draft is not held back.
+    result = run_task("approve TC-001 and TC-007", ws)
+    assert result.action == ProposedAction(test_case_ids=["TC-001"], status=ReviewStatus.APPROVED)
+    assert result.plan.action_conflicts == ["TC-007"]
+    result = run_task("TC-007 back to draft", ws)
+    assert result.action == ProposedAction(test_case_ids=["TC-007"], status=ReviewStatus.DRAFT)
+    assert result.plan.action_conflicts == []
 
 
 def test_status_change_without_ids_is_not_proposed(ws):
@@ -215,6 +416,16 @@ def test_page_runs_a_task_and_applies_a_confirmed_change(example_text):
     assert at.session_state["workspace"].test_cases[0].review_status == ReviewStatus.APPROVED
     assert any("Status changed to Approved: TC-001" in s.value for s in at.success)
     assert not any(b.key == "qa_task_apply" for b in at.button)  # applied once
+
+
+def test_page_quotes_the_requirements_under_a_problem(example_text):
+    at = _task_mode(example_text)
+    at.text_area(key="qa_task_text").input("Find contradictions").run()
+    _button(at, "qa_task_run").click().run()
+    assert not at.exception
+    assert any("possible contradiction" in m.value.lower()
+               and "  - REQ-7 (line 15): “The new password must be at least 10 characters long.”" in m.value
+               for m in at.markdown)
 
 
 def test_page_reports_an_unsupported_task(example_text):

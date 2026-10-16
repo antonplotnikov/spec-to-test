@@ -273,6 +273,14 @@ _INPUT = _compile_all(INPUT_TRIGGERS)
 _ERROR = _compile_all(ERROR_TERMS)
 _OBLIGATION = _compile_all(OBLIGATION_TERMS)
 _CAPABILITY = _compile_all(CAPABILITY_TERMS)
+# The verb right after "can" / "able to" / "може" / "может": the action the capability grants.
+_CAPABLE_ACTION = re.compile(rf"(?:{_CAPABILITY.pattern})\s+(?P<verb>\w[\w']*)", re.IGNORECASE)
+# Outcome words that name what the user observes, so "can see ..." is a result.
+_PERCEPTION = _compile([
+    "see", "sees", "visible", "receive*",
+    "бачит*", "бачать", "побачит*", "отрима*", "отриму*",
+    "видит", "видят", "увидит", "получ*",
+])
 _NEGATIVE = _compile(NEGATIVE_MODALS)
 _POSITIVE = _compile(POSITIVE_MODALS)
 _UNIT_WORD = re.compile("|".join(UNITS.values()), re.IGNORECASE)
@@ -294,6 +302,20 @@ def _matches(pattern: re.Pattern[str], text: str) -> list[str]:
         if phrase.lower() not in (f.lower() for f in found):
             found.append(phrase)
     return found
+
+
+def _states_outcome(text: str) -> bool:
+    """An outcome word other than the action a capability grants.
+
+    "A user must be able to delete their account": "delete" is what the user does,
+    not what follows from it. "... sign in and see the dashboard", "can see",
+    "can receive" name what the user observes, so they still count.
+    """
+    actions = {
+        match.start("verb") for match in _CAPABLE_ACTION.finditer(text)
+        if not _PERCEPTION.fullmatch(match.group("verb"))
+    }
+    return any(match.start() not in actions for match in _OUTCOME.finditer(text))
 
 
 def _has_number(text: str) -> bool:
@@ -497,7 +519,7 @@ def _single_requirement_findings(req: Requirement) -> list[Finding]:
     # declarative rule with a concrete value states what to check, unless the
     # user does something whose result is still open ("enters a code of 6 digits").
     states_value = bool(quantities.limits(text)) and not input_terms(text)
-    if not states_behavior and not states_value and not _OUTCOME.search(text):
+    if not states_behavior and not states_value and not _states_outcome(text):
         add(FindingType.MISSING_EXPECTED_RESULT, Severity.HIGH, [])
 
     if (boundary := boundary_terms(text)) and not _has_number(text):

@@ -3,6 +3,9 @@
 The agent reads the task, picks the tools that answer it and runs each one once
 on the open document:
 
+- requirements: open findings of the rule engine (spec_to_test.rule_engine) stored
+                with the document: contradictions, ambiguous wording, missing
+                error handling, missing expected results
 - critic:       Test Case Critic (spec_to_test.test_critic)
 - coverage:     Scenario Coverage (spec_to_test.scenario_coverage)
 - impact:       Change Impact (spec_to_test.change_impact)
@@ -13,9 +16,19 @@ The tools do the analysis; this module only routes the task to them and turns
 their output into one result: conclusions, problems, unknowns and
 recommendations. Tool selection is keyword-based (EN / UK / RU), no AI.
 
+Each problem is reported once: the mirror line of a pair and lines of one tool
+that differ only in their ID become one line naming every ID (see `_merge`).
+Lines that only say test cases are not Approved yet (coverage, traceability and
+suites count only Approved test cases) are kept apart from the problems and
+summed up in one line, `AgentResult.approval`. Under each problem and unknown
+the report quotes the requirements (with their line) and test cases it names
+(`reference_lines`), so the user sees what to fix without looking it up.
+
 The agent never changes the workspace. A request to change test case statuses
 ("approve TC-003") becomes a proposed action that the page applies with
-`apply_action` only after the user confirms it. Running, generating, editing or
+`apply_action` only after the user confirms it. Test cases whose expected
+results conflict with another test case (see test_critic.expectation_conflicts)
+are left out of a proposed approval. Running, generating, editing or
 deleting is not supported and is reported instead of attempted.
 """
 
@@ -25,23 +38,43 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from spec_to_test.models import ChangeImpact, Requirement, ReviewStatus, TestCase, Workspace
+from spec_to_test.formatting import escape_markdown
+from spec_to_test.i18n import t
+from spec_to_test.models import (
+    ChangeImpact,
+    ClarificationStatus,
+    FindingType,
+    Requirement,
+    ReviewStatus,
+    Source,
+    TestCase,
+    Workspace,
+)
 from spec_to_test.rtm import Coverage, build_rtm, traceability_gaps
 from spec_to_test.rule_engine import _compile
 from spec_to_test.scenario_coverage import scenario_coverage
 from spec_to_test.suites import SuiteKind, plan_suites
-from spec_to_test.test_critic import critique
+from spec_to_test.test_critic import critique, expectation_conflicts
 
-Tool = Literal["critic", "coverage", "impact", "traceability", "suites"]
-TOOLS: tuple[Tool, ...] = ("critic", "coverage", "impact", "traceability", "suites")
+# "ai" is the optional AI review (spec_to_test.qa_agent.ai_review); it is not planned from the task.
+Tool = Literal["requirements", "critic", "coverage", "impact", "traceability", "suites", "ai"]
+TOOLS: tuple[Tool, ...] = ("requirements", "critic", "coverage", "impact", "traceability", "suites")
 
 # At most this many tool calls per task.
-MAX_STEPS = 5
+MAX_STEPS = 6
 MAX_TASK_LENGTH = 2000
 # A proposed status change names at most this many test cases.
 MAX_ACTION_TEST_CASES = 20
 
 _TOOL_TERMS: dict[Tool, list[str]] = {
+    "requirements": [
+        "contradict*", "inconsisten*", "conflict*", "ambigu*", "error handling", "testable", "testability",
+        "check requirements", "check the requirements",
+        "противореч*", "неоднознач*", "двусмыслен*", "конфликт*", "обработка ошибок", "обработки ошибок",
+        "проверь требования", "проверить требования", "проверка требований",
+        "суперечн*", "суперечить", "протиріч*", "конфлікт*", "обробка помилок", "обробки помилок",
+        "перевір вимоги", "перевірити вимоги", "перевірка вимог",
+    ],
     "critic": [
         "critic*", "critique", "quality", "duplicat*", "vague", "review*",
         "критик*", "качеств*", "дубл*", "размыт*", "ревью", "якіст*", "розмит*", "рев'ю",
@@ -64,6 +97,9 @@ _TOOL_TERMS: dict[Tool, list[str]] = {
     ],
 }
 _PATTERNS = {tool: _compile(terms) for tool, terms in _TOOL_TERMS.items()}
+# "Is the document ready for testing?": both words in the task.
+_READY = _compile(["ready", "готов*"])
+_TESTING = _compile(["testing", "тестировани*", "тестуванн*"])
 _EVERYTHING = _compile([
     "full", "everything", "overall", "audit", "readiness", "release", "all checks",
     "полн*", "всё", "все проверки", "аудит*", "готовност*", "релиз*",
@@ -94,7 +130,18 @@ class Item(BaseModel):
     params: dict[str, str] = Field(default_factory=dict)
     terms: list[str] = Field(default_factory=list)
     ref: str = ""  # the requirement or test case it is about
+    refs: list[str] = Field(default_factory=list)  # further IDs of the same line (see _merge)
     topic: str = ""  # translation key of a short label shown before the line
+
+    @property
+    def ids(self) -> list[str]:
+        return [i for i in (self.ref, *self.refs) if i]
+
+    @property
+    def mentions(self) -> set[str]:
+        """Every ID the line names: its own and the other side of a pair ("ids", "related")."""
+        named = {i.strip() for key in ("ids", "related") for i in self.params.get(key, "").split(",")}
+        return (set(self.ids) | named) - {""}
 
 
 class StepResult(BaseModel):
@@ -104,6 +151,8 @@ class StepResult(BaseModel):
     problems: list[Item] = Field(default_factory=list)
     unknowns: list[Item] = Field(default_factory=list)
     recommendations: list[Item] = Field(default_factory=list)
+    # Lines that only say test cases are not Approved yet; summed up in AgentResult.approval.
+    approval: list[Item] = Field(default_factory=list)
     error: str = ""  # exception type only; details stay in the logs
 
 
@@ -127,6 +176,8 @@ class AgentPlan(BaseModel):
     # The status change asked for without naming test cases.
     action_needs_ids: bool = False
     action_too_large: bool = False
+    # Test cases left out of a proposed approval: their expected results conflict with other test cases.
+    action_conflicts: list[str] = Field(default_factory=list)
     # Tools left out because of MAX_STEPS.
     skipped_tools: list[Tool] = Field(default_factory=list)
 
@@ -140,6 +191,8 @@ class AgentResult(BaseModel):
     plan: AgentPlan | None = None
     steps: list[StepResult] = Field(default_factory=list)
     action: ProposedAction | None = None
+    # One line instead of the steps' `approval` lines: review status, not a problem of the texts.
+    approval: Item | None = None
 
     @property
     def problems(self) -> list[Item]:
@@ -179,7 +232,8 @@ def plan_task(task: str, workspace: Workspace, max_steps: int = MAX_STEPS) -> Ag
     """Which tools answer the task, on which IDs, and which status change it asks for."""
     tc_ids, req_ids, unknown_ids = _ids_in(task, workspace)
     unsupported = list(dict.fromkeys(m.group(0).lower() for m in _UNSUPPORTED.finditer(task)))
-    tools = [tool for tool in TOOLS if _PATTERNS[tool].search(task)]
+    tools = [tool for tool in TOOLS if _PATTERNS[tool].search(task)
+             or (tool == "requirements" and _READY.search(task) and _TESTING.search(task))]
     # "Full check" means every tool, but "delete everything" asks for something the agent does not do.
     if not unsupported and _EVERYTHING.search(task):
         tools = list(TOOLS)
@@ -187,13 +241,18 @@ def plan_task(task: str, workspace: Workspace, max_steps: int = MAX_STEPS) -> Ag
     target = ReviewStatus.APPROVED if _APPROVE.search(task) else ReviewStatus.DRAFT if _TO_DRAFT.search(task) else None
     action = None
     needs_ids = too_large = False
+    conflicting: list[str] = []
     if target is not None:
         if not tc_ids:
             needs_ids = True
         elif len(tc_ids) > MAX_ACTION_TEST_CASES:
             too_large = True
         else:
-            action = ProposedAction(test_case_ids=tc_ids, status=target)
+            if target == ReviewStatus.APPROVED:
+                conflicting = [tc.id for tc in workspace.test_cases
+                               if tc.id in tc_ids and expectation_conflicts(tc, workspace)]
+            if approvable := [tc_id for tc_id in tc_ids if tc_id not in conflicting]:
+                action = ProposedAction(test_case_ids=approvable, status=target)
             if "critic" not in tools:
                 tools.insert(0, "critic")  # check the test cases before the change is confirmed
     # IDs alone: test cases are judged by the critic, requirements by their scenario coverage.
@@ -204,7 +263,7 @@ def plan_task(task: str, workspace: Workspace, max_steps: int = MAX_STEPS) -> Ag
     return AgentPlan(
         tools=tools[:max_steps], test_case_ids=tc_ids, requirement_ids=req_ids, unknown_ids=unknown_ids,
         unsupported_terms=unsupported, action=action, action_needs_ids=needs_ids, action_too_large=too_large,
-        skipped_tools=tools[max_steps:],
+        action_conflicts=conflicting, skipped_tools=tools[max_steps:],
     )
 
 
@@ -223,6 +282,45 @@ def _scoped_test_cases(plan: AgentPlan, ws: Workspace) -> list[TestCase]:
 def _scoped_requirements(plan: AgentPlan, ws: Workspace) -> list[Requirement]:
     ids = set(plan.requirement_ids) | {tc.requirement_id for tc in ws.test_cases if tc.id in plan.test_case_ids}
     return [r for r in ws.requirements if r.id in ids] if ids else list(ws.requirements)
+
+
+# Rule engine findings the requirements step reports, in this order in its summary.
+_FINDING_TYPES = (
+    FindingType.CONTRADICTION, FindingType.AMBIGUOUS_WORDING, FindingType.MISSING_ERROR_HANDLING,
+    FindingType.MISSING_EXPECTED_RESULT,
+)
+
+
+def _requirements(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> StepResult:
+    """Open rule engine findings stored with the document; a contradiction is reported once per pair."""
+    step = StepResult(tool="requirements")
+    requirements = _scoped_requirements(plan, ws)
+    scope = {r.id for r in requirements}
+    seen: set[tuple[FindingType, frozenset[str]]] = set()
+    counts = dict.fromkeys(_FINDING_TYPES, 0)
+    with_findings: set[str] = set()
+    for f in ws.findings:
+        if (f.source != Source.RULE or f.status != ClarificationStatus.NEEDS_CLARIFICATION
+                or f.type not in counts or not scope & {f.requirement_id, *f.related_requirement_ids}):
+            continue
+        identity = (f.type, frozenset([f.requirement_id, *f.related_requirement_ids]))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        counts[f.type] += 1
+        params = {"terms": ", ".join(f.matched_terms)}
+        if f.type == FindingType.CONTRADICTION:
+            params = {"related": ", ".join(f.related_requirement_ids),
+                      "terms": " ↔ ".join(f"“{term}”" for term in f.matched_terms)}
+        step.problems.append(Item(key=f"qatask.requirements.{f.type.value}", params=params, ref=f.requirement_id,
+                                  topic=f"finding.{f.type.value}"))
+        with_findings |= {f.requirement_id, *f.related_requirement_ids}
+    step.summary = Item(key="qatask.summary.requirements", params={
+        "checked": str(len(requirements)), **{kind.value: str(n) for kind, n in counts.items()},
+    })
+    if ids := [r.id for r in ws.requirements if r.id in with_findings]:
+        step.recommendations.append(Item(key="qatask.rec.requirements_clarify", params={"ids": ", ".join(ids)}))
+    return step
 
 
 def _critic(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> StepResult:
@@ -252,12 +350,22 @@ def _coverage(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> S
     requirements = _scoped_requirements(plan, ws)
     full = 0
     incomplete = []
+    gaps = []
     for req in requirements:
-        coverage = scenario_coverage(req, ws.tests_for(req.id))
+        tests = ws.tests_for(req.id)
+        coverage = scenario_coverage(req, tests)
+        # What is still missing when every test case counts has no test case at all, not even a Draft.
+        drafts = scenario_coverage(req, [tc.model_copy(update={"review_status": ReviewStatus.APPROVED})
+                                         for tc in tests])
         if coverage.missing:
             incomplete.append(req.id)
-            step.problems.append(Item(key="qatask.coverage.missing", ref=req.id,
-                                      terms=[f"scenario.{c.value}" for c in coverage.missing]))
+            if drafts.missing:
+                gaps.append(req.id)
+                step.problems.append(Item(key="qatask.coverage.no_test_case", ref=req.id,
+                                          terms=[f"scenario.{c.value}" for c in drafts.missing]))
+            if pending := [c for c in coverage.missing if c not in drafts.missing]:
+                step.approval.append(Item(key="qatask.coverage.missing", ref=req.id,
+                                          terms=[f"scenario.{c.value}" for c in pending]))
         elif coverage.percent is not None:
             full += 1
         if coverage.percent is None:
@@ -268,8 +376,8 @@ def _coverage(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> S
     step.summary = Item(key="qatask.summary.coverage", params={
         "checked": str(len(requirements)), "full": str(full), "incomplete": str(len(incomplete)),
     })
-    if incomplete:
-        step.recommendations.append(Item(key="qatask.rec.coverage", params={"ids": ", ".join(incomplete)}))
+    if gaps:
+        step.recommendations.append(Item(key="qatask.rec.coverage", params={"ids": ", ".join(gaps)}))
     return step
 
 
@@ -317,7 +425,7 @@ def _traceability(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) 
     partial = [row.requirement_id for row in rows if row.coverage == Coverage.PARTIAL]
     step.problems += [Item(key="qatask.trace.untested", ref=req_id) for req_id in gaps.untested]
     step.problems += [Item(key="qatask.trace.unlinked", ref=tc_id) for tc_id in gaps.unlinked]
-    step.problems += [Item(key="qatask.trace.not_approved", ref=req_id) for req_id in partial]
+    step.approval += [Item(key="qatask.trace.not_approved", ref=req_id) for req_id in partial]
     step.unknowns += [Item(key="qatask.trace.unknown", ref=req_id) for req_id in gaps.unknown]
     step.summary = Item(key="qatask.summary.traceability", params={
         "requirements": str(len(rows)),
@@ -328,8 +436,6 @@ def _traceability(plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) 
         step.recommendations.append(Item(key="qatask.rec.trace_untested", params={"ids": ", ".join(gaps.untested)}))
     if gaps.unlinked:
         step.recommendations.append(Item(key="qatask.rec.trace_unlinked", params={"ids": ", ".join(gaps.unlinked)}))
-    if partial:
-        step.recommendations.append(Item(key="qatask.rec.trace_approve", params={"ids": ", ".join(partial)}))
     if gaps.unknown:
         step.recommendations.append(Item(key="qatask.rec.trace_clarify", params={"ids": ", ".join(gaps.unknown)}))
     return step
@@ -342,8 +448,7 @@ def _suites(_plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> St
         kind.value: str(len(plan.suites[kind])) for kind in SuiteKind
     })
     if not plan.suites[SuiteKind.REGRESSION]:
-        step.problems.append(Item(key="qatask.suites.no_approved"))
-        step.recommendations.append(Item(key="qatask.rec.suites_approve"))
+        step.approval.append(Item(key="qatask.suites.no_approved"))
     elif plan.smoke_missing:
         step.problems.append(Item(key="qatask.suites.smoke_missing", params={"ids": ", ".join(plan.smoke_missing)}))
         step.recommendations.append(Item(key="qatask.rec.suites_smoke"))
@@ -351,12 +456,128 @@ def _suites(_plan: AgentPlan, ws: Workspace, _impact: ChangeImpact | None) -> St
 
 
 _RUNNERS: dict[Tool, Callable[[AgentPlan, Workspace, ChangeImpact | None], StepResult]] = {
+    "requirements": _requirements,
     "critic": _critic,
     "coverage": _coverage,
     "impact": _impact,
     "traceability": _traceability,
     "suites": _suites,
 }
+
+
+# ---------------------------------------------------------------------------
+# One line per problem
+# ---------------------------------------------------------------------------
+
+def _named(item: Item) -> frozenset[str]:
+    return frozenset(i.strip() for i in item.params.get("ids", "").split(",") if i.strip())
+
+
+def _merge(items: list[Item]) -> list[Item]:
+    """Each problem of one tool once, in report order.
+
+    The mirror line of a pair ("TC-007 conflicts with TC-012" and "TC-012 conflicts with
+    TC-007") is dropped: the first one names both. Lines that differ only in their ID
+    (the same template steps in TC-001 and TC-002) become the first one with the other
+    IDs in `refs`. Key, params, terms and topic are kept as they are.
+    """
+    merged: list[Item] = []
+    pairs: set[tuple[object, ...]] = set()
+    by_text: dict[tuple[object, ...], Item] = {}
+    for item in items:
+        if named := _named(item):
+            rest = tuple(sorted((k, v) for k, v in item.params.items() if k != "ids"))
+            pair = (item.key, item.topic, tuple(item.terms), rest, named | {item.ref})
+            if pair in pairs:
+                continue
+            pairs.add(pair)
+        text = (item.key, item.topic, tuple(item.terms), tuple(sorted(item.params.items())))
+        if item.ref and (first := by_text.get(text)) is not None:
+            first.refs += [i for i in item.ids if i not in first.ids]
+            continue
+        item = item.model_copy(deep=True)
+        merged.append(item)
+        if item.ref:
+            by_text[text] = item
+    return merged
+
+
+def _approval_summary(steps: list[StepResult], plan: AgentPlan, ws: Workspace) -> Item | None:
+    """One line for the steps' "not Approved" lines: how many test cases, which tools, which requirements."""
+    lines = [(step.tool, item) for step in steps for item in step.approval]
+    if not lines:
+        return None
+    named = {i for _, item in lines for i in item.ids}
+    ids = [r.id for r in ws.requirements if r.id in named]
+    cases = _scoped_test_cases(plan, ws)
+    return Item(key="qatask.approval.summary_ids" if ids else "qatask.approval.summary", params={
+        "draft": str(sum(tc.review_status != ReviewStatus.APPROVED for tc in cases)), "total": str(len(cases)),
+        "ids": ", ".join(ids),
+    }, terms=[f"qatask.tool.{tool}" for tool in dict.fromkeys(tool for tool, _ in lines)])
+
+
+# ---------------------------------------------------------------------------
+# What a report line refers to
+# ---------------------------------------------------------------------------
+
+# A quoted requirement text or test case title is cut to this many characters.
+REFERENCE_TEXT_LENGTH = 160
+# At most this many are quoted under one line; the rest are counted (their IDs are in the line itself).
+MAX_REFERENCES = 5
+# Change Impact lines name IDs of the previous version, which may now mean another requirement or test case.
+_NO_REFERENCES = ("qatask.impact.",)
+
+
+class Reference(BaseModel):
+    """A requirement or test case a report line names, as it is in the document now."""
+
+    id: str
+    kind: Literal["requirement", "test_case"]
+    text: str  # the requirement text or the test case title, shortened
+    line: int | None = None  # requirement: its line in the source document
+    requirement_id: str = ""  # test case: the requirement it tests
+    status: ReviewStatus | None = None  # test case: its review status
+
+
+def _short(text: str) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= REFERENCE_TEXT_LENGTH else text[:REFERENCE_TEXT_LENGTH - 1].rstrip() + "…"
+
+
+def references(item: Item, workspace: Workspace) -> list[Reference]:
+    """The requirements and test cases `item` names, its own IDs first. IDs not in the document are left out."""
+    if item.key.startswith(_NO_REFERENCES):
+        return []
+    named = [i.strip() for key in ("ids", "related") for i in item.params.get(key, "").split(",")]
+    requirements = {r.id: r for r in workspace.requirements}
+    test_cases = {tc.id: tc for tc in workspace.test_cases}
+    found: list[Reference] = []
+    for i in dict.fromkeys(i for i in (*item.ids, *named) if i):
+        if (req := requirements.get(i)) is not None:
+            found.append(Reference(id=i, kind="requirement", text=_short(req.text), line=req.source_line))
+        elif (tc := test_cases.get(i)) is not None:
+            found.append(Reference(id=i, kind="test_case", text=_short(tc.title), requirement_id=tc.requirement_id,
+                                   status=tc.review_status))
+    return found
+
+
+def reference_lines(lang: str, item: Item, workspace: Workspace) -> list[str]:
+    """Indented Markdown list lines under a report line: the text of each requirement and test case it names."""
+    found = references(item, workspace)
+    lines = []
+    for ref in found[:MAX_REFERENCES]:
+        if ref.kind == "test_case":
+            assert ref.status is not None
+            text = t("qatask.ref.test_case", lang, id=ref.id, req=ref.requirement_id,
+                     status=t(f"review.{ref.status.value}", lang), text=ref.text)
+        elif ref.line is not None:
+            text = t("qatask.ref.requirement_line", lang, id=ref.id, line=ref.line, text=ref.text)
+        else:
+            text = t("qatask.ref.requirement", lang, id=ref.id, text=ref.text)
+        lines.append(f"  - {escape_markdown(text)}")
+    if len(found) > MAX_REFERENCES:
+        lines.append(f"  - {escape_markdown(t('qatask.ref.more', lang, count=len(found) - MAX_REFERENCES))}")
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -398,9 +619,11 @@ def run_task(
             if tool == "impact" and impact is None and previous_impact is not None:
                 impact = previous_impact(workspace)
             step = _RUNNERS[tool](plan, workspace.model_copy(deep=True), impact)
+            step.problems, step.unknowns = _merge(step.problems), _merge(step.unknowns)
         except Exception as error:  # noqa: BLE001 - one failing tool must not lose the others' results
             step = StepResult(tool=tool, status="error", error=type(error).__name__)
         result.steps.append(step)
+    result.approval = _approval_summary(result.steps, plan, workspace)
     failed = sum(step.status == "error" for step in result.steps)
     if failed == len(result.steps):
         result.status = "error"

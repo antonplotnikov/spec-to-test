@@ -187,6 +187,126 @@ the target URL and the *names* of the configured secrets — never secret
 values and never page content. It returns steps in a fixed JSON schema; they
 are validated like hand-written steps and marked “Steps proposed by AI”.
 
+## Automation: when a requirements document changes
+
+`python -m spec_to_test.qa_agent.on_change` runs the QA task agent (the "QA
+task" mode, `tasks.py`) once for a new version of a requirements document. It
+is meant for a CI job, a git hook or a manual run; nothing runs in the
+background and no service is contacted.
+
+```bash
+cd src
+# A file and its previous version (e.g. from `git show HEAD~1:docs/spec.md`)
+python -m spec_to_test.qa_agent.on_change --document ../docs/spec.md \
+    --previous /tmp/spec-previous.md --out ../qa-runs
+# The project's saved copy (reviewed test cases) and its previous version of the same title
+SPEC_TO_TEST_STORAGE=local python -m spec_to_test.qa_agent.on_change \
+    --document ../docs/spec.md --project default --out ../qa-runs
+```
+
+- **Task**: `--task` (default `Full check`: requirements analysis — open
+  contradictions, ambiguous wording, missing error handling and missing
+  expected results found by the rule engine, each contradicting pair once — Critic, Coverage, Change Impact,
+  Traceability, Suite Planner); `--lang en|uk|ru` for the report.
+- **Report**: each problem once — the mirror line of a pair (TC-007 vs TC-012)
+  is dropped and the same remark of one check on several IDs is one line naming
+  all of them ("TC-001, TC-002 · Steps"). Lines that only say test cases are not
+  Approved yet (Coverage, Traceability and Suites count only Approved test
+  cases) are not problems: one "Review status" line sums them up with the
+  checks and requirements concerned. A scenario that no test case covers, not
+  even a Draft, stays a problem ("no test case at all, not even a Draft").
+  Under each problem and unknown the report quotes the requirements it names
+  (with their line in the document) and the test cases (review status and
+  requirement), at most 5 per line; the app's QA task mode shows the same.
+  Change Impact lines are not quoted: their IDs belong to the previous version.
+- **Output**: `<out>/journal.jsonl` (one line per run: inputs, hashes,
+  status, counts, error code, proposed change and what happened to it) and
+  `<out>/runs/<run id>/report.md` + `result.json`.
+- **Repeats**: a run with the same inputs (document content including saved
+  reviews, previous version, task, project, `--allow-write`, version) as an
+  earlier run with status `done` or `unsupported` is journaled as `skipped`;
+  `--force` runs it again. A `partial`/`error`/`crashed` run can be repeated.
+- **One run at a time** per `--out` folder (`.run.lock`; a lock older than 15
+  minutes is treated as left over by a killed run, unless the process it names
+  still runs on this machine).
+- **Permissions**: analysis, report and journal are automatic and write only
+  to `--out`. A status change the task asks for ("approve TC-003") stays
+  `pending_approval` unless `--project … --allow-write` is given; even then it
+  is `refused` when the analysis did not finish, the critic flags those test
+  cases or the document is not saved in the project, and `failed`
+  (`WorkspaceConflict`) when the saved document changed during the run. It
+  never saves a new document version and does not change the app's last
+  opened document. A page of the app that still shows the older copy does not
+  overwrite the change: its next save shows the saved version instead.
+  Test cases whose explicit expectations conflict with another test case
+  ("9 characters → accepted" vs "→ rejected" for the same requirement or for
+  requirements the analyzer reported as contradicting) are not proposed for
+  approval at all; the report and the Critic name them.
+- **Exit code**: 0 done/unsupported/skipped (also with a pending change),
+  1 partial/error/crashed or a permitted change not applied, 2 usage or input
+  error or another run in progress.
+
+### AI mode (`--ai`)
+
+`--ai` adds an AI review to the rule-based checks: the `AI_PROVIDER` model reads
+the document's requirements, its test cases and the Change Impact (what was
+added, modified or removed and which test cases it affects) and returns
+problems, questions and recommendations in a fixed JSON schema. Passing `--ai`
+is the consent to send the document to that provider; without it nothing is
+sent.
+
+```bash
+# Local model behind an OpenAI-compatible API (LM Studio, vLLM, llama.cpp, LocalAI, Ollama's /v1 ...)
+export AI_PROVIDER=openai_compatible
+export OPENAI_COMPATIBLE_BASE_URL=http://localhost:1234/v1
+export OPENAI_COMPATIBLE_MODEL=qwen2.5-7b-instruct
+# export OPENAI_COMPATIBLE_API_KEY=...   # only if the server needs one
+# Or a hosted provider: AI_PROVIDER=anthropic + ANTHROPIC_API_KEY, AI_PROVIDER=openai + OPENAI_API_KEY
+# (pip install -r requirements-ai.txt), or AI_PROVIDER=ollama (+ OLLAMA_HOST, OLLAMA_MODEL).
+cd src
+python -m spec_to_test.qa_agent.on_change --document ../docs/spec.md \
+    --previous /tmp/spec-previous.md --out ../qa-runs --ai
+```
+
+The same variables as for the rest of the app (see `src/spec_to_test/llm/config.py`
+and `.env.example`): environment or a local `.env`, never in code; `AI_MODEL`
+overrides the model, `AI_TIMEOUT` the request timeout (default 300 s).
+
+- **Report**: one more step, "AI review", with the provider and model; its
+  problems are labelled "AI · Contradiction / Ambiguity / Missing scenario /
+  Change risk / Test gap" and listed with the rule-based ones; `result.json`
+  has it as the step with tool `ai`; the journal records `ai` (provider and
+  model) and `ai_error`.
+- **Checks on the reply**: it must match the schema; every problem and question
+  must name a requirement or test case of the document (unknown IDs are
+  dropped, an item left with none is rejected); a quote must appear in the text
+  it cites. Rejected items are only counted in the summary.
+- **Failures**: no or unusable configuration (`not_configured`, `key_missing`,
+  `url_missing`, `model_missing`, `invalid_url`, `insecure_url`,
+  `unsupported_provider`), connection, auth, rate limit, unknown model,
+  refusal, cut-off or unreadable reply, a document over 60 000 characters:
+  the AI step fails with the reason in the report and on the command line, the
+  rule-based result is kept, the run is `partial` (exit code 1, and a status
+  change is not applied with `--allow-write`).
+- The model never changes the workspace and nothing it returns is executed.
+  Code: `qa_agent/ai_review.py` depends only on the `StructuredProvider`
+  interface (`llm/providers.py`); `ConfiguredProvider` implements it for every
+  configured provider, so another model needs no change in the QA agent.
+
+### AI review in the app (QA task mode)
+
+The same AI review is on the QA Agent page, mode **QA task**, when AI is
+configured and on in the sidebar (**AI settings**: provider and model come from
+the same variables). Under the task field, tick **Add AI review: send this
+document's requirements, test cases and changes to … for this run**, then
+**Run task**. The box is off by default and is cleared after every run, so each
+run that sends data needs its own consent. The result gets the "AI review"
+conclusion and the "AI · …" lines among the problems, questions and
+recommendations; a failure (no provider, rejected key, connection, invalid
+reply …) is shown as the reason in the "AI review" conclusion, and the
+rule-based checks are kept. AI findings never propose or apply a status
+change. Without AI configured the page says that AI review is not available.
+
 ## Architecture
 
 ```
@@ -203,6 +323,7 @@ src/spec_to_test/qa_agent/
   store.py       plans and runs on disk (session or local mode)
   ai.py          optional LLM step proposals
   __main__.py    command line
+  on_change.py   automation: QA task agent for a changed document (journal, repeats, permissions)
 examples/qa_demo/  Demo Shop server, requirements and plan
 ```
 

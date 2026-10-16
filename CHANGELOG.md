@@ -6,6 +6,138 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### QA task report — what each problem refers to
+
+#### Added
+- Under every problem and unknown of the QA task result (QA Agent page, mode
+  "QA task", and `on_change` `report.md`) the requirements it names are quoted
+  with their line in the document, and the test cases with their review status
+  and requirement, e.g. both sides of a possible contradiction. At most 5 per
+  line ("…and N more"); long texts are shortened. Change Impact lines are not
+  quoted (their IDs belong to the previous version). Detection, the eval and
+  its gold are unchanged.
+
+### QA Agent — AI mode
+
+#### Added
+- `on_change --ai`: the `AI_PROVIDER` model (Claude, OpenAI, an
+  OpenAI-compatible server including local models, or Ollama) reviews the
+  document, its test cases and the Change Impact; its checked problems,
+  questions and recommendations are one more step ("AI review") of the usual
+  report. Replies that do not match the schema are errors; items naming no
+  known ID or quoting text that is not in the document are rejected.
+- `StructuredProvider` interface and `ConfiguredProvider` / `load_provider`
+  in `spec_to_test.llm.providers`.
+- Without configuration, or when the request fails, the report and the command
+  line say why; the rule-based result is kept. Without `--ai` nothing changes.
+- QA Agent page, mode "QA task": an "Add AI review" consent box (off by
+  default, cleared after every run) adds the same AI review to the result,
+  using the provider and model of the sidebar AI settings; failures are shown
+  with their reason in the conclusions.
+
+### QA Agent — shorter Full check report
+
+#### Changed
+- Each problem is reported once: the mirror line of a conflicting pair is
+  dropped, and the same remark of one check on several IDs is one line naming
+  every ID (`Item.refs`); type, IDs and the check it came from are kept.
+- "Not Approved" lines of Coverage, Traceability and Suites (and their
+  "approve" recommendations) are no longer problems: one "Review status" line
+  (`AgentResult.approval`) names the checks and the requirements concerned.
+- Coverage reports a scenario that no test case covers, not even a Draft, as
+  its own problem ("no test case at all, not even a Draft").
+- On the five QA Agent eval documents: 172 → 42 problem lines, 218 → 73 report
+  lines, 3 → 0 duplicates, 93 → 0 "not Approved" lines among the problems;
+  precision and recall unchanged.
+
+### Missing expected results
+
+#### Fixed
+- The QA task agent's requirements step also reports the rule engine's
+  "missing expected result" findings ("The user can change the password").
+  Before, Full check showed them only as Unknowns of the Critic and Coverage.
+- "Must be able to delete their account", "може видалити", "может удалить":
+  the verb after "can / able to" is the user's action, not its result, so the
+  requirement is reported as having no expected result. "Can see",
+  "can receive" and a result stated elsewhere in the sentence still count.
+- QA Agent eval: `missing_expected_result` recall 0/11 → 10/11, precision 1.00.
+
+### Test design — time and size limits
+
+#### Fixed
+- "Within 60 seconds", "протягом / в течение 5 минут" are deadlines: 59 and
+  60 s are in time, 61 s too late (were "not specified" around an equality).
+- "Expires after 30 minutes", "30 minutes after", "через 15 хвилин" are delays:
+  at 29 the change has not happened, at 31 it has; "after 5 attempts" happens
+  on the 5th attempt, "after more than 5 attempts" on the 6th.
+- "Locked for 15 minutes" is a duration: still in effect at 14, over at 16.
+- "Не повинен перевищувати", "не должен превышать", "cannot exceed" are
+  inclusive upper limits (were read as "more than" and then as equality).
+- Coarse data limits are probed in a smaller unit: "at most 1 MB" is tested
+  with 1023 / 1024 / 1025 KB instead of 0 / 1 / 2 MB.
+- "More than" / "less than" without a timing word stay exact values, as
+  before: which side is valid depends on the sentence.
+
+### QA Agent evaluation — boundary semantics
+
+#### Changed
+- A boundary problem of generated test cases with `expect` in the gold counts
+  as resolved when the generated test cases give the expected outcomes; a
+  correct `must_not` test case that changes is a regression (new thresholds:
+  `recall.boundary_semantics` ≥ 1.0, `regressions` ≤ 0).
+
+### QA Agent evaluation
+
+#### Added
+- `python -m spec_to_test.evaluation.qa_agent_eval`: rule-based evaluation of the
+  QA task agent ("Full check") on five documents against a hand-written gold
+  (`evaluation/qa_agent_gold.json`) of requirement and test case problems;
+  precision and recall per problem kind and per trap (contradictions,
+  within/after, numeric boundaries, error handling, template test cases);
+  Unknowns are not counted as found, duplicates do not count twice, status
+  lines are reported as noise; stops when the gold is stale (see
+  docs/EVALUATION.md).
+- `evaluation.runner.threshold_failures` checks thresholds over any metric totals.
+
+### QA Agent — automation when a requirements document changes
+
+#### Added
+- `python -m spec_to_test.qa_agent.on_change`: runs the QA task agent once for a
+  new version of a requirements document (from `--previous` or the project's
+  saved versions), writes a Markdown/JSON report and a run journal
+  (`journal.jsonl`), skips repeats with the same inputs (`--force` to rerun),
+  allows one run per output folder, and changes project data only with
+  `--project … --allow-write` (see docs/QA_AGENT.md).
+- `storage.save_workspace(..., remember=False)` saves without changing the last
+  opened document.
+
+#### Fixed
+- A saved document is no longer overwritten by an older copy: `save_workspace`
+  raises `WorkspaceConflict` when the file changed since the copy was read, so a
+  change applied with `--allow-write` is not lost when the app saves its open
+  copy (the app shows the saved version and asks to repeat the last change).
+- The on-change run lock older than 15 minutes is kept while the process it
+  names still runs, and a run removes only its own lock.
+
+### QA task agent — requirement findings
+
+#### Added
+- A "requirements analysis" step reports the rule engine's open findings
+  stored with the document — possible contradictions (once per pair),
+  ambiguous wording and missing error handling. Full check runs it first;
+  tasks like "find contradictions", "check the requirements" or "is the
+  document ready for testing?" (EN/UK/RU) run it alone.
+
+### Test Case Critic — conflicting expectations
+
+#### Added
+- The Critic reports a test case that expects the opposite outcome to another
+  test case for the same input value ("9 characters → accepted" vs
+  "→ rejected") with the same preconditions, within one requirement or across
+  requirements the analyzer reported as contradicting.
+- The QA task agent does not propose (and `on_change --allow-write` therefore
+  does not apply) an approval of such test cases; it names them instead.
+
 ### AI providers — local and OpenAI-compatible models
 
 #### Added
