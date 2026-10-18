@@ -6,6 +6,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Bug Report Generator
+
+#### Added
+- **Bug Reports** page: a product bug described in free text (English,
+  Ukrainian or Russian; prose or labeled parts such as "Steps:", "Expected
+  result:", "Шаги:", Markdown headings) becomes a structured report with Title,
+  What / Where / When, Preconditions, Steps to Reproduce, Actual Result,
+  Expected Result, Environment, Severity / Priority and Missing Information.
+- Rule-based and local (no AI): every value is text from the description.
+  Fields with no matching text stay empty and show "Needs clarification"; a
+  marker typed into a field is saved as empty. Clauses no rule recognises are
+  kept in "Not used in any field", and the original description is kept.
+- Severity and priority are preliminary: stated by the reporter, or suggested
+  from cue words in the actual result (crash, data loss, server error or a
+  failure in payment / checkout / login → High; cosmetic → Low; other failures
+  → Medium), with the words that triggered the rule. Priority follows severity,
+  one level lower when the problem does not happen every time.
+- Missing Information lists the questions still open (where, when, frequency,
+  steps, expected result, platform, app version, evidence, ...) and follows
+  the edits.
+- Drafts are saved only on Save; saved reports belong to the project (session
+  or `SPEC_TO_TEST_STORAGE=local`, `bug_reports.json`), can be reopened,
+  edited, deleted after a confirmation, and downloaded as Markdown one by one
+  or all together. Deleting a project deletes its bug reports.
+
+- Optional **Generate with Claude Code** (`SPEC_TO_TEST_CLAUDE_CODE=1`): for
+  personal use, the report is written by Claude through the local Claude Code
+  CLI and the user's own Claude login (no API key). The login must be a
+  claude.ai login (`claude auth status`); API-key and cloud variables are
+  removed from the CLI's environment; the model gets no tools, MCP, hooks,
+  CLAUDE.md or memory and runs one turn in an empty temporary folder. Every
+  field must be backed by quotes from the description; unsupported values
+  (and invented numbers, URLs or platforms) are removed. Consent is asked
+  each time; not signed in, usage limit, rate limit and timeout errors are
+  shown, and the rule-based generator stays the default.
+- Usage of each Claude Code generation: tokens (input / output / cache, model,
+  time) from the CLI's result, and the plan's session and weekly limits before
+  and after it (percent, change, reset time) from the local `/usage` command,
+  which makes no model request. Saved with the report, listed in a Tokens
+  column; "Check plan limits" shows the current percentages. A failed request
+  still reports the tokens it used.
+
 ## [1.2.0] - 2026-10-16
 
 ### QA Agent — generate missing test cases

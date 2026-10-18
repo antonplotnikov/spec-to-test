@@ -9,7 +9,7 @@ from spec_to_test.storage import load_latest, load_pointer, save_workspace
 
 APP_PATH = str(PROJECT_ROOT / "app.py")
 PAGES = [
-    "Home", "Requirements Analysis", "Grill Mode", "Test Cases", "QA Agent", "Traceability (RTM)",
+    "Home", "Requirements Analysis", "Grill Mode", "Test Cases", "QA Agent", "Bug Reports", "Traceability (RTM)",
     "Dashboard", "Export", "Settings",
 ]
 ANALYSIS_TABS = ["Requirements", "Findings", "Traceability gaps", "Test design", "Bug reports", "AI analysis"]
@@ -52,7 +52,7 @@ def test_every_page_and_tab_is_present(analyzed):
     assert nav_labels(analyzed) == PAGES
     assert [tab.label for tab in analyzed.tabs] == ANALYSIS_TABS
     assert [tab.label for tab in goto(analyzed, "tests").tabs] == ["Test cases", "Test suites", "Automation"]
-    for page in ("rtm", "dashboard", "export", "settings", "grill", "home"):
+    for page in ("bug_reports", "rtm", "dashboard", "export", "settings", "grill", "home"):
         assert not goto(analyzed, page).exception
 
 

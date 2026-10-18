@@ -7,6 +7,7 @@ Use `t(key, lang, **params)` to get a translated string. Placeholders like
 import re
 
 from spec_to_test.automation.translations import AUTOMATION_TRANSLATIONS
+from spec_to_test.bug_generator.translations import BUG_GENERATOR_TRANSLATIONS
 from spec_to_test.grill.translations import GRILL_TRANSLATIONS
 from spec_to_test.history_translations import HISTORY_TRANSLATIONS
 from spec_to_test.llm.translations import LLM_TRANSLATIONS
@@ -1342,6 +1343,9 @@ TRANSLATIONS.update(AUTO_TRANSLATIONS)
 # QA task mode text, same rule.
 assert not TRANSLATIONS.keys() & TASK_TRANSLATIONS.keys()
 TRANSLATIONS.update(TASK_TRANSLATIONS)
+# Bug Reports page text, same rule.
+assert not TRANSLATIONS.keys() & BUG_GENERATOR_TRANSLATIONS.keys()
+TRANSLATIONS.update(BUG_GENERATOR_TRANSLATIONS)
 
 
 def t(key: str, lang: str = DEFAULT_LANGUAGE, **params: object) -> str:

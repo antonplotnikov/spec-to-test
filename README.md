@@ -65,6 +65,7 @@ screenshot should show.
 | **Test cases** | Draft cases generated per requirement; edit, add, delete (with confirmation), and review: Draft → Reviewed → Approved. |
 | **Test design** | Boundary Value Analysis, Equivalence Partitioning, and Decision Tables — only from facts written in the requirement. Unstated outcomes are shown as "not specified", never guessed. |
 | **Bug reports** | Editable reports for requirement defects: ID, severity, description, expected behavior, reproduction context. |
+| **Bug Reports page (product bugs)** | Describe a product bug in your own words (EN/UK/RU, prose or labeled text) and get a structured report: Title, What / Where / When, Preconditions, Steps to Reproduce, Actual and Expected Result, Environment, preliminary Severity / Priority and Missing Information. Rule-based and local; only what the description says is used, every other field is marked "Needs clarification". Edit, save per project, and download as Markdown. |
 | **RTM** | Requirement → quality → open issues → test cases → approved tests → bug reports → coverage. |
 | **QA dashboard** | Requirements, open issues, test cases, coverage %, average quality, severity / coverage / review charts, and filters. |
 | **Exports** | Jira CSV (test cases, bugs), TestRail CSV, RTM CSV, and a Markdown QA report. |
@@ -233,6 +234,46 @@ cp .env.example .env                 # then set AI_PROVIDER and the provider's k
   Claude's tool use.
 
 ---
+
+### Optional: Bug Reports with Claude Code (your own Claude plan)
+
+For personal use on your own computer, the Bug Reports page can also generate a
+report through the [Claude Code](https://code.claude.com) CLI with the Claude
+login it already has (Pro, Max, Team or Enterprise), so no API key is needed.
+Anthropic's Help Center ("Use the Claude Agent SDK with your Claude plan")
+says `claude -p` can be used with a plan's usage limits; Claude Code's
+[legal page](https://code.claude.com/docs/en/legal-and-compliance) forbids
+offering this login to other people or collecting Claude credentials. So keep
+it for yourself; for a shared or hosted app use an API key (`AI_PROVIDER`).
+
+```bash
+claude                               # once: sign in with your Claude account
+export SPEC_TO_TEST_CLAUDE_CODE=1    # show "Generate with Claude Code"
+# optional: SPEC_TO_TEST_CLAUDE_CODE_MODEL=sonnet, SPEC_TO_TEST_CLAUDE_CODE_TIMEOUT=180 (seconds)
+streamlit run app.py
+```
+
+- The app runs the unmodified `claude` binary; it never reads or stores a token.
+  Before each request it checks `claude auth status` and refuses unless the
+  login is a claude.ai login. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and
+  cloud-provider variables are removed from the CLI's environment, so the call
+  can't fall back to paid API billing.
+- The model gets no tools: no built-in tools, MCP servers, skills, hooks,
+  CLAUDE.md or memory; one turn in an empty temporary folder; nothing is saved.
+- It must quote the description for every field. Values whose quotes, numbers,
+  URLs or platform names aren't in the description are removed and shown as
+  "Needs clarification".
+- After each generation the page shows what it used: tokens (input, output,
+  cache, model, time) and the plan's limits before and after it, for example
+  "Session limit: 36% → 38% (+2%), resets 21:40". The usage is saved with the
+  report and listed in the Tokens column. "Check plan limits" shows the current
+  percentages at any time. Limits are read with Claude Code's local `/usage`
+  command (no model request, no tokens); they are account-wide, so other Claude
+  sessions running at the same time are counted too. The dollar figure is Claude
+  Code's estimate at API prices; the plan is not charged that amount.
+- Each use asks for consent and counts toward your plan's usage limits. Errors
+  (not signed in, limit reached, rate limit, timeout) are shown, and the
+  rule-based generator keeps working.
 
 ## Usage
 
@@ -776,6 +817,8 @@ src/spec_to_test/
 theme_ui.py                  Design tokens, scoped CSS and small components (cards, badges, score bars)
 shell_ui.py                  Sidebar navigation, AI status, page header
 pages_ui.py                  Home, Requirements Analysis, Test Cases, RTM, Dashboard, Export, Settings
+bug_reports_ui.py            Bug Reports page: free-text product bug → editable report (rendering only;
+                             optional Claude Code generator: bug_generator/ai.py + llm/claude_code.py)
 grill_ui.py                  Grill Mode page: interview + analysis panel (rendering only)
 projects_ui.py               Project/document switcher (sidebar) and project settings
 llm_ui.py                    AI settings, header AI menu and connection status (rendering only)
