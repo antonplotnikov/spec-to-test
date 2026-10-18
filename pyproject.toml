@@ -26,9 +26,9 @@ select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["spec_to_test", "conftest", "test_localization", "grill_ui", "automation_ui", "llm_ui", "automation_fakes", "pages_ui", "projects_ui", "shell_ui", "theme_ui", "qa_agent_ui", "qa_auto_ui", "test_qa_agent_e2e", "test_qa_auto_unit"]
+known-first-party = ["spec_to_test", "conftest", "test_localization", "grill_ui", "automation_ui", "llm_ui", "automation_fakes", "pages_ui", "projects_ui", "shell_ui", "theme_ui", "qa_agent_ui", "qa_auto_ui", "bug_reports_ui", "test_qa_agent_e2e", "test_qa_auto_unit"]
 
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
-files = ["src", "app.py", "grill_ui.py", "automation_ui.py", "llm_ui.py", "projects_ui.py", "pages_ui.py", "shell_ui.py", "theme_ui.py", "qa_agent_ui.py", "qa_auto_ui.py"]
+files = ["src", "app.py", "grill_ui.py", "automation_ui.py", "llm_ui.py", "projects_ui.py", "pages_ui.py", "shell_ui.py", "theme_ui.py", "qa_agent_ui.py", "qa_auto_ui.py", "bug_reports_ui.py"]

@@ -35,6 +35,7 @@ SETTING_KEYS = (
     "AI_PROVIDER", "AI_MODEL", "AI_LOCK_SETTINGS", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
     "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL", "AI_TIMEOUT",
     "OPENAI_COMPATIBLE_BASE_URL", "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_MODEL",
+    "SPEC_TO_TEST_CLAUDE_CODE", "SPEC_TO_TEST_CLAUDE_CODE_MODEL", "SPEC_TO_TEST_CLAUDE_CODE_TIMEOUT",
 )
 # Automation and QA Agent settings (allowlist, secrets, limits).
 SETTING_PREFIXES = ("AUTOMATION_", "QA_")
@@ -57,6 +58,13 @@ SETTINGS_TEMPLATE = """# Spec-to-Test settings for this Mac. Only your macOS use
 # AI_TIMEOUT=600
 # Optional model override for the default provider:
 # AI_MODEL=claude-opus-5-5
+
+# Bug Reports: "Generate with Claude Code" through your own Claude plan (Pro, Max, ...),
+# no API key. For your own use only. Sign in once by running `claude` in Terminal.
+# Each use asks for consent and counts toward the plan's usage limits.
+# SPEC_TO_TEST_CLAUDE_CODE=1
+# SPEC_TO_TEST_CLAUDE_CODE_MODEL=sonnet
+# SPEC_TO_TEST_CLAUDE_CODE_TIMEOUT=180
 
 # Automation: staging hosts the browser may open (e.g. staging.example.com,
 # *.qa.example.com or localhost:3000). Empty = the Automation tab stays off.
@@ -149,6 +157,9 @@ def server_env(base: dict[str, str] | None = None) -> dict[str, str]:
     # build_app.sh records where node is: apps opened from Finder have a minimal PATH.
     if base.get("SPEC_TO_TEST_NODE") and not env.get("AUTOMATION_NODE"):
         env["AUTOMATION_NODE"] = base["SPEC_TO_TEST_NODE"]
+    # The same for the Claude Code CLI (Bug Reports; see spec_to_test.llm.claude_code).
+    if base.get("SPEC_TO_TEST_CLAUDE_BIN"):
+        env["SPEC_TO_TEST_CLAUDE_BIN"] = base["SPEC_TO_TEST_CLAUDE_BIN"]
     # Single-user desktop: keep work between launches.
     env["SPEC_TO_TEST_STORAGE"] = "local"
     env["SPEC_TO_TEST_DATA_DIR"] = str(SUPPORT_DIR / "data")

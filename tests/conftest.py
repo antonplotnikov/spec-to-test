@@ -51,6 +51,8 @@ def isolated_environment(tmp_path, monkeypatch):
         "AI_MODEL", "AI_LOCK_SETTINGS", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
         "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OLLAMA_HOST", "OLLAMA_MODEL", "AI_TIMEOUT",
         "OPENAI_COMPATIBLE_BASE_URL", "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_MODEL",
+        # The Claude Code CLI generator is opt-in; tests that use it enable it with a fake CLI.
+        "SPEC_TO_TEST_CLAUDE_CODE", "SPEC_TO_TEST_CLAUDE_CODE_MODEL", "SPEC_TO_TEST_CLAUDE_CODE_TIMEOUT",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -74,7 +76,7 @@ def no_network(monkeypatch):
 
 def goto(at, page: str):
     """Open a page from the sidebar navigation ("home", "analysis", "grill", "tests",
-    "qa_agent", "rtm", "dashboard", "export" or "settings")."""
+    "qa_agent", "bug_reports", "rtm", "dashboard", "export" or "settings")."""
     at.sidebar.radio(key="app_mode").set_value(page).run()
     return at
 

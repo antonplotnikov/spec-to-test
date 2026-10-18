@@ -75,3 +75,20 @@ def test_settings_template_and_start_script_cover_the_qa_agent():
     assert "QA_MAX_CASES" in desktop.SETTINGS_TEMPLATE
     start = (PROJECT_ROOT / "macos" / "start.sh").read_text(encoding="utf-8")
     assert "requirements-qa.txt" in start and "playwright install chromium" in start
+
+
+def test_claude_code_settings_reach_the_server(tmp_path, monkeypatch):
+    path = tmp_path / "settings.env"
+    path.write_text("SPEC_TO_TEST_CLAUDE_CODE=1\nSPEC_TO_TEST_CLAUDE_CODE_MODEL=sonnet\nSPEC_TO_TEST_CLAUDE_BIN=/evil\n")
+    monkeypatch.setattr(desktop, "SETTINGS_FILE", path)
+    env = desktop.server_env({"PATH": "/usr/bin", "SPEC_TO_TEST_CLAUDE_BIN": "/Users/me/.local/bin/claude"})
+    assert env["SPEC_TO_TEST_CLAUDE_CODE"] == "1" and env["SPEC_TO_TEST_CLAUDE_CODE_MODEL"] == "sonnet"
+    # The binary path comes only from the app bundle (build_app.sh), never from the settings file.
+    assert env["SPEC_TO_TEST_CLAUDE_BIN"] == "/Users/me/.local/bin/claude"
+    assert "SPEC_TO_TEST_CLAUDE_BIN" not in desktop.read_settings(path)
+    assert "SPEC_TO_TEST_CLAUDE_CODE=1" in desktop.SETTINGS_TEMPLATE
+
+
+def test_build_records_the_claude_binary():
+    source = (PROJECT_ROOT / "macos" / "build_app.sh").read_text()
+    assert "command -v claude" in source and "SPEC_TO_TEST_CLAUDE_BIN" in source

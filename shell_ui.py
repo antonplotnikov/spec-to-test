@@ -23,6 +23,7 @@ PAGES: dict[str, str] = {
     "grill": ":material/forum:",
     "tests": ":material/checklist:",
     "qa_agent": ":material/smart_toy:",
+    "bug_reports": ":material/bug_report:",
     "rtm": ":material/account_tree:",
     "dashboard": ":material/monitoring:",
     "export": ":material/ios_share:",

@@ -45,6 +45,12 @@ if node_bin="$(command -v node)"; then
 else
     echo "Note: Node.js not found; the Automation tab will ask for it." >&2
 fi
+# The same for the Claude Code CLI (Bug Reports: "Generate with Claude Code").
+claude_line=""
+if claude_bin="$(command -v claude)"; then
+    printf -v claude_q '%q' "$claude_bin"
+    claude_line="export SPEC_TO_TEST_CLAUDE_BIN=$claude_q"
+fi
 cat >"$APP/Contents/MacOS/Spec-to-Test" <<EOF
 #!/bin/bash
 here="\$(cd "\$(dirname "\$0")" && pwd)"
@@ -54,6 +60,7 @@ exec >>"\$log" 2>&1
 [[ -x "\$here/python" ]] && export SPEC_TO_TEST_PYTHON="\$here/python"
 export SPEC_TO_TEST_ICON="\$here/../Resources/AppIcon.png"
 $node_line
+$claude_line
 exec $root_q/macos/start.sh
 EOF
 chmod +x "$APP/Contents/MacOS/Spec-to-Test"

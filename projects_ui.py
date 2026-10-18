@@ -9,6 +9,7 @@ project and document when it renders.
 
 import streamlit as st
 
+from spec_to_test.bug_generator.store import open_bug_report_store
 from spec_to_test.i18n import t
 from spec_to_test.models import DocumentSummary, Project
 from spec_to_test.projects import (
@@ -187,6 +188,7 @@ def _on_delete_project(store: ProjectStore, project_id: str, name: str) -> None:
     try:
         store.delete_project(project_id)
         open_memory_store(st.session_state).delete_project(project_id)  # QA Agent memory goes with the project
+        open_bug_report_store(st.session_state).delete_project(project_id)  # and so do its bug reports
     except (OSError, ValueError):
         _message("error", "projects.error.delete_failed")
         return

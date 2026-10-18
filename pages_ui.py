@@ -1,5 +1,5 @@
 """Pages of the app other than Grill Mode: Home, Requirements Analysis, Test Cases,
-QA Agent, RTM, Dashboard, Export and Settings.
+QA Agent, Bug Reports (drawn by bug_reports_ui), RTM, Dashboard, Export and Settings.
 
 Rendering only. The analysis, test generation, RTM, exports and AI calls are
 the same functions the single-page layout used; every edit still goes through
@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 import automation_ui
+import bug_reports_ui
 import llm_ui
 import qa_agent_ui
 import qa_auto_ui
@@ -31,6 +32,7 @@ from projects_ui import (
 from spec_to_test import ai_analysis
 from spec_to_test import findings as finding_status
 from spec_to_test.ai_analysis import AIError
+from spec_to_test.bug_generator.store import open_bug_report_store
 from spec_to_test.bug_reports import defect_from_suggestion, generate_defects, next_defect_id
 from spec_to_test.change_impact import change_impact
 from spec_to_test.exports import (
@@ -858,6 +860,18 @@ def qa_agent(p: Page) -> None:
         previous_impact=lambda ws: change_impact(
             ws, p.store.documents(project_id), lambda h: p.store.load(project_id, h),
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bug Reports (product bugs of the project; no document needed)
+# ---------------------------------------------------------------------------
+
+def bug_reports(p: Page) -> None:
+    project_id = active_project_id()
+    active = next((pr for pr in p.store.projects() if pr.id == project_id), None)
+    bug_reports_ui.render_bug_reports(
+        p.lang, project_id, project_name(active, p.lang) if active else "", open_bug_report_store(st.session_state),
     )
 
 

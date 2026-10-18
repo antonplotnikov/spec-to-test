@@ -23,6 +23,8 @@ Layout of the data folder:
     projects/<id>/grill/latest.json
     qa_memory.json                      QA Agent memory of the default project
     projects/<id>/qa_memory.json        QA Agent memory of any other project
+    bug_reports.json                    Bug Reports (product bugs) of the default project
+    projects/<id>/bug_reports.json      Bug Reports of any other project
 
 Workspaces carry a `schema_version`; older files are upgraded on load by
 spec_to_test.migrations (the file itself is rewritten on the next save).
@@ -52,6 +54,7 @@ PROJECT_FILE = "project.json"
 DEFAULT_PROJECT_ID = "default"
 GRILL_DIR = "grill"
 MEMORY_FILE = "qa_memory.json"
+BUG_REPORTS_FILE = "bug_reports.json"
 # Saved interviews larger than this are not read (a normal one is a few hundred KB at most).
 MAX_INTERVIEW_BYTES = 5_000_000
 
@@ -231,6 +234,7 @@ def delete_project(project_id: str) -> None:
             path.unlink(missing_ok=True)
         shutil.rmtree(_grill_dir(DEFAULT_PROJECT_ID), ignore_errors=True)
         _memory_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
+        _bug_reports_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
     shutil.rmtree(_project_dir(project_id), ignore_errors=True)
 
 
@@ -343,6 +347,36 @@ def delete_memory_data(project_id: str) -> None:
     if not persistence_enabled():
         return
     _memory_path(project_id).unlink(missing_ok=True)
+
+
+# --- Bug Reports (raw JSON; validated by spec_to_test.bug_generator.store) -------------
+
+def _bug_reports_path(project_id: str) -> Path:
+    if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
+        return data_dir() / BUG_REPORTS_FILE
+    return _project_dir(project_id) / BUG_REPORTS_FILE
+
+
+def save_bug_reports_data(project_id: str, data: dict) -> None:
+    """Write the project's bug reports; does nothing in "session" mode."""
+    if not persistence_enabled():
+        return
+    _write_atomic(_bug_reports_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
+
+
+def load_bug_reports_data(project_id: str) -> dict | None:
+    if not persistence_enabled():
+        return None
+    try:
+        return _read_json(_bug_reports_path(project_id))
+    except ValueError:  # not a valid id
+        return None
+
+
+def delete_bug_reports_data(project_id: str) -> None:
+    if not persistence_enabled():
+        return
+    _bug_reports_path(project_id).unlink(missing_ok=True)
 
 
 # --- Last opened project and document ---------------------------------------------------
