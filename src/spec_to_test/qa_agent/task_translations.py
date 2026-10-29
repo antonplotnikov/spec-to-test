@@ -435,6 +435,11 @@ TASK_TRANSLATIONS: dict[str, dict[str, str]] = {
     "qamemory.rating": _e("Rating", "Оцінка", "Оценка"),
     "qamemory.rating.useful": _e("Useful", "Корисно", "Полезно"),
     "qamemory.rating.not_useful": _e("Not useful", "Не корисно", "Не полезно"),
+    "qamemory.error.unreadable": _e(
+        "The saved QA memory file cannot be read, so nothing was changed. Move it aside to start again.",
+        "Файл збереженої пам'яті QA неможливо прочитати, тож нічого не змінено. Перемістіть його, щоб почати знову.",
+        "Файл сохранённой памяти QA не удаётся прочитать, поэтому ничего не изменено. Переместите его, чтобы начать заново.",
+    ),
     "qamemory.error.not_confirmed": _e(
         "Confirm the rule before saving it.", "Підтвердьте правило перед збереженням.", "Подтвердите правило перед сохранением.",
     ),

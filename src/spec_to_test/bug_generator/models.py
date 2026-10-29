@@ -9,7 +9,7 @@ names the words they are based on) or a person stated them.
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from spec_to_test.bug_generator.translations import NEEDS_CLARIFICATION
 from spec_to_test.grill.models import Priority
@@ -27,6 +27,9 @@ LIST_FIELDS = ("preconditions", "steps", "environment")
 
 
 class ProductBugReport(BaseModel):
+    # Fields this version does not know are kept on save: a file written by a newer version is not trimmed.
+    model_config = ConfigDict(extra="allow")
+
     id: str = Field(pattern=ID_PATTERN)
     title: str = Field(default="", max_length=MAX_FIELD_CHARS)
     # WWW: what goes wrong, where in the product, when (trigger, frequency, since when).
