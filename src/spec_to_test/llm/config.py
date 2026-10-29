@@ -27,7 +27,9 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
+
+from spec_to_test.llm.usage import BUDGET_KEYS, Budget, UsageLedger, parse_budget
 
 PROVIDERS = ("anthropic", "openai", "openai_compatible", "ollama")
 ALIASES = {"claude": "anthropic", "openai-compatible": "openai_compatible", "compatible": "openai_compatible"}
@@ -56,6 +58,7 @@ ENV_KEYS = (
     "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL",
     "OPENAI_COMPATIBLE_BASE_URL", "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_MODEL",
     "OLLAMA_HOST", "OLLAMA_MODEL",
+    *BUDGET_KEYS,
 )
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
 # Model IDs as providers write them (claude-opus-5-5, gpt-5, llama3.1:8b, org/model@rev).
@@ -66,6 +69,8 @@ _TRUE = frozenset({"1", "true", "yes", "on"})
 class AIConfig(BaseModel):
     """One provider and model. Built from the environment, never from user input."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     provider: str
     model: str
     # SecretStr keeps the key out of repr(), logs and tracebacks. Empty for Ollama.
@@ -73,6 +78,8 @@ class AIConfig(BaseModel):
     # OpenAI-compatible gateway or server, or the Ollama server; "" = the provider's default.
     base_url: str = ""
     timeout: float = DEFAULT_TIMEOUT_S
+    # Usage and limits of the browser session that uses this configuration (set by the app); None = not counted.
+    ledger: UsageLedger | None = Field(default=None, exclude=True, repr=False)
 
     @property
     def provider_name(self) -> str:
@@ -88,6 +95,8 @@ class LLMSettings(BaseModel):
     # "invalid_url", "insecure_url" or "unknown_provider".
     problems: dict[str, str] = Field(default_factory=dict)
     locked: bool = False
+    # Session limits and prices (AI_TOKEN_LIMIT, AI_COST_LIMIT_USD, AI_PRICES); see spec_to_test.llm.usage.
+    budget: Budget = Field(default_factory=Budget)
 
     @property
     def enabled(self) -> bool:
@@ -176,7 +185,8 @@ def load_settings(environ: dict[str, str] | None = None, env_file: Path | None =
     source = environ if environ is not None else os.environ
     values.update({k: v for k, v in source.items() if k in ENV_KEYS and v})
     default = normalize_provider(values.get("AI_PROVIDER", "none"))
-    settings = LLMSettings(default_provider=default, locked=values.get("AI_LOCK_SETTINGS", "").strip().lower() in _TRUE)
+    settings = LLMSettings(default_provider=default, locked=values.get("AI_LOCK_SETTINGS", "").strip().lower() in _TRUE,
+                           budget=parse_budget(values))
     timeout = _timeout(values.get("AI_TIMEOUT", "").strip())
     if default == "none":
         return settings  # AI off: nothing is offered, whatever keys are present

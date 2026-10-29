@@ -20,13 +20,15 @@ validated; unreadable entries are skipped.
 """
 
 import secrets
-from collections.abc import MutableMapping
+import threading
+from collections.abc import Callable, MutableMapping
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from spec_to_test import storage
+from spec_to_test.filelock import locked
 from spec_to_test.qa_agent.tasks import _ID, MAX_TASK_LENGTH, TOOLS, AgentPlan, AgentResult, Tool
 
 FORMAT: Literal["spec-to-test/qa-memory"] = "spec-to-test/qa-memory"
@@ -53,6 +55,9 @@ def _now() -> str:
 
 
 class MemoryEntry(BaseModel):
+    # Fields this version does not know are kept on save: a file written by a newer version is not trimmed.
+    model_config = ConfigDict(extra="allow")
+
     id: str = Field(default_factory=lambda: secrets.token_hex(6), pattern=r"^[0-9a-f]{12}$")
     kind: Kind
     # The rule itself, or the comment of a feedback entry.
@@ -149,22 +154,27 @@ def relevant(entries: list[MemoryEntry], plan: AgentPlan | None, limit: int = MA
 
 # --- Stores ---------------------------------------------------------------------------
 
-def _to_data(entries: list[MemoryEntry]) -> dict[str, Any]:
+def _to_data(entries: list[MemoryEntry], kept: list[Any]) -> dict[str, Any]:
     return {"format": FORMAT, "format_version": FORMAT_VERSION,
-            "entries": [e.model_dump(mode="json") for e in entries]}
+            "entries": [e.model_dump(mode="json") for e in entries] + kept}
 
 
-def _from_data(data: Any) -> list[MemoryEntry]:
+def _parse(data: Any) -> tuple[list[MemoryEntry], list[Any]]:
+    """The readable entries, and the ones that could not be read (kept as they are on write).
+    A file of another format is refused: writing over it would destroy it."""
+    if data is None:
+        return [], []
     if not isinstance(data, dict) or data.get("format") != FORMAT or data.get("format_version") != FORMAT_VERSION:
-        return []
+        raise MemoryEntryError("unreadable")
     raw = data.get("entries")
-    found = []
+    found: list[MemoryEntry] = []
+    kept: list[Any] = []
     for item in raw if isinstance(raw, list) else []:
         try:
             found.append(MemoryEntry.model_validate(item))
         except ValidationError:
-            continue  # unreadable entry: skipped, never guessed
-    return found[:MAX_ENTRIES]
+            kept.append(item)  # unreadable entry: never guessed, and never dropped by a write
+    return found[:MAX_ENTRIES], kept
 
 
 class MemoryStore(Protocol):
@@ -176,7 +186,11 @@ class MemoryStore(Protocol):
 
 
 class _Store:
-    """Shared add / update / delete over `_read` and `_write` of a project's whole memory."""
+    """Transactions over a project's whole memory; `_read`, `_write` and `_lock` differ by mode.
+
+    Each change re-reads the saved memory under the file's lock, so an entry added in another tab is
+    kept, and a damaged or foreign file is never overwritten.
+    """
 
     def _read(self, project_id: str) -> dict[str, Any] | None:
         raise NotImplementedError
@@ -184,23 +198,43 @@ class _Store:
     def _write(self, project_id: str, data: dict[str, Any]) -> None:
         raise NotImplementedError
 
+    def _lock(self, project_id: str) -> Any:
+        raise NotImplementedError
+
+    def _unreadable(self, project_id: str) -> bool:
+        return False
+
+    def _transaction(self, project_id: str, change: Callable[[list[MemoryEntry]], list[MemoryEntry]]) -> None:
+        with self._lock(project_id):
+            if self._unreadable(project_id):
+                raise MemoryEntryError("unreadable")
+            entries, kept = _parse(self._read(project_id))
+            updated = change(entries)
+            if len(updated) > MAX_ENTRIES:
+                raise MemoryEntryError("full")
+            self._write(project_id, _to_data(updated, kept))
+
     def entries(self, project_id: str) -> list[MemoryEntry]:
-        return _from_data(self._read(project_id))
+        try:
+            return _parse(self._read(project_id))[0]
+        except MemoryEntryError:
+            return []  # shown as empty; reading never writes
 
     def add(self, project_id: str, entry: MemoryEntry) -> None:
-        current = self.entries(project_id)
-        if len(current) >= MAX_ENTRIES:
-            raise MemoryEntryError("full")
-        self._write(project_id, _to_data([*current, entry]))
+        self._transaction(project_id, lambda current: [*current, entry])
 
     def update(self, project_id: str, entry: MemoryEntry) -> None:
-        current = self.entries(project_id)
-        if not any(e.id == entry.id for e in current):
-            raise MemoryEntryError("missing")
-        self._write(project_id, _to_data([entry if e.id == entry.id else e for e in current]))
+        def change(current: list[MemoryEntry]) -> list[MemoryEntry]:
+            saved = next((e for e in current if e.id == entry.id), None)
+            if saved is None:
+                raise MemoryEntryError("missing")
+            # Fields a newer version added to the saved entry are carried over.
+            merged = MemoryEntry.model_validate({**(saved.model_extra or {}), **entry.model_dump()})
+            return [merged if e.id == entry.id else e for e in current]
+        self._transaction(project_id, change)
 
     def delete(self, project_id: str, entry_id: str) -> None:
-        self._write(project_id, _to_data([e for e in self.entries(project_id) if e.id != entry_id]))
+        self._transaction(project_id, lambda current: [e for e in current if e.id != entry_id])
 
 
 class SessionMemoryStore(_Store):
@@ -208,6 +242,7 @@ class SessionMemoryStore(_Store):
 
     def __init__(self) -> None:
         self._data: dict[str, dict[str, Any]] = {}
+        self._mutex = threading.Lock()
 
     def _read(self, project_id: str) -> dict[str, Any] | None:
         return self._data.get(project_id)
@@ -215,18 +250,27 @@ class SessionMemoryStore(_Store):
     def _write(self, project_id: str, data: dict[str, Any]) -> None:
         self._data[project_id] = data
 
+    def _lock(self, project_id: str) -> Any:
+        return self._mutex
+
     def delete_project(self, project_id: str) -> None:
         self._data.pop(project_id, None)
 
 
 class DiskMemoryStore(_Store):
-    """Memory in the project's folder (SPEC_TO_TEST_STORAGE=local)."""
+    """Memory in the project's folder (SPEC_TO_TEST_STORAGE=local), under the file's lock."""
 
     def _read(self, project_id: str) -> dict[str, Any] | None:
         return storage.load_memory_data(project_id)
 
     def _write(self, project_id: str, data: dict[str, Any]) -> None:
         storage.save_memory_data(project_id, data)
+
+    def _lock(self, project_id: str) -> Any:
+        return locked(storage.memory_path(project_id))
+
+    def _unreadable(self, project_id: str) -> bool:
+        return storage.load_memory_data(project_id) is None and storage.memory_path(project_id).exists()
 
     def delete_project(self, project_id: str) -> None:
         storage.delete_memory_data(project_id)

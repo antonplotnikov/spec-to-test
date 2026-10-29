@@ -7,6 +7,7 @@ rather than a guessed answer.
 """
 
 import re
+from collections.abc import Iterable
 
 from spec_to_test.i18n import clarification_question, t, unit_for
 from spec_to_test.models import (
@@ -29,8 +30,14 @@ def _short(text: str, limit: int = TITLE_TEXT_CHARS) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def next_test_case_id(existing: list[TestCase]) -> str:
-    numbers = [int(m.group(1)) for tc in existing if (m := re.fullmatch(r"TC-(\d+)", tc.id))]
+def next_test_case_id(existing: Iterable[TestCase], reserved: Iterable[str] = ()) -> str:
+    """The next free TC number: above every ID in use and every reserved ID.
+
+    `reserved` holds IDs that are no longer in the document but are still referred to, such as the
+    results of a test run. Reusing one would attribute an old result to a new test case.
+    """
+    ids = [tc.id for tc in existing] + list(reserved)
+    numbers = [int(m.group(1)) for i in ids if (m := re.fullmatch(r"TC-(\d+)", i))]
     return f"TC-{max(numbers, default=0) + 1:03d}"
 
 
@@ -219,7 +226,7 @@ def _cases_for(
     return cases
 
 
-def generate_test_cases(workspace: Workspace, lang: str = "en") -> list[TestCase]:
+def generate_test_cases(workspace: Workspace, lang: str = "en", reserved: Iterable[str] = ()) -> list[TestCase]:
     """Generate draft test cases for every requirement in the workspace."""
     generated: list[TestCase] = []
     for req in workspace.requirements:
@@ -227,7 +234,7 @@ def generate_test_cases(workspace: Workspace, lang: str = "en") -> list[TestCase
         for fields in _cases_for(req, findings, design_tests(req), lang):
             generated.append(
                 TestCase(
-                    id=next_test_case_id(workspace.test_cases + generated),
+                    id=next_test_case_id([*workspace.test_cases, *generated], reserved),
                     requirement_id=req.id,
                     source=Source.RULE,
                     review_status=ReviewStatus.DRAFT,

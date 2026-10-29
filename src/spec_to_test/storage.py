@@ -25,9 +25,17 @@ Layout of the data folder:
     projects/<id>/qa_memory.json        QA Agent memory of any other project
     bug_reports.json                    Bug Reports (product bugs) of the default project
     projects/<id>/bug_reports.json      Bug Reports of any other project
+    test_runs.json                      Manual test runs and their results of the default project
+    projects/<id>/test_runs.json        Test runs of any other project
+    conflicts/<hash>.unsaved-<digest>.json  an edit that could not be saved (document changed elsewhere)
+    conflicts/<hash>-replaced-*.json    a saved copy replaced by "my version" (kept, never deleted by the app)
+    projects/<id>/conflicts/...         the same for any other project
 
 Workspaces carry a `schema_version`; older files are upgraded on load by
 spec_to_test.migrations (the file itself is rewritten on the next save).
+
+A new copy never replaces a saved file: when one already exists the save raises
+WorkspaceConflict, and the app asks the user which version to keep.
 
 The default project keeps the location used before projects existed, so work
 saved by older versions opens unchanged.
@@ -39,12 +47,15 @@ become environment variables) only. A .env file never switches it.
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import ValidationError
 
+from spec_to_test.filelock import locked
 from spec_to_test.migrations import migrate_workspace_data
 from spec_to_test.models import DocumentSummary, Project, Workspace
 
@@ -55,8 +66,15 @@ DEFAULT_PROJECT_ID = "default"
 GRILL_DIR = "grill"
 MEMORY_FILE = "qa_memory.json"
 BUG_REPORTS_FILE = "bug_reports.json"
+RUNS_FILE = "test_runs.json"
+IMPACT_DECISIONS_FILE = "impact_decisions.json"
+# Copies the app could not save because the document changed elsewhere (see keep_unsaved_copy).
+CONFLICTS_DIR = "conflicts"
+UNSAVED_MARK = ".unsaved-"
 # Saved interviews larger than this are not read (a normal one is a few hundred KB at most).
 MAX_INTERVIEW_BYTES = 5_000_000
+# A test runs file holds up to 100 runs of up to 2000 results each.
+MAX_RUNS_BYTES = 50_000_000
 
 
 def storage_mode() -> str:
@@ -110,10 +128,21 @@ def _write_atomic(path: Path, content: str) -> None:
         raise
 
 
+def _conflicts_dir(project_id: str) -> Path:
+    if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
+        return data_dir() / CONFLICTS_DIR
+    return _project_dir(project_id) / CONFLICTS_DIR
+
+
+def _stamp() -> str:
+    return f"{datetime.now(UTC):%Y%m%dT%H%M%S%fZ}-{secrets.token_hex(2)}"
+
+
 # --- Workspaces (one per document) ---------------------------------------------------
 
 class WorkspaceConflict(ValueError):
-    """The saved file changed after this copy was read (another tab, or the QA on-change run)."""
+    """The saved file changed after this copy was read (another tab, or the QA on-change run),
+    or a new copy would replace a saved file that already exists."""
 
 
 def _digest(content: str) -> str:
@@ -124,23 +153,70 @@ def save_workspace(workspace: Workspace, project_id: str = DEFAULT_PROJECT_ID, r
     """Write the workspace to disk; does nothing in "session" mode.
 
     `remember` also makes it the last opened document; writes from outside the app pass False.
-    Raises WorkspaceConflict when the copy was read from or saved to a file that has changed since.
+    The check and the write happen under the document's lock (see spec_to_test.filelock), so two
+    writers cannot both pass the check and the second write cannot replace the first silently.
+    Raises WorkspaceConflict when the copy was read from or saved to a file that has changed since,
+    or when the copy is new and a saved file for the document already exists.
     """
     if not persistence_enabled():
         return
     path = _workspace_path(workspace.document_hash, project_id)
-    if workspace._stored_digest is not None:
-        try:
-            current = _digest(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            current = workspace._stored_digest  # deleted meanwhile: saving restores it, as before
-        if current != workspace._stored_digest:
-            raise WorkspaceConflict(f"{workspace.document_hash} changed on disk")
     content = workspace.model_dump_json(indent=2)
-    _write_atomic(path, content)
+    with locked(path):
+        if workspace._stored_digest is None:
+            if path.exists():
+                raise WorkspaceConflict(f"{workspace.document_hash} already saved")
+        else:
+            try:
+                current = _digest(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                current = workspace._stored_digest  # deleted meanwhile: saving restores it, as before
+            if current != workspace._stored_digest:
+                raise WorkspaceConflict(f"{workspace.document_hash} changed on disk")
+        _write_atomic(path, content)
     workspace._stored_digest = _digest(content)
     if remember:
         save_pointer(project_id, workspace.document_hash)
+
+
+def keep_unsaved_copy(workspace: Workspace, project_id: str = DEFAULT_PROJECT_ID) -> Path | None:
+    """Keep the copy the app could not save, so no edit is lost. Returns its path.
+
+    The file name holds the digest of the content (`conflicts/<hash>.unsaved-<digest>.json`), so a
+    different edit never replaces an earlier copy, and the same edit is written once. The saved
+    document itself is not touched. Does nothing in "session" mode.
+    """
+    if not persistence_enabled():
+        return None
+    content = workspace.model_dump_json(indent=2)
+    name = f"{_file_name(workspace.document_hash, 'document hash')}{UNSAVED_MARK}{_digest(content)[:16]}.json"
+    path = _conflicts_dir(project_id) / name
+    if not path.exists():  # same name, same content
+        _write_atomic(path, content)
+    return path
+
+
+def overwrite_workspace(workspace: Workspace, project_id: str = DEFAULT_PROJECT_ID) -> Path | None:
+    """Save `workspace` over the file that changed elsewhere, because the user chose "my version".
+
+    The file it replaces is copied to the conflicts folder first, under the same lock as the write,
+    so nothing saved in between is lost. Returns that copy's path, or None when there was no file to
+    replace. Does nothing in "session" mode.
+    """
+    if not persistence_enabled():
+        return None
+    path = _workspace_path(workspace.document_hash, project_id)
+    content = workspace.model_dump_json(indent=2)
+    with locked(path):
+        replaced = None
+        if path.exists():
+            replaced = _conflicts_dir(project_id) / f"{workspace.document_hash}-replaced-{_stamp()}.json"
+            replaced.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, replaced)
+        _write_atomic(path, content)
+    workspace._stored_digest = _digest(content)
+    save_pointer(project_id, workspace.document_hash)
+    return replaced
 
 
 def load_workspace(doc_hash: str, project_id: str = DEFAULT_PROJECT_ID) -> Workspace | None:
@@ -160,7 +236,9 @@ def load_workspace(doc_hash: str, project_id: str = DEFAULT_PROJECT_ID) -> Works
 def delete_workspace(doc_hash: str, project_id: str = DEFAULT_PROJECT_ID) -> None:
     if not persistence_enabled():
         return
-    _workspace_path(doc_hash, project_id).unlink(missing_ok=True)
+    path = _workspace_path(doc_hash, project_id)
+    with locked(path):
+        path.unlink(missing_ok=True)
 
 
 def list_documents(project_id: str) -> list[DocumentSummary]:
@@ -233,8 +311,10 @@ def delete_project(project_id: str) -> None:
         for path in _workspaces_dir(DEFAULT_PROJECT_ID).glob("*.json"):
             path.unlink(missing_ok=True)
         shutil.rmtree(_grill_dir(DEFAULT_PROJECT_ID), ignore_errors=True)
-        _memory_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
-        _bug_reports_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
+        memory_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
+        bug_reports_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
+        runs_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
+        impact_decisions_path(DEFAULT_PROJECT_ID).unlink(missing_ok=True)
     shutil.rmtree(_project_dir(project_id), ignore_errors=True)
 
 
@@ -250,9 +330,9 @@ def _interview_path(project_id: str, session_id: str) -> Path:
     return _grill_dir(project_id) / f"{_file_name(session_id, 'session id')}.json"
 
 
-def _read_json(path: Path) -> dict | None:
+def _read_json(path: Path, limit: int = MAX_INTERVIEW_BYTES) -> dict | None:
     try:
-        if path.stat().st_size > MAX_INTERVIEW_BYTES:
+        if path.stat().st_size > limit:
             return None
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -321,7 +401,7 @@ def load_interview_pointer(project_id: str) -> str:
 
 # --- QA Agent memory (raw JSON; validated by spec_to_test.qa_agent.memory) -------------
 
-def _memory_path(project_id: str) -> Path:
+def memory_path(project_id: str) -> Path:
     if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
         return data_dir() / MEMORY_FILE
     return _project_dir(project_id) / MEMORY_FILE
@@ -331,14 +411,14 @@ def save_memory_data(project_id: str, data: dict) -> None:
     """Write the project's QA Agent memory; does nothing in "session" mode."""
     if not persistence_enabled():
         return
-    _write_atomic(_memory_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
+    _write_atomic(memory_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
 
 
 def load_memory_data(project_id: str) -> dict | None:
     if not persistence_enabled():
         return None
     try:
-        return _read_json(_memory_path(project_id))
+        return _read_json(memory_path(project_id))
     except ValueError:  # not a valid id
         return None
 
@@ -346,12 +426,12 @@ def load_memory_data(project_id: str) -> dict | None:
 def delete_memory_data(project_id: str) -> None:
     if not persistence_enabled():
         return
-    _memory_path(project_id).unlink(missing_ok=True)
+    memory_path(project_id).unlink(missing_ok=True)
 
 
 # --- Bug Reports (raw JSON; validated by spec_to_test.bug_generator.store) -------------
 
-def _bug_reports_path(project_id: str) -> Path:
+def bug_reports_path(project_id: str) -> Path:
     if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
         return data_dir() / BUG_REPORTS_FILE
     return _project_dir(project_id) / BUG_REPORTS_FILE
@@ -361,14 +441,14 @@ def save_bug_reports_data(project_id: str, data: dict) -> None:
     """Write the project's bug reports; does nothing in "session" mode."""
     if not persistence_enabled():
         return
-    _write_atomic(_bug_reports_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
+    _write_atomic(bug_reports_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
 
 
 def load_bug_reports_data(project_id: str) -> dict | None:
     if not persistence_enabled():
         return None
     try:
-        return _read_json(_bug_reports_path(project_id))
+        return _read_json(bug_reports_path(project_id))
     except ValueError:  # not a valid id
         return None
 
@@ -376,7 +456,61 @@ def load_bug_reports_data(project_id: str) -> dict | None:
 def delete_bug_reports_data(project_id: str) -> None:
     if not persistence_enabled():
         return
-    _bug_reports_path(project_id).unlink(missing_ok=True)
+    bug_reports_path(project_id).unlink(missing_ok=True)
+
+
+# --- Manual test runs (raw JSON; validated by spec_to_test.execution) -------------------
+
+def runs_path(project_id: str) -> Path:
+    if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
+        return data_dir() / RUNS_FILE
+    return _project_dir(project_id) / RUNS_FILE
+
+
+def save_runs_data(project_id: str, data: dict) -> None:
+    """Write the project's test runs; does nothing in "session" mode."""
+    if not persistence_enabled():
+        return
+    _write_atomic(runs_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
+
+
+def load_runs_data(project_id: str) -> dict | None:
+    if not persistence_enabled():
+        return None
+    try:
+        return _read_json(runs_path(project_id), MAX_RUNS_BYTES)
+    except ValueError:  # not a valid id
+        return None
+
+
+def delete_runs_data(project_id: str) -> None:
+    if not persistence_enabled():
+        return
+    runs_path(project_id).unlink(missing_ok=True)
+
+
+# --- Confirmed decisions about the change impact (raw JSON; validated by spec_to_test.impact_decisions) ---
+
+def impact_decisions_path(project_id: str) -> Path:
+    if _file_name(project_id, "project id") == DEFAULT_PROJECT_ID:
+        return data_dir() / IMPACT_DECISIONS_FILE
+    return _project_dir(project_id) / IMPACT_DECISIONS_FILE
+
+
+def save_impact_decisions_data(project_id: str, data: dict) -> None:
+    """Write the project's impact decisions; does nothing in "session" mode."""
+    if not persistence_enabled():
+        return
+    _write_atomic(impact_decisions_path(project_id), json.dumps(data, ensure_ascii=False, indent=1))
+
+
+def load_impact_decisions_data(project_id: str) -> dict | None:
+    if not persistence_enabled():
+        return None
+    try:
+        return _read_json(impact_decisions_path(project_id))
+    except ValueError:  # not a valid id
+        return None
 
 
 # --- Last opened project and document ---------------------------------------------------

@@ -19,6 +19,7 @@ import bug_reports_ui
 import llm_ui
 import qa_agent_ui
 import qa_auto_ui
+import runs_ui
 import shell_ui
 import theme_ui
 from projects_ui import (
@@ -34,9 +35,16 @@ from spec_to_test import findings as finding_status
 from spec_to_test.ai_analysis import AIError
 from spec_to_test.bug_generator.store import open_bug_report_store
 from spec_to_test.bug_reports import defect_from_suggestion, generate_defects, next_defect_id
-from spec_to_test.change_impact import change_impact
+from spec_to_test.bulk_edit import delete_cases, filter_cases, set_review_status
+from spec_to_test.change_impact import Recommendation, change_impact, recommend
+from spec_to_test.duplicates import find_duplicates
+from spec_to_test.execution import case_ids_in_runs, executed_requirement_ids, open_run_store
 from spec_to_test.exports import (
     DEFAULT_JIRA_TEST_ISSUE_TYPE,
+    impact_csv,
+    impact_headers,
+    impact_markdown,
+    impact_rows,
     jira_defects_csv,
     jira_test_cases_csv,
     markdown_report,
@@ -45,6 +53,19 @@ from spec_to_test.exports import (
 )
 from spec_to_test.formatting import escape_markdown
 from spec_to_test.i18n import clarification_question, t, unit_for
+from spec_to_test.impact_decisions import (
+    Decision,
+    DecisionError,
+    DecisionRecord,
+    DecisionState,
+    DecisionStore,
+    Snapshot,
+    impact_fingerprint,
+    open_decision_store,
+    record_decision,
+    snapshot_of,
+    status_of,
+)
 from spec_to_test.input_parser import (
     ALLOWED_EXTENSIONS,
     MAX_FILE_SIZE_BYTES,
@@ -55,6 +76,7 @@ from spec_to_test.input_parser import (
 from spec_to_test.llm.config import AIConfig, LLMSettings
 from spec_to_test.models import (
     MAX_REASON_LENGTH,
+    ChangeImpact,
     ClarificationStatus,
     DefectReport,
     Finding,
@@ -73,6 +95,7 @@ from spec_to_test.rtm import (
     Coverage,
     RTMRow,
     build_rtm,
+    coverage_levels,
     filter_rows,
     orphan_test_case_ids,
     summarize,
@@ -82,7 +105,7 @@ from spec_to_test.rule_engine import analyze_requirements
 from spec_to_test.scenario_coverage import ScenarioCategory, categories_of_test_case, scenario_coverage
 from spec_to_test.storage import document_hash, persistence_enabled
 from spec_to_test.suites import SuiteKind, plan_suites, suite_workspace
-from spec_to_test.test_critic import CriticIssue, critique
+from spec_to_test.test_critic import CriticIssue, TestCaseScore, score_test_case
 from spec_to_test.test_design import TestDesign, design_tests, format_value
 from spec_to_test.test_generator import generate_test_cases, is_partial_check, next_test_case_id, other_conditions
 
@@ -295,7 +318,112 @@ def _document_overview(p: Page, ws: Workspace) -> None:
 # Requirements Analysis
 # ---------------------------------------------------------------------------
 
-def _change_impact_note(lang: str, ws: Workspace) -> None:
+_BUTTON_KEYS = {Decision.ACCEPTED: "accept", Decision.REJECTED: "reject", Decision.DEFERRED: "defer"}
+
+
+@dataclass(frozen=True)
+class _PendingDecision:
+    """What a confirmation needs, computed when the page is drawn (so the buttons act on what is shown)."""
+
+    recommendation: Recommendation
+    snapshot: Snapshot
+    previous_hash: str
+    new_hash: str
+    position_based: bool
+
+
+def _decision_label(lang: str, state: DecisionState, latest: DecisionRecord | None) -> str:
+    if latest is None or state == DecisionState.UNDECIDED:
+        return t("impact.decision.undecided", lang)
+    if state == DecisionState.STALE:
+        return t("impact.decision.stale", lang)
+    return t(f"impact.decision.{latest.decision.value}", lang)
+
+
+def _record_decision(store: DecisionStore, project_id: str, lang: str, pending: _PendingDecision,
+                     decision: Decision, comment_key: str) -> None:
+    """Record one confirmation. A callback: it runs before the page is drawn again. Changes no test case."""
+    comment = str(st.session_state.get(comment_key, ""))
+    try:
+        record = record_decision(
+            store, project_id, recommendation=pending.recommendation, snapshot=pending.snapshot, decision=decision,
+            previous_hash=pending.previous_hash, new_hash=pending.new_hash,
+            position_based=pending.position_based, comment=comment,
+        )
+    except DecisionError as error:
+        flash(t(f"impact.decision.error.{error.code}", lang), icon="⚠️")
+        return
+    except (OSError, ValueError):
+        flash(t("storage.save_failed", lang), icon="⚠️")
+        return
+    flash(t("impact.decision.saved", lang, id=record.id, decision=t(f"impact.decision.{decision.value}", lang)),
+          icon="✅")
+
+
+def _recommendations_block(p: Page, ws: Workspace, impact: ChangeImpact) -> None:
+    """Suggested action per changed requirement, the decision taken on each, and the Impact Report.
+
+    Suggestions only: a decision records a confirmation and changes no test case."""
+    lang = p.lang
+    project_id = active_project_id()
+    recommendations = recommend(impact, [req.id for req in ws.requirements])
+    changed = [r for r in recommendations if r.change != "unchanged"]
+    previous = p.store.load(project_id, impact.previous_document_hash) if impact.previous_document_hash else None
+    impact_fp = impact_fingerprint(recommendations, impact.previous_document_hash, ws.document_hash)
+    store = open_decision_store(st.session_state)
+    records = store.records(project_id)
+    pending: dict[str, _PendingDecision] = {}
+    labels: dict[str, str] = {}
+    for rec in changed:
+        snapshot = snapshot_of(rec, impact, previous, impact_fp)
+        state, latest = status_of(records, rec.requirement_id, snapshot)
+        labels[rec.requirement_id] = _decision_label(lang, state, latest)
+        req = ws.requirement(rec.requirement_id)
+        pending[rec.requirement_id] = _PendingDecision(
+            recommendation=rec, snapshot=snapshot, previous_hash=impact.previous_document_hash,
+            new_hash=ws.document_hash, position_based=req is not None and not req.has_explicit_id,
+        )
+    for rec in recommendations:
+        labels.setdefault(rec.requirement_id, "—")
+    with st.expander(t("impact.rec.heading", lang), icon=":material/checklist:", expanded=True):
+        rows = [dict(zip(impact_headers(lang), row, strict=True)) for row in impact_rows(changed, lang)]
+        for row, rec in zip(rows, changed, strict=True):
+            row[t("impact.decision.column", lang)] = labels[rec.requirement_id]
+        show_table(rows)
+        st.caption(t("impact.rec.keep_count", lang, count=len(recommendations) - len(changed)))
+        md_col, csv_col = st.columns(2)
+        md_col.download_button(
+            t("impact.rec.download_md", lang),
+            impact_markdown(ws, recommendations, lang, decisions=labels).encode("utf-8"),
+            file_name="impact_report.md", mime="text/markdown", icon=":material/download:", width="stretch",
+        )
+        csv_col.download_button(
+            t("impact.rec.download_csv", lang), impact_csv(recommendations, lang, decisions=labels).encode("utf-8"),
+            file_name="impact_recommendations.csv", mime="text/csv", icon=":material/download:", width="stretch",
+        )
+    if not changed:
+        return
+    with st.expander(t("impact.decision.heading", lang), icon=":material/how_to_reg:", expanded=True):
+        st.caption(t("impact.decision.hint", lang))
+        pick = st.selectbox(
+            t("impact.decision.pick", lang), [r.requirement_id for r in changed],
+            format_func=lambda rid: f"{rid} — {labels[rid]}", key=f"impact_pick_{ws.document_hash}",
+        )
+        if pending[pick].position_based:
+            st.warning(t("impact.decision.position_note", lang), icon="⚠️")
+        comment_key = f"impact_comment_{ws.document_hash}"
+        st.text_input(t("impact.decision.comment", lang), key=comment_key)
+        for col, decision in zip(st.columns(3), (Decision.ACCEPTED, Decision.REJECTED, Decision.DEFERRED),
+                                 strict=True):
+            col.button(
+                t(f"impact.decision.{_BUTTON_KEYS[decision]}", lang),
+                key=f"impact_{decision.value}_{ws.document_hash}", width="stretch",
+                on_click=_record_decision, args=(store, project_id, lang, pending[pick], decision, comment_key),
+            )
+
+
+def _change_impact_note(p: Page, ws: Workspace) -> None:
+    lang = p.lang
     """Differences from the previous version and the test cases there that need review."""
     impact = ws.change_impact
     if impact is None:
@@ -319,6 +447,7 @@ def _change_impact_note(lang: str, ws: Workspace) -> None:
         ]
         lines += ["", t("impact.statuses_kept", lang)]
     st.warning("\n".join(lines), icon="🔀")
+    _recommendations_block(p, ws, impact)
     with st.expander(t("impact.changes_heading", lang, count=len(impact.changes)), icon=":material/difference:"):
         show_table([
             {
@@ -336,7 +465,7 @@ def analysis(p: Page) -> None:
     if (ws := _workspace(p, "analysis")) is None:
         return
     _restored_note(lang)
-    _change_impact_note(lang, ws)
+    _change_impact_note(p, ws)
     result = ws.analysis
     scores = score_all(ws.requirements, ws.findings)
     statuses = {req.id: result.status_of(req.id) for req in result.requirements}
@@ -453,9 +582,25 @@ def _requirements_tab(lang: str, ws: Workspace, scores: dict[str, QualityScore],
         )
 
 
+def _duplicates_block(lang: str, ws: Workspace) -> None:
+    """Requirements that may repeat each other: a question for the BA/PO, not a finding (scores do not change)."""
+    pairs = find_duplicates(ws.requirements)
+    if not pairs:
+        return
+    lines = [t("dups.heading", lang)]
+    for pair in pairs:
+        ids = {"first": escape_markdown(pair.first_id), "second": escape_markdown(pair.second_id)}
+        if pair.exact:
+            lines.append(f"- {t('dups.exact', lang, **ids)}")
+        else:
+            lines.append(f"- {t('dups.near', lang, percent=round(pair.similarity * 100), **ids)}")
+    st.warning("\n".join(lines), icon=":material/content_copy:")
+
+
 def _findings_tab(lang: str, ws: Workspace) -> None:
     result = ws.analysis
     st.caption(f":material/info: {t('results.rule_disclaimer', lang)}")
+    _duplicates_block(lang, ws)
     if not result.findings:
         st.success(t("results.no_findings", lang))
         return
@@ -786,13 +931,15 @@ def tests(p: Page) -> None:
     m[0].metric(t("dash.test_cases", lang), len(ws.test_cases), border=True)
     for col, status in zip(m[1:], ReviewStatus, strict=True):
         col.metric(t(f"review.{status.value}", lang), counts[status.value], border=True)
-    tab_tests, tab_suites, tab_automation = st.tabs([
-        t("tab.tests", lang), t("tab.suites", lang), t("tab.automation", lang),
+    tab_tests, tab_suites, tab_runs, tab_automation = st.tabs([
+        t("tab.tests", lang), t("tab.suites", lang), t("tab.runs", lang), t("tab.automation", lang),
     ])
     with tab_tests:
         _test_case_editor(p, ws)
     with tab_suites:
         _suites_tab(lang, ws)
+    with tab_runs:
+        runs_ui.render_runs(lang, ws, active_project_id(), open_run_store(st.session_state))
     with tab_automation:
         automation_ui.render_automation(lang, ws, p.automation_ai, p.persist)
 
@@ -884,6 +1031,56 @@ def _risk_of(ws: Workspace, requirement_id: str) -> Severity | None:
     return next((s for s in (Severity.HIGH, Severity.MEDIUM, Severity.LOW) if s in open_severities), None)
 
 
+def _run_case_ids(ws: Workspace) -> set[str]:
+    """Test case IDs that runs of this document refer to: a new test case must not take one of them."""
+    return case_ids_in_runs(open_run_store(st.session_state).runs(active_project_id()), ws.document_hash)
+
+
+BULK_KEY = "tc_bulk_select"  # the test cases chosen for bulk actions (session state)
+BULK_CONFIRM = "tc_bulk_confirm"  # the delete confirmation (session state)
+
+
+def _bulk_set_status(p: Page, ws: Workspace, status: ReviewStatus) -> None:
+    """Set the review status of the chosen test cases. A callback: it runs before the page is drawn."""
+    changed = set_review_status(ws, st.session_state.get(BULK_KEY, []), status)
+    p.persist(ws)
+    st.session_state[BULK_KEY] = []
+    flash(t("tests.bulk.changed", p.lang, count=changed, status=t(f"review.{status.value}", p.lang)))
+
+
+def _bulk_delete(p: Page, ws: Workspace) -> None:
+    """Delete the chosen test cases. Only enabled after the confirmation; a callback like the one above."""
+    removed = delete_cases(ws, st.session_state.get(BULK_KEY, []))
+    p.persist(ws)
+    st.session_state[BULK_KEY] = []
+    st.session_state[BULK_CONFIRM] = False
+    st.session_state.pop("tc_selected", None)
+    flash(t("tests.bulk.deleted", p.lang, count=removed), icon="🗑️")
+
+
+def _bulk_actions(p: Page, ws: Workspace, cases: list[TestCase]) -> None:
+    """Bulk actions on the chosen test cases: a review status for all of them, or delete after a confirmation."""
+    lang = p.lang
+    titles = {tc.id: tc.title for tc in cases}
+    with st.expander(t("tests.bulk.heading", lang), icon=":material/checklist:"):
+        # Drop choices the search or filter has hidden before the widget is drawn again.
+        if BULK_KEY in st.session_state:
+            st.session_state[BULK_KEY] = [i for i in st.session_state[BULK_KEY] if i in titles]
+        chosen = st.multiselect(t("tests.bulk.select", lang), list(titles), key=BULK_KEY,
+                                format_func=lambda i: f"{i} — {titles[i]}")
+        if not chosen:
+            st.caption(t("tests.bulk.hint", lang))
+            return
+        for col, status in zip(st.columns(len(ReviewStatus)), ReviewStatus, strict=True):
+            col.button(t("tests.bulk.set", lang, status=t(f"review.{status.value}", lang)),
+                       key=f"tc_bulk_{status.value}", width="stretch",
+                       on_click=_bulk_set_status, args=(p, ws, status))
+        st.caption(t("tests.bulk.approve_note", lang))
+        st.checkbox(t("tests.bulk.confirm_delete", lang, count=len(chosen)), key=BULK_CONFIRM)
+        st.button(t("tests.bulk.delete", lang), icon=":material/delete:", key="tc_bulk_delete",
+                  disabled=not st.session_state.get(BULK_CONFIRM), on_click=_bulk_delete, args=(p, ws))
+
+
 def _test_case_editor(p: Page, ws: Workspace) -> None:
     lang = p.lang
     req_ids = [r.id for r in ws.requirements]
@@ -894,12 +1091,21 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
         key="tc_filter",
     )
     cases = [tc for tc in ws.test_cases if tc_filter == ALL or tc.requirement_id == tc_filter]
+    search_col, status_col = st.columns([3, 2], gap="medium")
+    query = search_col.text_input(t("tests.search", lang), key="tc_search")
+    statuses = status_col.multiselect(
+        t("tests.filter_status", lang), list(ReviewStatus), key="tc_status_filter",
+        format_func=lambda v: t(f"review.{v.value}", lang),
+    )
+    cases = filter_cases(cases, query, set(statuses))
+    filtered = bool(query.strip() or statuses)
+    scores = {tc.id: score_test_case(tc, ws) for tc in ws.test_cases}
 
     b1, b2 = st.columns(2)
     if b1.button(t("tests.add", lang), icon=":material/add:", key="tc_add", width="stretch"):
         target = tc_filter if tc_filter != ALL else req_ids[0]
         new_case = TestCase(
-            id=next_test_case_id(ws.test_cases),
+            id=next_test_case_id(ws.test_cases, reserved=_run_case_ids(ws)),
             requirement_id=target,
             title=t("tests.new_title", lang),
             test_type=TestType.POSITIVE,
@@ -913,14 +1119,14 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
     if b2.button(t("tests.generate_missing", lang), icon=":material/auto_awesome:", key="tc_generate", width="stretch"):
         missing = [req for req in ws.requirements if not ws.tests_for(req.id)]
         scratch = Workspace(requirements=missing, findings=ws.findings, test_cases=ws.test_cases)
-        created = generate_test_cases(scratch, lang)
+        created = generate_test_cases(scratch, lang, reserved=_run_case_ids(ws))
         ws.test_cases.extend(created)
         p.persist(ws)
         flash(t("tests.generated", lang, count=len(created)))
         st.rerun()
 
     if not cases:
-        st.info(t("tests.none", lang))
+        st.info(t("tests.bulk.none" if filtered else "tests.none", lang))
         return
     show_table(
         [
@@ -933,10 +1139,12 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
                 t("column.review", lang): (
                     f"{REVIEW_BADGES[tc.review_status.value]} {t(f'review.{tc.review_status.value}', lang)}"
                 ),
+                t("column.quality", lang): scores[tc.id].score,
             }
             for tc in cases
         ],
     )
+    _bulk_actions(p, ws, cases)
     case_ids = [tc.id for tc in cases]
     if st.session_state.get("tc_selected") not in case_ids:
         st.session_state["tc_selected"] = case_ids[0]
@@ -946,7 +1154,7 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
     )
     tc = next(c for c in ws.test_cases if c.id == selected_id)
     _test_case_detail(lang, ws, tc)
-    _approval_check(lang, ws, tc)
+    _approval_check(lang, ws, tc, scores[tc.id])
     if tc.clarification_questions:
         st.warning(
             t("tests.open_questions", lang)
@@ -1013,27 +1221,27 @@ def _test_case_editor(p: Page, ws: Workspace) -> None:
         st.rerun()
 
 
-def _approval_check(lang: str, ws: Workspace, tc: TestCase) -> None:
-    """Critic findings and missing scenarios to weigh before approving; never blocks the decision."""
-    issues = critique(tc, ws)
-    problems = [i for i in issues if not i.unknown]
-    unknowns = [i for i in issues if i.unknown]
+def _approval_check(lang: str, ws: Workspace, tc: TestCase, score: TestCaseScore) -> None:
+    """Quality score, critic findings and missing scenarios to weigh before approving; never blocks the decision."""
     req = ws.requirement(tc.requirement_id)
     coverage = scenario_coverage(req, ws.tests_for(req.id)) if req else None
 
     def scenarios(categories: list[ScenarioCategory]) -> str:
         return ", ".join(t(f"scenario.{c.value}", lang) for c in categories)
 
-    def issue_line(issue: CriticIssue) -> str:
-        return (f"- **{t(f'critic.criterion.{issue.criterion}', lang)}**: "
+    def issue_line(issue: CriticIssue, cost: str = "") -> str:
+        return (f"- **{t(f'critic.criterion.{issue.criterion}', lang)}**{cost}: "
                 f"{escape_markdown(t(f'critic.{issue.code}', lang, **issue.params))}")
 
     approved = tc.review_status == ReviewStatus.APPROVED
-    lines = [f"**{t('approval.review_heading' if approved else 'approval.heading', lang, id=tc.id)}**"]
-    if problems:
-        lines += ["", t("approval.critic_problems", lang), *map(issue_line, problems)]
-    if unknowns:
-        lines += ["", t("approval.critic_unknown", lang), *map(issue_line, unknowns)]
+    lines = [f"**{t('approval.review_heading' if approved else 'approval.heading', lang, id=tc.id)}**", "",
+             f"{t('tc_score.line', lang, score=score.score, grade=t(f'grade.{score.grade}', lang))}",
+             f"_{t('tc_score.explain', lang)}_"]
+    if score.deductions:
+        lines += ["", t("approval.critic_problems", lang),
+                  *(issue_line(d, f" (−{d.points})") for d in score.deductions)]
+    if score.unknown:
+        lines += ["", t("approval.critic_unknown", lang), *(issue_line(i) for i in score.unknown)]
     missing = coverage.missing if coverage else []
     if coverage is not None:
         lines.append("")
@@ -1050,7 +1258,7 @@ def _approval_check(lang: str, ws: Workspace, tc: TestCase) -> None:
         if coverage.unknown:
             lines.append(t("approval.scenario_unknown", lang, names=scenarios(coverage.unknown)))
     lines += ["", f"_{t('approval.review_note' if approved else 'approval.not_blocked', lang)}_"]
-    if problems or missing:
+    if score.deductions or missing:
         st.warning("\n".join(lines), icon=":material/rule:")
     else:
         st.info("\n".join(lines), icon=":material/rule:")
@@ -1100,31 +1308,48 @@ def rtm(p: Page) -> None:
     scores = score_all(ws.requirements, ws.findings)
     rows = build_rtm(ws, scores)
     summary = summarize(rows, ws)
-    m = st.columns(4)
-    for col, coverage in zip(m, Coverage, strict=False):
+    # Execution counts only recorded runs of this document; with none, it stays not tracked.
+    doc_runs = [r for r in open_run_store(st.session_state).runs(active_project_id()) if r.document_hash == ws.document_hash]
+    executed = executed_requirement_ids(doc_runs, ws.document_hash, {tc.id: tc.requirement_id for tc in ws.test_cases}) \
+        if doc_runs else None
+    levels = coverage_levels(rows, executed)
+    # Status per requirement (Approved is a review result, not a run).
+    for col, coverage in zip(st.columns(3), Coverage, strict=True):
         col.metric(
             f"{COVERAGE_BADGES[coverage.value]} {t(f'coverage.{coverage.value}', lang)}",
             summary.coverage_distribution[coverage.value], border=True,
         )
-    m[3].metric(t("dash.coverage", lang), f"{summary.coverage_percent:g}%", border=True,
-                help=t("dash.coverage_help", lang, any=f"{summary.any_test_percent:g}"))
-    st.progress(summary.coverage_percent / 100, text=t("ui.rtm.approved_coverage", lang,
-                                                        percent=f"{summary.coverage_percent:g}"))
-    st.progress(summary.any_test_percent / 100, text=t("ui.rtm.any_coverage", lang,
-                                                       percent=f"{summary.any_test_percent:g}"))
+    # Design, Review and Execution are separate levels.
+    design, review, execution = st.columns(3)
+    design.metric(t("rtm.level.design", lang), f"{levels.design:g}%", border=True,
+                  help=t("rtm.level.design_help", lang))
+    review.metric(t("rtm.level.review", lang), f"{levels.review:g}%", border=True,
+                  help=t("rtm.level.review_help", lang))
+    execution.metric(
+        t("rtm.level.execution", lang),
+        t("rtm.level.not_tracked", lang) if levels.execution is None else f"{levels.execution:g}%",
+        border=True, help=t("rtm.level.execution_help", lang),
+    )
     with theme_ui.card("rtm"):
         st.caption(t("rtm.explainer", lang))
-        show_table(_rtm_rows(lang, rows))
+        show_table(_rtm_rows(lang, rows, {tc.id: score_test_case(tc, ws).score for tc in ws.test_cases}))
     if orphans := orphan_test_case_ids(ws):
         st.warning(t("rtm.orphans", lang, ids=", ".join(orphans)))
 
 
-def _rtm_rows(lang: str, rows: list[RTMRow]) -> list[dict]:
+def _average_of(test_ids: list[str], scores: dict[str, int]) -> int | str:
+    """Mean quality score of the given test cases; "—" when there are none to score."""
+    values = [scores[i] for i in test_ids if i in scores]
+    return round(sum(values) / len(values)) if values else "—"
+
+
+def _rtm_rows(lang: str, rows: list[RTMRow], test_scores: dict[str, int]) -> list[dict]:
     return [
         {
             t("column.id", lang): row.requirement_id,
             t("column.requirement", lang): row.requirement_text,
             t("column.quality", lang): row.quality_score,
+            t("column.test_quality", lang): _average_of(row.test_case_ids, test_scores),
             t("column.open_issues", lang): ", ".join(t(f"finding.{i}", lang) for i in row.open_issues) or "—",
             t("column.test_cases", lang): ", ".join(row.test_case_ids) or "—",
             t("column.approved", lang): ", ".join(row.approved_test_case_ids) or "—",

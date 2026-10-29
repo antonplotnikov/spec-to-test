@@ -165,7 +165,7 @@ def test_markdown_report_contains_every_link(example_text):
         assert f"### {tc.id}:" in report
     for d in ws.defects:
         assert f"### {d.id}:" in report
-    assert "| Coverage | " in report and "11.1%" in report
+    assert "| Review coverage | " in report and "11.1%" in report
 
 
 def test_markdown_report_escapes_user_text_and_is_localized():

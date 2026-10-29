@@ -187,3 +187,106 @@ def test_local_mode_still_round_trips_after_session_mode(tmp_path, monkeypatch):
     monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "local")
     save_workspace(sample())
     assert load_latest() == sample()
+
+
+# --- Saving never replaces a file silently (conflicts) ------------------------------
+
+def _titled(title: str) -> Workspace:
+    ws = sample()
+    ws.test_cases[0].title = title
+    return ws
+
+
+def _saved_title(doc_hash: str) -> str:
+    return json.loads((data_dir() / "workspaces" / f"{doc_hash}.json").read_text(encoding="utf-8"))[
+        "test_cases"][0]["title"]
+
+
+def test_a_new_copy_does_not_replace_a_saved_file():
+    ws = _titled("Saved")
+    save_workspace(ws)
+    with pytest.raises(storage.WorkspaceConflict):
+        save_workspace(_titled("New copy"))  # e.g. analyzed again in another tab at the same time
+    assert _saved_title(ws.document_hash) == "Saved"
+    assert not list((data_dir() / "workspaces").glob(".tmp-*"))  # the temporary copy is cleaned up
+
+
+def test_first_save_waits_for_a_writer_holding_the_lock_and_then_refuses_its_file():
+    import threading
+
+    from spec_to_test import filelock
+
+    ws = _titled("Ours")
+    path = data_dir() / "workspaces" / f"{ws.document_hash}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    holding, release = threading.Event(), threading.Event()
+
+    def other_writer():
+        with filelock.locked(path):  # another writer checks, then creates the file under the lock
+            holding.set()
+            path.write_text(_titled("Theirs").model_dump_json(), encoding="utf-8")
+            release.wait(timeout=5)
+
+    writer = threading.Thread(target=other_writer)
+    writer.start()
+    holding.wait(timeout=5)
+    threading.Timer(0.2, release.set).start()  # the other writer lets go after a moment
+    with pytest.raises(storage.WorkspaceConflict):
+        save_workspace(ws)  # waits for the lock, then sees the file that now exists
+    writer.join(5)
+    assert _saved_title(ws.document_hash) == "Theirs"
+
+
+def test_unsaved_copy_sits_beside_the_documents_and_is_not_a_document():
+    ws = _titled("Saved")
+    save_workspace(ws)
+    path = storage.keep_unsaved_copy(_titled("Unsaved"))
+    assert path.parent == data_dir() / "conflicts"
+    assert path.name.startswith(f"{ws.document_hash}.unsaved-") and path.suffix == ".json"
+    assert json.loads(path.read_text(encoding="utf-8"))["test_cases"][0]["title"] == "Unsaved"
+    assert [d.document_hash for d in storage.list_documents("default")] == [ws.document_hash]
+    assert _saved_title(ws.document_hash) == "Saved"
+
+
+def test_unsaved_copies_never_replace_each_other():
+    first = storage.keep_unsaved_copy(_titled("First edit"))
+    again = storage.keep_unsaved_copy(_titled("First edit"))
+    second = storage.keep_unsaved_copy(_titled("Second edit"))
+    assert first == again  # the same edit is written once
+    assert second != first
+    assert json.loads(first.read_text(encoding="utf-8"))["test_cases"][0]["title"] == "First edit"
+
+
+def test_unsaved_copy_of_another_project_is_kept_in_its_folder():
+    ws = _titled("Unsaved")
+    path = storage.keep_unsaved_copy(ws, "proj1")
+    assert path.parent == data_dir() / "projects" / "proj1" / "conflicts"
+    assert "proj1" not in [p.id for p in storage.list_projects()]  # a copy does not create a project
+
+
+def test_my_version_replaces_the_saved_file_and_keeps_the_replaced_one():
+    saved = _titled("Saved")
+    save_workspace(saved)
+    elsewhere = storage.load_workspace(saved.document_hash)
+    elsewhere.test_cases[0].title = "Elsewhere"
+    save_workspace(elsewhere)  # another writer saves a newer version
+    mine = _titled("Mine")  # a copy from before: it has no digest yet
+    replaced = storage.overwrite_workspace(mine)
+    assert _saved_title(saved.document_hash) == "Mine"
+    assert replaced is not None
+    assert json.loads(replaced.read_text(encoding="utf-8"))["test_cases"][0]["title"] == "Elsewhere"
+    save_workspace(mine)  # the copy now follows the saved file, so this is not a conflict
+    assert _saved_title(saved.document_hash) == "Mine"
+
+
+def test_overwrite_without_a_saved_file_keeps_nothing():
+    first = _titled("First")
+    assert storage.overwrite_workspace(first) is None
+    assert _saved_title(first.document_hash) == "First"
+
+
+def test_conflict_copies_are_not_written_in_session_mode(monkeypatch):
+    monkeypatch.setenv("SPEC_TO_TEST_STORAGE", "session")
+    assert storage.keep_unsaved_copy(_titled("Unsaved")) is None
+    assert storage.overwrite_workspace(_titled("Mine")) is None
+    assert not (data_dir() / "conflicts").exists()

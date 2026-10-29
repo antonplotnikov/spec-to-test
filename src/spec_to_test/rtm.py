@@ -7,6 +7,9 @@ Coverage status per requirement:
 - not_covered: no test cases linked
 - partial:     test cases exist, but none is Approved
 - covered:     at least one linked test case is Approved
+
+Approved means reviewed, not executed: no test run is recorded here, so execution
+coverage is reported as unknown (see CoverageLevels).
 """
 
 from collections import Counter
@@ -139,19 +142,45 @@ def _percent(part: int, total: int) -> float:
     return round(100 * part / total, 1) if total else 0.0
 
 
+class CoverageLevels(BaseModel):
+    """Design, Review and Execution coverage, kept apart on purpose.
+
+    Each value is a percentage of the requirements given.
+    design:    at least one test case exists, drafts included: the test was written.
+    review:    at least one test case is Approved: a person accepted it.
+    execution: None while no test run of the document is recorded, so it is unknown, not zero.
+               Once runs exist: the requirements with a Passed or Failed result in a run.
+               An Approved test case is not an executed one.
+    """
+
+    design: float
+    review: float
+    execution: float | None = None
+
+
+def coverage_levels(rows: list[RTMRow], executed: set[str] | None = None) -> CoverageLevels:
+    """`executed`: the requirement IDs with an executed test (None = no runs are recorded)."""
+    designed = sum(row.coverage != Coverage.NOT_COVERED for row in rows)
+    approved = sum(row.coverage == Coverage.COVERED for row in rows)
+    execution = None if executed is None else _percent(sum(row.requirement_id in executed for row in rows), len(rows))
+    return CoverageLevels(design=_percent(designed, len(rows)), review=_percent(approved, len(rows)),
+                          execution=execution)
+
+
 def summarize(rows: list[RTMRow], workspace: Workspace) -> DashboardSummary:
     """Summarize the given RTM rows (pass filtered rows to get filtered figures)."""
     ids = {row.requirement_id for row in rows}
     tests = [tc for tc in workspace.test_cases if tc.requirement_id in ids]
     severities = Counter(s.value for row in rows for s in row.severities)
     coverage = Counter(row.coverage.value for row in rows)
+    levels = coverage_levels(rows)
     return DashboardSummary(
         requirements=len(rows),
         open_issues=sum(len(row.open_issues) for row in rows),
         test_cases=len(tests),
         defects=sum(len(row.defect_ids) for row in rows),
-        coverage_percent=_percent(coverage[Coverage.COVERED.value], len(rows)),
-        any_test_percent=_percent(len(rows) - coverage[Coverage.NOT_COVERED.value], len(rows)),
+        coverage_percent=levels.review,
+        any_test_percent=levels.design,
         average_quality=round(sum(r.quality_score for r in rows) / len(rows), 1) if rows else None,
         severity_distribution={s.value: severities[s.value] for s in SEVERITY_ORDER},
         review_distribution={s.value: sum(tc.review_status == s for tc in tests) for s in ReviewStatus},

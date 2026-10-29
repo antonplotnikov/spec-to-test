@@ -40,6 +40,7 @@ from spec_to_test.bug_generator.models import (
     missing_information,
     next_report_id,
 )
+from spec_to_test.bug_generator.similar import find_similar
 from spec_to_test.bug_generator.store import BugReportStore, BugStoreError
 from spec_to_test.formatting import escape_markdown
 from spec_to_test.grill.models import Priority
@@ -105,8 +106,22 @@ def render_bug_reports(lang: str, project_id: str, project_label: str, store: Bu
     _describe(lang, project_id, saved)
     report = _draft(project_id) or _opened(project_id, saved)
     if report is not None:
+        _possible_duplicates(lang, report, saved)
         _editor(lang, project_id, report, store, is_saved=any(r.id == report.id for r in saved))
     _saved_list(lang, project_id, project_label, saved)
+
+
+def _possible_duplicates(lang: str, report: ProductBugReport, saved: list[ProductBugReport]) -> None:
+    """Saved reports that may describe the same bug. A question for the reporter: nothing is merged."""
+    matches = find_similar(report, saved)
+    if not matches:
+        return
+    lines = [t("bugreport.duplicates.heading", lang)]
+    lines += [
+        f"- {escape_markdown(m.report_id)} · {escape_markdown(m.title) or '—'} ({round(m.similarity * 100)}%)"
+        for m in matches
+    ]
+    st.warning("\n".join(lines), icon=":material/content_copy:")
 
 
 # ---------------------------------------------------------------------------
@@ -286,19 +301,20 @@ def _editor(lang: str, project_id: str, report: ProductBugReport, store: BugRepo
             with st.expander(t("bugreport.field.description", lang)):
                 st.text(report.description)
         if submitted:
-            _save(lang, project_id, report, store, values, severity, priority)
+            _save(lang, project_id, report, store, values, severity, priority, is_saved)
         _report_actions(lang, project_id, report, store, is_saved)
 
 
 def _save(
     lang: str, project_id: str, report: ProductBugReport, store: BugReportStore, values: dict[str, str],
-    severity: Severity | None, priority: Priority | None,
+    severity: Severity | None, priority: Priority | None, is_saved: bool,
 ) -> None:
     for name in LIST_FIELDS:
         values.setdefault(name, "")
     updated = edited_report(report, values, severity, priority, now())
     try:
-        store.save(project_id, updated)
+        # A draft is new: if another tab has saved its ID meanwhile, it is saved under the next free ID.
+        updated = store.save(project_id, updated, new=not is_saved)
     except BugStoreError as error:
         st.error(t(f"bugreport.error.{error.code}", lang))
         return

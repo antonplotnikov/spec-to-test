@@ -62,7 +62,8 @@ screenshot should show.
 | **Input** | Paste text or upload TXT/MD/PDF (≤ 2 MB, ≤ 50 PDF pages). Recognises IDs (`REQ-1:`, `FR-AUTH-01`, `[US-3]`), Markdown headings and tables, bullet and numbered lists, and plain sentences. |
 | **Rule-based analysis** | Ambiguous wording, missing expected result, missing boundaries, missing error handling, possible contradictions — in EN, UK, and RU text. Every finding is a *hint* marked "Needs clarification". |
 | **Quality score** | 0–100 per requirement from 7 fixed criteria, with the evidence that cost points. |
-| **Test cases** | Draft cases generated per requirement; edit, add, delete (with confirmation), and review: Draft → Reviewed → Approved. |
+| **Test cases** | Draft cases generated per requirement; edit, add, delete (with confirmation), and review: Draft → Reviewed → Approved. Search by ID, title, steps or result; filter by review status; bulk-set the review status or delete chosen cases. |
+| **Test runs** | Start a run from the Smoke, Regression or Full suite, with environment and build. Record Passed / Failed / Blocked / Not run per case, with a comment and Bug ID. Progress, pass rate and history; results download as CSV. Runs are kept in `test_runs.json` in the project folder (`local` mode). |
 | **Test design** | Boundary Value Analysis, Equivalence Partitioning, and Decision Tables — only from facts written in the requirement. Unstated outcomes are shown as "not specified", never guessed. |
 | **Bug reports** | Editable reports for requirement defects: ID, severity, description, expected behavior, reproduction context. |
 | **Bug Reports page (product bugs)** | Describe a product bug in your own words (EN/UK/RU, prose or labeled text) and get a structured report: Title, What / Where / When, Preconditions, Steps to Reproduce, Actual and Expected Result, Environment, preliminary Severity / Priority and Missing Information. Rule-based and local; only what the description says is used, every other field is marked "Needs clarification". Edit, save per project, and download as Markdown. |
@@ -71,15 +72,17 @@ screenshot should show.
 | **Exports** | Jira CSV (test cases, bugs), TestRail CSV, RTM CSV, and a Markdown QA report. |
 | **Grill Mode** | An interactive QA interviewer: clarify requirements, build or improve a test case or bug report, or run a QA review of an existing artifact. Every value shows where it came from (source, confirmed by you, assumption, unknown); nothing is finalized without your explicit confirmation. |
 | **AI analysis (optional)** | An AI model (Claude, OpenAI, an OpenAI-compatible server or local Ollama) looks for ambiguities, contradictions, and missing scenarios. Consent is required for every run; results are labeled and kept apart from rule-based facts. |
-| **Persistence** | By default work (projects included) lives only in your browser session and nothing is written to disk. Opt-in `SPEC_TO_TEST_STORAGE=local` (single-user machines) saves projects and edits to disk and reopens the last project and document next time. |
+| **Persistence** | By default work (projects included) lives only in your browser session and nothing is written to disk. Opt-in `SPEC_TO_TEST_STORAGE=local` (single-user machines) saves projects and edits to disk and reopens the last project and document next time. If a saved document is changed elsewhere (another tab or the QA on-change run) while you edit it, nothing is overwritten: your edits stay in the session and in the project's `conflicts` folder, and you choose which version to keep. |
 
 ### Coverage status
 
 | Status | Meaning |
 |---|---|
-| Covered | At least one linked test case is **Approved** |
-| Partially covered | Test cases exist, but none is Approved |
-| Not covered | No test cases |
+| Approved | At least one linked test case is **Approved** |
+| Not approved yet | Test cases exist, but none is Approved |
+| No test cases | No test cases
+
+The RTM and dashboard show three levels, kept apart: **Design** (a requirement has a test case, drafts included), **Review** (a test case is Approved) and **Execution**, which is *not tracked yet*: no test runs are recorded, so an Approved test case is never counted as an executed test.
 
 ### Quality score
 
@@ -96,6 +99,10 @@ Only open **rule-based** findings reduce the score; AI suggestions never do.
 | Has an ID | 5 | the ID was generated, not written in the document |
 
 Grades: **Good** ≥ 80, **Fair** 50–79, **Poor** < 50.
+
+### Test case quality score
+
+Each test case gets a score from 0 to 100 from the rule-based critic (steps, expected result, requirement match, duplicates, conflicts, invented values). It starts at 100 and subtracts the points of each problem found: for example a placeholder step costs 20, and two test cases that expect opposite outcomes for the same input cost 25 each. Items the texts cannot judge are listed as *unknown* and cost nothing. The editor shows the score and what cost points; the RTM shows the average per requirement. 100 means the critic found no problem, not that the test case is complete (see scenario coverage).
 
 ---
 
@@ -219,6 +226,10 @@ cp .env.example .env                 # then set AI_PROVIDER and the provider's k
   (LM Studio, vLLM, llama.cpp server and LocalAI do); otherwise the request
   fails with a generic error. Local models on a CPU can be slow: raise
   `AI_TIMEOUT` (seconds, default 300, 10–3600).
+- Limits and cost: the sidebar shows the tokens and estimated cost of the running app, for all its browser sessions (the key and its budget are the operator's; the counters restart with the app). Set `AI_TOKEN_LIMIT`
+  and `AI_COST_LIMIT_USD` to cap them. Each request reserves its worst case before it is sent, so parallel requests cannot overshoot a limit. Prices are yours to set in `AI_PRICES` (they change, so none is
+  built in). Requests that fail inside the provider's SDK are not counted. The **Test** button in Settings
+  sends a real request, so it is counted.
 - Nothing is sent until you tick the consent checkbox (it names the provider
   and the number of requirements). Consent is asked again for every run and
   for every new document, and it is also enforced in code.
@@ -735,6 +746,9 @@ docker compose up --build    # http://localhost:8501
 | `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_MODEL` / `OPENAI_COMPATIBLE_API_KEY` | `.env` / env / Streamlit secrets | — / — / — | Self-hosted OpenAI-compatible server (`…/v1`), the model it serves, optional key |
 | `OLLAMA_HOST` / `OLLAMA_MODEL` | `.env` / env / Streamlit secrets | `http://localhost:11434` / `llama3.1` | Local Ollama server and model (no key) |
 | `AI_TIMEOUT` | `.env` / env / Streamlit secrets | `300` | Seconds one AI request may take (clamped to 10–3600) |
+| `AI_TOKEN_LIMIT` | `.env` / env / Streamlit secrets | — (no limit) | Input + output tokens the running app may use, across all its sessions. Warns at 80%; refuses a request whose worst case would cross the limit. Counted from the provider's own answer; a count it does not report is counted at its worst case |
+| `AI_COST_LIMIT_USD` | `.env` / env / Streamlit secrets | — (no limit) | Estimated USD the running app may spend on priced requests. Same warning and refusal as the token limit; models without a price are not covered by it |
+| `AI_PRICES` | `.env` / env / Streamlit secrets | — (no prices) | JSON prices in USD per million tokens, e.g. `{"anthropic:<model>": {"input": 3, "output": 15}}`. No price is built in: a model without one has an unknown cost, shown as unknown, never as 0 |
 | `SPEC_TO_TEST_STORAGE` | env / Streamlit secrets (**not** `.env`) | `session` | Only the exact value `local` (any case, spaces ignored) saves work to disk; anything else, including empty, means `session` (browser session only, nothing on disk) |
 | `SPEC_TO_TEST_DATA_DIR` | env | `.spec_to_test_data/` | Folder for saved work and Grill interviews (`local` mode only) |
 | `SPEC_TO_TEST_LIVE_AI` | env (tests only) | — | `1` lets `pytest -m live_ai` run the evaluation suite against the configured real provider |

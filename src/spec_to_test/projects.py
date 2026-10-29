@@ -41,6 +41,8 @@ class ProjectStore(Protocol):
     def documents(self, project_id: str) -> list[DocumentSummary]: ...
     def load(self, project_id: str, doc_hash: str) -> Workspace | None: ...
     def save(self, project_id: str, workspace: Workspace) -> None: ...
+    def keep_unsaved(self, project_id: str, workspace: Workspace) -> str: ...
+    def overwrite(self, project_id: str, workspace: Workspace) -> str: ...
     def delete_document(self, project_id: str, doc_hash: str) -> None: ...
     def last_opened(self) -> tuple[str, str] | None: ...
     def set_last_opened(self, project_id: str, doc_hash: str) -> None: ...
@@ -94,6 +96,13 @@ class SessionProjectStore:
             self._projects[project_id] = Project(id=project_id)
         self._workspaces.setdefault(project_id, {})[workspace.document_hash] = workspace.model_copy(deep=True)
 
+    def keep_unsaved(self, project_id: str, workspace: Workspace) -> str:
+        return ""  # nothing is written to disk in this mode, so nothing can conflict
+
+    def overwrite(self, project_id: str, workspace: Workspace) -> str:
+        self.save(project_id, workspace)
+        return ""
+
     def delete_document(self, project_id: str, doc_hash: str) -> None:
         self._workspaces.get(project_id, {}).pop(doc_hash, None)
 
@@ -124,6 +133,14 @@ class DiskProjectStore:
 
     def save(self, project_id: str, workspace: Workspace) -> None:
         storage.save_workspace(workspace, project_id)
+
+    def keep_unsaved(self, project_id: str, workspace: Workspace) -> str:
+        path = storage.keep_unsaved_copy(workspace, project_id)
+        return str(path) if path else ""
+
+    def overwrite(self, project_id: str, workspace: Workspace) -> str:
+        replaced = storage.overwrite_workspace(workspace, project_id)
+        return str(replaced) if replaced else ""
 
     def delete_document(self, project_id: str, doc_hash: str) -> None:
         storage.delete_workspace(doc_hash, project_id)

@@ -6,6 +6,98 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Audit fixes before the commit
+
+#### Fixed
+- Two saves of one document could both pass the check, and the second one then replaced the first silently (lost edit). Saves now check and write under a file lock; the second save reports a conflict.
+- Test runs, bug reports and QA Agent memory are changed as transactions: each change re-reads the latest saved file under its lock. Results recorded from an older copy no longer erase a result another tab saved; run IDs and bug report IDs are chosen under the lock.
+- A saved file that cannot be read (damaged, or of another format) is never overwritten. Entries a newer version wrote, and unknown fields of saved runs, bug reports and memory entries, are kept when the file is saved again.
+- AI limits are checked before a request is sent and count the request's worst case: parallel requests cannot overshoot a limit together, and a request whose usage is not reported keeps its worst case in the check.
+- The AI budget is shared by the whole running app, not by one browser session: a new tab or a page reload no longer starts a new budget. The counters are kept in memory and restart with the app.
+- A deleted test case's ID is not handed out again while a test run still refers to it, so an old result is never attributed to a new test case.
+
+#### Changed
+- Conflict copies are named by the digest of their content (`<hash>.unsaved-<digest>.json`).
+
+### RTM and dashboard: coverage levels
+
+#### Changed
+- The RTM and dashboard keep three coverage levels apart: **Design** (a
+  requirement has a test case, drafts included), **Review** (a test case is
+  Approved) and **Execution**, which is shown as "Not tracked": no test runs are
+  recorded yet, so an Approved test case is never counted as an executed test.
+- Status labels follow the review meaning: "Covered" is now "Approved",
+  "Partially covered" is "Not approved yet", "Not covered" is "No test cases".
+  The stored values and filters are unchanged. The dashboard's "Coverage" is now
+  "Review coverage". Exports use the same labels.
+
+### Test case quality score and save conflicts
+
+#### Added
+- Test case quality score 0–100 from the existing critic: 100 minus the points of each problem found (placeholder step −20, conflicting expectation −25, and so on); unknown items cost nothing. Shown in the test case editor, with the points of each problem, and as an average per requirement in the RTM.
+
+#### Fixed
+- Local mode: when a saved document changed elsewhere (another tab or the QA on-change run), the app used to replace the user's unsaved edit with the saved version without saying so. The edit now stays in the session and in the project's `conflicts` folder, and the user chooses "Save my version over it" or "Load the saved version". Nothing is overwritten without that choice; a replaced saved file is kept in `conflicts`.
+- Saved documents are checked and written under a file lock (`spec_to_test/filelock.py`: `flock` on POSIX, `msvcrt` on Windows, released by the OS if the app crashes). Two saves of one document can no longer both pass the check: the second one reports a conflict instead of silently replacing the first. A first save no longer replaces a file that another writer created in the meantime.
+- Conflict copies are named by the digest of their content, so a different unsaved edit never replaces an earlier copy.
+- The saved file format is unchanged; old saves open as before.
+
+### Possible duplicate requirements
+
+#### Added
+- Requirement Analyzer: requirements of one document whose wording is the same (after ignoring case, punctuation and spacing) or nearly the same (similarity of 0.9 or more) are listed on the Findings tab as questions for the BA/PO, with their IDs. Nothing is merged, and quality scores do not change.
+
+### Impact decisions
+
+#### Added
+- Analysis page: each changed requirement can be confirmed as **Accepted**, **Rejected** or **Deferred**, with an optional comment. A decision records your choice only: it changes no test case, and statuses are still changed on the Test Cases page.
+- A decision stays current only while what it was made from is unchanged (the wording of the requirement in both versions, the affected test cases and their review status, and the whole set of recommendations). Otherwise it shows as **Stale: check again**, and a new decision supersedes it.
+- Decisions are kept in `impact_decisions.json` in the project's folder (`local` mode only), with stable IDs (`DEC-001`, never reused). Documents keep their format. A file that cannot be read is never overwritten.
+- The CSV and Markdown Impact exports get a Decision column when decisions are shown.
+- A requirement without an ID in the document is marked: its ID is its position, not a stable identity.
+
+### Change impact recommendations
+
+#### Added
+- Impact analysis suggests an action per changed requirement: **Add** (a new requirement), **Update** (a changed requirement with draft test cases), **Review** (a changed requirement with an Approved test case, or an unmatched one), **Remove** (a removed requirement), and **Keep** (unchanged requirements, counted). Suggestions only: no test case status changes.
+- Regression hint: the changed requirements that have Approved test cases are marked for a regression run.
+- Impact Report download in two formats: Markdown (the report, with the note that nothing is applied) and CSV (the recommendations).
+
+### Possible duplicate bug reports
+
+#### Added
+- Bug Reports page: before a draft or an opened report is saved, saved reports that may describe the same bug are listed (up to three, with a similarity percentage). It is a question for the reporter; nothing is merged.
+
+### Test case search and bulk actions
+
+#### Added
+- Test Cases page: a search box (every word must match the ID, title, requirement, preconditions, steps or expected result) and a review-status filter. Both narrow the table and the case selector.
+- Bulk actions on chosen test cases: set their review status (Draft, Reviewed or Approved) in one step, or delete them. Deleting needs a confirmation checkbox first. Results of test runs that name deleted cases are kept and shown as removed.
+
+### Manual test execution
+
+#### Added
+- Test Cases page, new **Test runs** tab: start a run from the Smoke, Regression or Full suite, with a name, environment and build. Each run has a stable ID (RUN-001, never reused), a date and one result per test case: Passed, Failed, Blocked or Not run, with an optional comment and Bug ID.
+- Run figures: progress, pass rate (Passed / (Passed + Failed)), Passed, Failed, Blocked and Not run. Run history for the document, and a CSV download of a run's results.
+- Runs are stored in their own file, `test_runs.json`, in the project's folder (`local` mode only; in `session` mode they live in the browser session). Existing documents and their files are not changed. Every change is applied to the latest saved file under its lock, a run ID is chosen there (so two tabs cannot take the same ID), and a file that cannot be read is never overwritten.
+- Test case IDs that a run still refers to are not handed out again when a new test case is added or generated.
+- RTM: Execution coverage now has a value once a run of the document is recorded: the share of requirements with a Passed or Failed result. With no runs it still reads "Not tracked".
+
+#### Notes
+- Screenshots are not attached to results yet; a Bug ID is recorded as text.
+
+### AI usage, cost and limits
+
+#### Added
+- Every AI answer from Anthropic, OpenAI, an OpenAI-compatible server and Ollama is counted: input and output tokens are taken from the provider's own response. A count the provider does not report is shown as unknown, never as zero.
+- Sidebar: the requests, tokens (input and output) and estimated cost of the running app, for all its browser sessions. The counters are kept in memory and start from zero when the app restarts.
+- Cost uses prices you set in `AI_PRICES` (USD per million tokens, per provider and model). No price is built in, so a model without one shows an unknown cost, never 0.
+- App-wide limits `AI_TOKEN_LIMIT` and `AI_COST_LIMIT_USD`: a warning from 80%. Before a request is sent, it reserves its worst case (estimated input tokens plus the output limit it asks for), so parallel requests cannot overshoot a limit together. A request whose usage the provider does not report keeps its worst case in the limit check. A cost limit counts priced requests only; the token limit covers every model.
+- Settings that cannot be read (a non-number limit, malformed `AI_PRICES`) are left off and flagged in the sidebar.
+
+#### Notes
+- A request that fails before the provider answers (connection, authorization) is not counted. An answer that cannot be used (truncated, refused, malformed) is counted at its worst case, because its tokens were spent. The connection test (the Test button in Settings) sends a real request and is counted.
+
 ### Bug Report Generator
 
 #### Added

@@ -37,6 +37,7 @@ from spec_to_test.llm.config import (
     valid_model,
 )
 from spec_to_test.llm.providers import AIError, check_connection
+from spec_to_test.llm.usage import Budget, UsageLedger, shared_ledger
 
 ENABLED = "llm_enabled"
 PROVIDER = "llm_provider"
@@ -54,6 +55,55 @@ def keep_state() -> None:
     for key in list(st.session_state.keys()):
         if key in (ENABLED, PROVIDER) or str(key).startswith(MODEL_PREFIX):
             st.session_state[key] = st.session_state[key]
+
+
+def usage_ledger(budget: Budget) -> UsageLedger:
+    """The usage ledger of the running app: one for every browser session (see spec_to_test.llm.usage)."""
+    return shared_ledger(budget)
+
+
+def render_usage(lang: str, usage: UsageLedger) -> None:
+    """Sidebar: the running app's tokens and estimated cost against the operator's limits.
+
+    Cost is shown only for requests with a configured price; an unpriced cost is never shown as 0.
+    """
+    budget = usage.budget
+    totals = usage.totals()
+    if budget.problem:
+        st.sidebar.warning(t("ai.usage.invalid", lang), icon=":material/rule:")
+    if not totals.requests and budget.token_limit is None and budget.cost_limit is None:
+        return
+    with st.sidebar.container(border=True):
+        st.markdown(f"**{t('ai.usage.title', lang)}**")
+        st.caption(t("ai.usage.line", lang, requests=totals.requests, tokens=f"{totals.tokens:,}",
+                     input=f"{totals.input_tokens:,}", output=f"{totals.output_tokens:,}"))
+        if totals.requests:
+            if totals.unpriced_requests == totals.requests:
+                st.caption(t("ai.usage.cost_unknown", lang))
+            else:
+                st.caption(t("ai.usage.cost", lang, cost=f"{totals.cost_usd:.4f}"))
+            if totals.unpriced_requests and totals.unpriced_requests != totals.requests:
+                st.caption(t("ai.usage.unpriced", lang, count=totals.unpriced_requests))
+        if totals.unknown_token_requests:
+            st.caption(t("ai.usage.unknown_tokens", lang, count=totals.unknown_token_requests))
+        by_model = usage.by_model()
+        if by_model:
+            with st.expander(t("ai.usage.by_model", lang)):
+                for key, part in by_model.items():
+                    cost = t("ai.usage.cost_na", lang) if part.unpriced_requests == part.requests \
+                        else f"${part.cost_usd:.4f}"
+                    st.caption(f"{escape_markdown(key)}: {part.requests} · {part.tokens:,} tokens · {cost}")
+        if budget.token_limit is not None:
+            st.caption(t("ai.usage.limit_tokens", lang, used=f"{totals.tokens:,}", limit=f"{budget.token_limit:,}"))
+        if budget.cost_limit is not None:
+            st.caption(t("ai.usage.limit_cost", lang, used=f"{totals.cost_usd:.4f}", limit=f"{budget.cost_limit:g}"))
+    st.sidebar.caption(t("ai.usage.reset_note", lang))
+    if budget.cost_limit is not None and totals.unpriced_requests:
+        st.sidebar.caption(t("ai.usage.cost_partial", lang))
+    if usage.exceeded():
+        st.sidebar.error(t("ai.usage.exceeded", lang), icon=":material/block:")
+    elif kind := usage.warning():
+        st.sidebar.warning(t(f"ai.usage.warn_{kind}", lang), icon=":material/speed:")
 
 
 def resolve(settings: LLMSettings) -> AIConfig | None:

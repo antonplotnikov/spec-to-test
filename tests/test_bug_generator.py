@@ -377,4 +377,4 @@ def test_session_mode_never_writes_to_disk(monkeypatch):
     store.save("default", generate(EN))
     assert not (storage.data_dir() / "bug_reports.json").exists()
     with pytest.raises(ValueError):
-        storage._bug_reports_path("../x")
+        storage.bug_reports_path("../x")
