@@ -24,6 +24,7 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel, SecretStr, ValidationError
 
 from spec_to_test.llm.config import DEFAULT_TIMEOUT_S, ENV_FILE, AIConfig, load_settings
+from spec_to_test.llm.usage import Usage, estimate_input_tokens
 
 T = TypeVar("T", bound=BaseModel)
 ClientFactory = Callable[[AIConfig], Any]
@@ -159,7 +160,25 @@ def default_client_factory(config: AIConfig) -> Any:
 # One request per provider
 # ---------------------------------------------------------------------------
 
-def _anthropic(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> Any:
+def _count(value: object) -> int | None:
+    """A token count as the provider reported it; anything else is unknown, never zero."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _usage(source: object, input_name: str, output_name: str) -> Usage:
+    """Usage from an SDK object's attributes."""
+    return Usage(input_tokens=_count(getattr(source, input_name, None)),
+                 output_tokens=_count(getattr(source, output_name, None)))
+
+
+def _usage_dict(source: object, input_key: str, output_key: str) -> Usage:
+    """Usage from a JSON object of the answer."""
+    if not isinstance(source, dict):
+        return Usage()
+    return Usage(input_tokens=_count(source.get(input_key)), output_tokens=_count(source.get(output_key)))
+
+
+def _anthropic(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> tuple[Any, Usage]:
     message = client.messages.parse(
         model=config.model,
         max_tokens=max_tokens,
@@ -171,7 +190,8 @@ def _anthropic(client: Any, config: AIConfig, system: str, user: str, output: ty
         raise AIError("refused")
     if getattr(message, "stop_reason", None) == "max_tokens":
         raise AIError("truncated")
-    return getattr(message, "parsed_output", None)
+    usage = _usage(getattr(message, "usage", None), "input_tokens", "output_tokens")
+    return getattr(message, "parsed_output", None), usage
 
 
 def _parse_json(content: Any, output: type[T]) -> T:
@@ -186,7 +206,7 @@ def _parse_json(content: Any, output: type[T]) -> T:
         raise AIError("invalid_response") from None
 
 
-def _openai(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> Any:
+def _openai(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> tuple[Any, Usage]:
     completion = client.chat.completions.parse(
         model=config.model,
         max_completion_tokens=max_tokens,
@@ -202,10 +222,12 @@ def _openai(client: Any, config: AIConfig, system: str, user: str, output: type[
     message = getattr(choice, "message", None)
     if getattr(choice, "finish_reason", None) == "content_filter" or getattr(message, "refusal", None):
         raise AIError("refused")
-    return getattr(message, "parsed", None)
+    usage = _usage(getattr(completion, "usage", None), "prompt_tokens", "completion_tokens")
+    return getattr(message, "parsed", None), usage
 
 
-def _openai_compatible(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> Any:
+def _openai_compatible(client: Any, config: AIConfig, system: str, user: str, output: type[T],
+                       max_tokens: int) -> tuple[Any, Usage]:
     data = client.chat(
         model=config.model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -224,10 +246,11 @@ def _openai_compatible(client: Any, config: AIConfig, system: str, user: str, ou
         raise AIError("truncated")
     if choice.get("finish_reason") == "content_filter" or message.get("refusal"):
         raise AIError("refused")
-    return _parse_json(message.get("content"), output)
+    usage = _usage_dict(data.get("usage"), "prompt_tokens", "completion_tokens")
+    return _parse_json(message.get("content"), output), usage
 
 
-def _ollama(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> Any:
+def _ollama(client: Any, config: AIConfig, system: str, user: str, output: type[T], max_tokens: int) -> tuple[Any, Usage]:
     data = client.chat(
         model=config.model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -236,7 +259,8 @@ def _ollama(client: Any, config: AIConfig, system: str, user: str, output: type[
     )
     if data.get("done_reason") == "length":
         raise AIError("truncated")
-    return _parse_json((data.get("message") or {}).get("content"), output)
+    usage = Usage(input_tokens=_count(data.get("prompt_eval_count")), output_tokens=_count(data.get("eval_count")))
+    return _parse_json((data.get("message") or {}).get("content"), output), usage
 
 
 _SENDERS: dict[str, Callable[..., Any]] = {
@@ -252,20 +276,47 @@ def request_structured(
     client_factory: ClientFactory = default_client_factory,
     max_tokens: int = 16000,
 ) -> T:
-    """One structured request to the configured provider. Every failure becomes an AIError."""
+    """One structured request to the configured provider. Every failure becomes an AIError.
+
+    With a usage ledger on the configuration, the request reserves its worst case before it is sent,
+    so the app's limits hold even for parallel requests. The answer's tokens then replace the
+    reservation (see spec_to_test.llm.usage).
+    """
     send = _SENDERS.get(config.provider)
     if send is None:
         raise AIError("unsupported_provider")
-    client = client_factory(config)
+    ledger = config.ledger
+    ticket = None
+    if ledger is not None:
+        estimate = estimate_input_tokens(system, user_message, json.dumps(output_format.model_json_schema()))
+        ticket = ledger.reserve(config.provider, config.model, estimate, max_tokens)
+        if ticket is None:
+            raise AIError("budget_exceeded")
     try:
-        parsed = send(client, config, system, user_message, output_format, max_tokens)
-    except AIError:
+        client = client_factory(config)
+        parsed, usage = send(client, config, system, user_message, output_format, max_tokens)
+    except AIError as error:
+        if ledger is not None and ticket is not None:
+            # An answer arrived but could not be used: its tokens were spent, so they stay counted at their
+            # worst case. Without an answer (connection, authorization, ...) nothing was spent.
+            if error.code in _ANSWERED_CODES:
+                ledger.settle(ticket, Usage())
+            else:
+                ledger.release(ticket)
         raise
     except Exception as exc:  # noqa: BLE001 - SDK errors; details may echo request data
+        if ledger is not None and ticket is not None:
+            ledger.release(ticket)
         raise AIError(error_code(exc)) from None
+    if ledger is not None and ticket is not None:
+        ledger.settle(ticket, usage)
     if not isinstance(parsed, output_format):
         raise AIError("invalid_response")
     return parsed
+
+
+# Failures after the provider has answered: the tokens of that answer were used.
+_ANSWERED_CODES = frozenset({"truncated", "refused", "invalid_response"})
 
 
 def error_code(exc: Exception) -> str:

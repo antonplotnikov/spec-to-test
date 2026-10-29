@@ -87,6 +87,69 @@ LLM_TRANSLATIONS: dict[str, dict[str, str]] = {
     "llm.testing": {"en": "Contacting the provider…", "uk": "З'єднання з провайдером…", "ru": "Соединение с провайдером…"},
     "llm.test_ok": {"en": "Connected: {model} answered.", "uk": "З'єднано: {model} відповіла.", "ru": "Соединение есть: {model} ответила."},
     # --- New AI error codes (the rest live in spec_to_test.i18n) -----------------
+    "ai.error.budget_exceeded": {
+        "en": "The AI limit of the app is reached, so no request was sent. Raise AI_TOKEN_LIMIT or AI_COST_LIMIT_USD, or restart the app to start the count again.",
+        "uk": "Досягнуто ліміт ШІ застосунку, тож запит не надіслано. Збільште AI_TOKEN_LIMIT чи AI_COST_LIMIT_USD або перезапустіть застосунок, щоб почати лічильник знову.",
+        "ru": "Достигнут лимит ИИ приложения, поэтому запрос не отправлен. Увеличьте AI_TOKEN_LIMIT или AI_COST_LIMIT_USD или перезапустите приложение, чтобы начать счёт заново.",
+    },
+    "ai.usage.title": {"en": "AI usage (all sessions of this app)", "uk": "Використання ШІ (усі сесії застосунку)", "ru": "Использование ИИ (все сессии приложения)"},
+    "ai.usage.by_model": {
+        "en": "By provider and model", "uk": "За провайдером і моделлю", "ru": "По провайдеру и модели",
+    },
+    "ai.usage.reset_note": {
+        "en": "Counted in memory: the counts start from zero when the app restarts.",
+        "uk": "Лічильники ведуться в пам'яті: після перезапуску застосунку вони починаються з нуля.",
+        "ru": "Счётчики ведутся в памяти: после перезапуска приложения они начинаются с нуля.",
+    },
+    "ai.usage.cost_partial": {
+        "en": "The cost limit does not cover models without a price; the token limit does.",
+        "uk": "Ліміт вартості не охоплює моделі без ціни; ліміт токенів охоплює.",
+        "ru": "Лимит стоимости не охватывает модели без цены; лимит токенов охватывает.",
+    },
+    "ai.usage.cost_na": {"en": "cost unknown", "uk": "вартість невідома", "ru": "стоимость неизвестна"},
+    "ai.usage.line": {
+        "en": "{requests} requests · {tokens} tokens ({input} in, {output} out)",
+        "uk": "{requests} запитів · {tokens} токенів (вхідні {input}, вихідні {output})",
+        "ru": "{requests} запросов · {tokens} токенов (входные {input}, выходные {output})",
+    },
+    "ai.usage.cost": {"en": "Estimated cost: ${cost}", "uk": "Орієнтовна вартість: ${cost}", "ru": "Примерная стоимость: ${cost}"},
+    "ai.usage.cost_unknown": {
+        "en": "Cost unknown: no price is set for this model (AI_PRICES).",
+        "uk": "Вартість невідома: для цієї моделі не задано ціну (AI_PRICES).",
+        "ru": "Стоимость неизвестна: для этой модели не задана цена (AI_PRICES).",
+    },
+    "ai.usage.unpriced": {
+        "en": "{count} requests have no price and are not in the cost.",
+        "uk": "{count} запитів без ціни не враховано у вартості.",
+        "ru": "{count} запросов без цены не учтены в стоимости.",
+    },
+    "ai.usage.unknown_tokens": {
+        "en": "{count} requests did not report token counts.",
+        "uk": "{count} запитів не повідомили кількість токенів.",
+        "ru": "{count} запросов не сообщили количество токенов.",
+    },
+    "ai.usage.limit_tokens": {"en": "Tokens: {used} of {limit}", "uk": "Токени: {used} з {limit}", "ru": "Токены: {used} из {limit}"},
+    "ai.usage.limit_cost": {"en": "Cost: ${used} of ${limit}", "uk": "Вартість: ${used} з ${limit}", "ru": "Стоимость: ${used} из ${limit}"},
+    "ai.usage.warn_tokens": {
+        "en": "Close to the token limit of the app.",
+        "uk": "Наближається ліміт токенів застосунку.",
+        "ru": "Близко к лимиту токенов приложения.",
+    },
+    "ai.usage.warn_cost": {
+        "en": "Close to the cost limit of the app.",
+        "uk": "Наближається ліміт вартості застосунку.",
+        "ru": "Близко к лимиту стоимости приложения.",
+    },
+    "ai.usage.exceeded": {
+        "en": "The app's limit is reached: AI requests are refused until the limit is raised or the app restarts.",
+        "uk": "Ліміт застосунку досягнуто: запити ШІ відхиляються, доки ліміт не збільшать або застосунок не перезапустять.",
+        "ru": "Лимит приложения достигнут: запросы ИИ отклоняются, пока лимит не увеличат или приложение не перезапустят.",
+    },
+    "ai.usage.invalid": {
+        "en": "A limit or price in the settings could not be read, so it is off.",
+        "uk": "Ліміт або ціну в налаштуваннях не вдалося прочитати, тож вони вимкнені.",
+        "ru": "Лимит или цену в настройках не удалось прочитать, поэтому они отключены.",
+    },
     "ai.error.model_not_found": {
         "en": "The AI provider does not know this model. Check the model name (for Ollama, run: ollama pull <model>).",
         "uk": "Провайдер ШІ не знає цієї моделі. Перевірте назву моделі (для Ollama виконайте: ollama pull <model>).",
