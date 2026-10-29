@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 from spec_to_test.i18n import TRANSLATIONS
 from spec_to_test.models import ClarificationStatus, FindingType, TestCase, TestType, Workspace
+from spec_to_test.quality import Grade, grade_of
 from spec_to_test.rule_engine import _AMBIGUOUS, _OUTCOME, _QUOTED, STOPWORDS, _compile, _normalize, _stems
 
 Criterion = Literal["steps", "expected_result", "requirement_match", "duplicate", "conflict", "unsupported"]
@@ -205,3 +206,65 @@ def critique(tc: TestCase, workspace: Workspace) -> list[CriticIssue]:
             if quote[1:-1].strip().lower() not in source:
                 issues.append(CriticIssue(criterion="unsupported", code="invented_text", params={"text": quote}))
     return issues
+
+
+# --- Quality score -----------------------------------------------------------------------
+
+# Points a problem costs, by critic code. Unknown items cost nothing: the texts are not enough
+# to judge them, so they are listed for review rather than counted as failures.
+PENALTIES: dict[str, int] = {
+    "step_placeholder": 20,
+    "step_generic": 10,
+    "step_vague": 8,
+    "step_too_short": 8,
+    "expected_placeholder": 25,
+    "expected_vague": 15,
+    "expected_not_observable": 15,
+    "requirement_mismatch": 15,
+    "duplicate": 15,
+    "expectation_conflict": 25,
+    "invented_value": 15,
+    "invented_text": 10,
+}
+UNKNOWN_CODES = frozenset({"expected_unspecified", "requirement_missing", "requirement_no_expected"})
+
+
+class ScoreDeduction(CriticIssue):
+    """A problem the critic found, and the points it cost. Reads like the issue it comes from."""
+
+    points: int
+
+
+class TestCaseScore(BaseModel):
+    """Quality of one test case: 100 minus the points of every problem found, never below 0.
+
+    100 means the critic found no problem. It does not mean the test case is complete;
+    missing scenarios are shown by scenario coverage.
+    """
+
+    __test__ = False  # tell pytest this is not a test class
+
+    test_case_id: str
+    score: int
+    deductions: list[ScoreDeduction] = []
+    unknown: list[CriticIssue] = []
+
+    @property
+    def grade(self) -> Grade:
+        return grade_of(self.score)
+
+
+def score_test_case(tc: TestCase, workspace: Workspace) -> TestCaseScore:
+    issues = critique(tc, workspace)
+    deductions = [
+        ScoreDeduction(criterion=i.criterion, code=i.code, params=i.params, points=PENALTIES[i.code])
+        for i in issues
+        if not i.unknown
+    ]
+    unknown = [i for i in issues if i.unknown]
+    return TestCaseScore(
+        test_case_id=tc.id,
+        score=max(0, 100 - sum(d.points for d in deductions)),
+        deductions=deductions,
+        unknown=unknown,
+    )

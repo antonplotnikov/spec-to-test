@@ -1,11 +1,13 @@
 """UI tests for the QA features (dashboard, RTM, editor, bugs, AI, export, persistence)."""
 
+import json
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from conftest import PROJECT_ROOT, goto, home
 from spec_to_test.models import ReviewStatus
-from spec_to_test.storage import load_latest, load_pointer, save_workspace
+from spec_to_test.storage import data_dir, load_latest, load_pointer, save_workspace
 
 APP_PATH = str(PROJECT_ROOT / "app.py")
 PAGES = [
@@ -19,6 +21,12 @@ def new_app() -> AppTest:
     at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
     return at
+
+
+def _unsaved_copy(doc_hash: str):
+    """The copy of an edit the app could not save: its name holds the digest of its content."""
+    [copy] = (data_dir() / "conflicts").glob(f"{doc_hash}.unsaved-*.json")
+    return copy
 
 
 @pytest.fixture
@@ -51,7 +59,7 @@ def test_analyze_opens_the_analysis_page(analyzed):
 def test_every_page_and_tab_is_present(analyzed):
     assert nav_labels(analyzed) == PAGES
     assert [tab.label for tab in analyzed.tabs] == ANALYSIS_TABS
-    assert [tab.label for tab in goto(analyzed, "tests").tabs] == ["Test cases", "Test suites", "Automation"]
+    assert [tab.label for tab in goto(analyzed, "tests").tabs] == ["Test cases", "Test suites", "Test runs", "Automation"]
     for page in ("bug_reports", "rtm", "dashboard", "export", "settings", "grill", "home"):
         assert not goto(analyzed, page).exception
 
@@ -92,14 +100,57 @@ def test_dashboard_metrics(analyzed):
     goto(analyzed, "dashboard")
     labels = {m.label: m.value for m in analyzed.metric}
     assert labels["Test cases"] != "0"
-    assert labels["Coverage"] == "0%"  # nothing approved yet
+    assert labels["Review coverage"] == "0%"  # nothing approved yet
 
 
 def test_rtm_lists_every_requirement(analyzed):
     goto(analyzed, "rtm")
     rtm = table_with_column(analyzed, "Approved tests")
     assert list(rtm["ID"]) == [f"REQ-{n}" for n in range(1, 10)]
-    assert set(rtm["Coverage"]) == {"🟡 Partially covered"}
+    assert set(rtm["Coverage"]) == {"🟡 Not approved yet"}
+
+
+def test_rtm_shows_design_review_and_unknown_execution(analyzed):
+    goto(analyzed, "rtm")
+    labels = {m.label: m.value for m in analyzed.metric}
+    assert labels["Design"] == "100%"  # every requirement has a draft test case
+    assert labels["Review"] == "0%"  # nothing approved yet
+    assert labels["Execution"] == "Not tracked"  # no run is recorded, so it is not 0%
+
+
+def test_analysis_lists_possible_duplicate_requirements():
+    at = new_app()
+    text = ("REQ-1: The password must be at least 8 characters long.\n"
+            "REQ-2: The password must be at least 8 characters long.\n")
+    home(at).text_area(key="requirements_text").input(text).run()
+    home(at).button(key="analyze").click().run()
+    assert not at.exception
+    assert any("REQ-1 and REQ-2 have the same wording" in w.value for w in at.warning)
+
+
+def test_a_changed_document_shows_impact_recommendations():
+    at = new_app()
+    first = ("Login spec\nREQ-1: The user must log in with a password.\n"
+             "REQ-2: The session must expire after 30 minutes.\n")
+    changed = first.replace("30 minutes", "15 minutes")
+    home(at).text_area(key="requirements_text").input(first).run()
+    home(at).button(key="analyze").click().run()
+    home(at).text_area(key="requirements_text").input(changed).run()
+    home(at).button(key="analyze").click().run()
+    assert not at.exception
+    actions = table_with_column(at, "Suggested action")["Suggested action"]
+    assert "Update" in set(actions)  # the changed requirement's draft test cases
+    assert "Keep" not in set(actions)  # unchanged requirements are counted, not listed
+
+
+def test_test_cases_show_a_quality_score(analyzed):
+    goto(analyzed, "tests")
+    assert set(table_with_column(analyzed, "Quality score")["Quality score"]) <= set(range(101))
+
+
+def test_rtm_shows_the_average_test_quality_per_requirement(analyzed):
+    rtm = table_with_column(goto(analyzed, "rtm"), "Test quality (avg)")
+    assert set(rtm["Test quality (avg)"]) <= set(range(101))  # every requirement has test cases here
 
 
 def test_edit_and_approve_test_case_updates_rtm_and_persists(analyzed):
@@ -120,7 +171,7 @@ def test_edit_and_approve_test_case_updates_rtm_and_persists(analyzed):
     rtm = table_with_column(goto(at, "rtm"), "Approved tests")
     row = rtm[rtm["ID"] == edited.requirement_id].iloc[0]
     assert edited.id in row["Approved tests"]
-    assert row["Coverage"] == "✅ Covered"
+    assert row["Coverage"] == "✅ Approved"
 
 
 def test_an_edit_does_not_overwrite_a_change_saved_elsewhere(analyzed):
@@ -137,11 +188,54 @@ def test_an_edit_does_not_overwrite_a_change_saved_elsewhere(analyzed):
     saved = load_latest()
     assert len(saved.test_cases) == count
     assert saved.test_cases[0].review_status == ReviewStatus.APPROVED
-    # The app now shows the saved version, so the next edit keeps the change.
+    # The added case is not dropped: it waits in the session and in a copy on disk, for the user to decide.
+    doc_hash = saved.document_hash
+    assert any("changed elsewhere" in w.value for w in at.warning)
+    unsaved = _unsaved_copy(doc_hash)
+    assert len(json.loads(unsaved.read_text(encoding="utf-8"))["test_cases"]) == count + 1
+    button(at, "tc_add").click().run()  # still undecided: the next edit waits too, nothing is overwritten
+    assert len(load_latest().test_cases) == count
+    # Loading the saved version shows it, so the next edit is saved on top of the change.
+    button(at, f"conflict_load_default_{doc_hash}").click().run()
+    assert not at.exception
     button(at, "tc_add").click().run()
     saved = load_latest()
     assert len(saved.test_cases) == count + 1
     assert next(tc for tc in saved.test_cases if tc.id == approved).review_status == ReviewStatus.APPROVED
+
+
+def test_saving_my_version_over_a_change_keeps_the_replaced_copy(analyzed):
+    at = goto(analyzed, "tests")
+    elsewhere = load_latest()  # e.g. the QA on-change run with --allow-write
+    approved = elsewhere.test_cases[0].id
+    elsewhere.test_cases[0].review_status = ReviewStatus.APPROVED
+    save_workspace(elsewhere, load_pointer()[0], remember=False)
+    button(at, "tc_add").click().run()  # conflicts with the change saved elsewhere
+    count = len(elsewhere.test_cases)
+    button(at, f"conflict_overwrite_default_{elsewhere.document_hash}").click().run()
+    assert not at.exception
+    saved = load_latest()
+    assert len(saved.test_cases) == count + 1  # my version is on disk
+    assert next(tc for tc in saved.test_cases if tc.id == approved).review_status == ReviewStatus.DRAFT
+    # The replaced file is kept: the approval saved elsewhere is not lost.
+    [replaced] = (data_dir() / "conflicts").glob(f"{elsewhere.document_hash}-replaced-*.json")
+    kept = json.loads(replaced.read_text(encoding="utf-8"))
+    assert next(tc for tc in kept["test_cases"] if tc["id"] == approved)["review_status"] == "approved"
+    assert not any("changed elsewhere" in w.value for w in at.warning)
+
+
+def test_an_unreadable_saved_file_does_not_drop_the_edits(analyzed):
+    at = goto(analyzed, "tests")
+    doc_hash = load_latest().document_hash
+    before = len(load_latest().test_cases)
+    (data_dir() / "workspaces" / f"{doc_hash}.json").write_text("{not json", encoding="utf-8")
+    button(at, "tc_add").click().run()  # the saved file changed, so the added case conflicts
+    kept = json.loads(_unsaved_copy(doc_hash).read_text(encoding="utf-8"))
+    assert len(kept["test_cases"]) == before + 1
+    button(at, f"conflict_load_default_{doc_hash}").click().run()
+    assert not at.exception
+    assert any("cannot be read" in toast.value for toast in at.toast)
+    assert any("changed elsewhere" in w.value for w in at.warning)  # still undecided, still listed
 
 
 def test_invalid_edit_is_rejected(analyzed):
@@ -229,7 +323,7 @@ def test_rtm_names_the_condition_no_test_case_names(analyzed):
     unchecked = dict(zip(rtm["ID"], rtm["Conditions no test case names"], strict=True))
     assert unchecked == {**{f"REQ-{n}": "—" for n in range(1, 10)}, "REQ-4": "“contain one digit”"}
     # Statuses stay as they were.
-    assert set(rtm["Coverage"]) == {"🟡 Partially covered"}
+    assert set(rtm["Coverage"]) == {"🟡 Not approved yet"}
 
 
 def test_work_is_restored_in_a_new_session(analyzed, example_text):

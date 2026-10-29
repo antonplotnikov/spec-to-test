@@ -20,12 +20,16 @@ the reason, so the reviewer decides.
 
 from collections.abc import Callable
 from difflib import SequenceMatcher
+from typing import Literal
+
+from pydantic import BaseModel
 
 from spec_to_test.models import (
     ChangeImpact,
     DocumentSummary,
     Requirement,
     RequirementChange,
+    ReviewStatus,
     TestCaseImpact,
     Workspace,
 )
@@ -141,3 +145,62 @@ def change_impact(
         changes=changes,
         test_cases=impact_on_tests(previous, changes),
     )
+
+
+# --- Recommendations ---------------------------------------------------------------------
+
+RecommendedAction = Literal["keep", "update", "add", "remove", "review"]
+
+
+class Recommendation(BaseModel):
+    """What to do about one requirement after a change. A suggestion: nothing is applied."""
+
+    requirement_id: str
+    action: RecommendedAction
+    change: Literal["added", "modified", "removed", "unknown", "unchanged"]
+    # Test cases of the previous version that concern this requirement.
+    test_case_ids: list[str] = []
+    # True when an Approved test case concerns the requirement: it must be run again.
+    regression: bool = False
+
+
+def recommend(impact: ChangeImpact, requirement_ids: list[str]) -> list[Recommendation]:
+    """Suggested action per changed requirement, and Keep for the unchanged ones.
+
+    - added:    Add test cases; the requirement is new, so none exists yet.
+    - modified: Update draft test cases; an Approved one must be reviewed again.
+    - removed:  Remove its test cases; the requirement is gone.
+    - unknown:  Review; the previous version has no reliable match.
+    - others:   Keep.
+
+    Statuses are never changed here: a reviewer decides, one suggestion at a time.
+    """
+    affected: dict[str, list[TestCaseImpact]] = {}
+    for tc in impact.test_cases:
+        affected.setdefault(tc.requirement_id, []).append(tc)
+    recommendations: list[Recommendation] = []
+    touched: set[str] = set()
+    for change in impact.changes:
+        requirement = change.new_id or change.old_id
+        touched.add(requirement)
+        if change.kind == "added":
+            recommendations.append(Recommendation(requirement_id=requirement, action="add", change="added"))
+            continue
+        cases = affected.get(change.old_id, [])
+        approved = any(tc.review_status == ReviewStatus.APPROVED for tc in cases)
+        if change.kind == "modified":
+            action: RecommendedAction = "review" if approved else "update"
+        elif change.kind == "removed":
+            action = "remove"
+        else:
+            action = "review"
+        recommendations.append(Recommendation(
+            requirement_id=requirement, action=action, change=change.kind,
+            test_case_ids=[tc.test_case_id for tc in cases],
+            regression=approved and change.kind in ("modified", "unknown"),
+        ))
+    recommendations += [
+        Recommendation(requirement_id=rid, action="keep", change="unchanged")
+        for rid in requirement_ids if rid not in touched
+    ]
+    return recommendations

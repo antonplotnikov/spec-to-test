@@ -13,6 +13,8 @@ import io
 import re
 from collections.abc import Sequence
 
+from spec_to_test.change_impact import Recommendation
+from spec_to_test.execution import TestRun
 from spec_to_test.formatting import escape_markdown, markdown_cell
 from spec_to_test.i18n import t
 from spec_to_test.models import (
@@ -190,6 +192,67 @@ def _md_table(headers: list[str], rows: list[list[object]]) -> list[str]:
 
 def _md_list(items: list[str]) -> list[str]:
     return [f"- {escape_markdown(item)}" for item in items] or ["- —"]
+
+
+def impact_headers(lang: str) -> list[str]:
+    return [
+        t("column.id", lang), t("impact.rec.action", lang), t("impact.column.change", lang),
+        t("column.test_cases", lang), t("impact.rec.regression", lang),
+    ]
+
+
+def impact_rows(recommendations: list[Recommendation], lang: str) -> list[list[object]]:
+    return [
+        [
+            r.requirement_id, t(f"impact.action.{r.action}", lang), t(f"impact.kind.{r.change}", lang),
+            ", ".join(r.test_case_ids) or "—", "✔" if r.regression else "—",
+        ]
+        for r in recommendations
+    ]
+
+
+def _impact_table(recommendations: list[Recommendation], lang: str,
+                  decisions: dict[str, str] | None) -> tuple[list[str], list[list[object]]]:
+    """Headers and rows; with `decisions` (requirement ID -> state label) a Decision column is added."""
+    headers, rows = impact_headers(lang), impact_rows(recommendations, lang)
+    if decisions is None:
+        return headers, rows
+    headers = [*headers, t("impact.decision.column", lang)]
+    rows = [[*row, decisions.get(r.requirement_id, t("impact.decision.undecided", lang))]
+            for row, r in zip(rows, recommendations, strict=True)]
+    return headers, rows
+
+
+def impact_csv(recommendations: list[Recommendation], lang: str = "en",
+               decisions: dict[str, str] | None = None) -> str:
+    """The recommendations of the change impact, one row per requirement. Suggestions only."""
+    return _to_csv(*_impact_table(recommendations, lang, decisions))
+
+
+def impact_markdown(workspace: Workspace, recommendations: list[Recommendation], lang: str = "en",
+                    decisions: dict[str, str] | None = None) -> str:
+    """The Impact Report: which version was compared, and what to do about each requirement."""
+    impact = workspace.change_impact
+    lines = [f"# {t('impact.report.title', lang)}", "", f"_{t('impact.report.note', lang)}_", ""]
+    if impact is not None and impact.status == "compared":
+        previous = t("impact.previous", lang, title=escape_markdown(impact.previous_title),
+                     date=impact.previous_created_at[:16].replace("T", " "))
+        lines += [previous, ""]
+    lines += [f"## {t('impact.rec.heading', lang)}", ""]
+    lines += _md_table(*_impact_table(recommendations, lang, decisions))
+    return "\n".join(lines) + "\n"
+
+
+def run_csv(run: TestRun, titles: dict[str, str], lang: str = "en") -> str:
+    """The results of one test run, one row per test case. Titles come from the document (may be missing)."""
+    headers = [t("column.test_id", lang), t("column.title", lang), t("column.status", lang),
+               t("runs.comment", lang), t("runs.bug_id", lang), t("runs.updated", lang)]
+    rows = [
+        [r.test_case_id, titles.get(r.test_case_id, t("runs.removed", lang)), t(f"runs.status.{r.status.value}", lang),
+         r.comment, r.bug_id, r.updated_at]
+        for r in run.results
+    ]
+    return _to_csv(headers, rows)
 
 
 def markdown_report(workspace: Workspace, rows: list[RTMRow], lang: str = "en") -> str:

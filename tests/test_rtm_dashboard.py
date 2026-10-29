@@ -3,7 +3,9 @@ from spec_to_test.input_parser import extract_requirements
 from spec_to_test.models import ReviewStatus, TestCase, TestType, Workspace
 from spec_to_test.rtm import (
     Coverage,
+    CoverageLevels,
     build_rtm,
+    coverage_levels,
     filter_rows,
     orphan_test_case_ids,
     summarize,
@@ -81,6 +83,39 @@ def test_filtered_summary_uses_only_filtered_rows(example_text):
 def test_empty_summary():
     summary = summarize([], Workspace())
     assert summary.coverage_percent == 0.0 and summary.average_quality is None
+
+
+def test_design_and_review_levels_are_kept_apart(example_text):
+    ws = make_workspace(example_text)
+    ws.test_cases[0].review_status = ReviewStatus.APPROVED  # one approved test, the rest drafts
+    levels = coverage_levels(build_rtm(ws))
+    # Every requirement has a test case (design); only the one with an Approved test is reviewed.
+    assert levels.design == 100.0
+    assert levels.review == round(100 / 9, 1)
+    # No test run is recorded, so execution is unknown: never zero, and not implied by Approved.
+    assert levels.execution is None
+
+
+def test_approved_test_case_is_not_counted_as_executed(example_text):
+    ws = make_workspace(example_text)
+    for tc in ws.test_cases:
+        tc.review_status = ReviewStatus.APPROVED
+    levels = coverage_levels(build_rtm(ws))
+    assert levels.review == 100.0
+    assert levels.execution is None
+
+
+def test_coverage_levels_of_no_requirements():
+    assert coverage_levels([]) == CoverageLevels(design=0.0, review=0.0)
+
+
+def test_dashboard_summary_agrees_with_coverage_levels(example_text):
+    ws = make_workspace(example_text)
+    ws.test_cases[0].review_status = ReviewStatus.APPROVED
+    rows = build_rtm(ws)
+    summary = summarize(rows, ws)
+    levels = coverage_levels(rows)
+    assert (summary.any_test_percent, summary.coverage_percent) == (levels.design, levels.review)
 
 
 def test_orphan_test_cases_are_detected():
